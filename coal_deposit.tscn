@@ -1,0 +1,46 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://resource_node.gd" id="1_res"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_rock"]
+size = Vector3(1.8, 1.0, 1.8)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_coal"]
+albedo_color = Color(0.109804, 0.105882, 0.101961, 1)
+metallic = 0.2
+roughness = 0.35
+
+[sub_resource type="SphereMesh" id="SphereMesh_big"]
+material = SubResource("StandardMaterial3D_coal")
+radius = 0.8
+height = 1.0
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="SphereMesh_small"]
+material = SubResource("StandardMaterial3D_coal")
+radius = 0.4
+height = 0.6
+radial_segments = 6
+rings = 3
+
+[node name="CoalDeposit" type="StaticBody3D"]
+script = ExtResource("1_res")
+resource_name = "Coal"
+gathers_left = 4
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+shape = SubResource("BoxShape3D_rock")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_big")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
+
+[node name="Lump" type="MeshInstance3D" parent="MeshInstance3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, -0.1, 0.4)
+mesh = SubResource("SphereMesh_small")
+
+[node name="Lump2" type="MeshInstance3D" parent="MeshInstance3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, -0.15, -0.5)
+mesh = SubResource("SphereMesh_small")

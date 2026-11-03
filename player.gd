@@ -15,8 +15,19 @@ const DAY_WARMTH = 0.3
 const FIRE_WARMTH = 6.0
 ## Wood it takes to build a campfire
 const CAMPFIRE_COST = 3
+## ...or, with no wood (and no axe yet), sticks and stones to ring it
+const CAMPFIRE_STICKS = 6
+const CAMPFIRE_STONES = 2
 ## Inside a shelter, the cold gets to you only this fast (0.35 = a bit over a third as fast)
 const SHELTER_CHILL = 0.35
+## What a dowsing rod is made of
+const ROD_STICKS = 2
+const ROD_FIBER = 1
+## How far a dowsing pulse reaches, how long what it finds stays revealed (seconds),
+## and how long before the rod can be used again (seconds)
+const DOWSING_RANGE = 30.0
+const DOWSING_REVEAL = 60.0
+const DOWSING_COOLDOWN = 2.0
 
 const CAMPFIRE_SCENE = preload("res://campfire.tscn")
 const NOTE_PANEL_SCENE = preload("res://note_panel.tscn")
@@ -29,6 +40,7 @@ const NOTE_PANEL_SCENE = preload("res://note_panel.tscn")
 @onready var warmth_bar: ProgressBar = $HUD/Meters/WarmthBar
 @onready var status_label: Label = $HUD/Status
 @onready var inventory_screen: Control = $HUD/InventoryScreen
+@onready var hints_label: Label = $HUD/Hints
 
 ## What you're carrying, like {"Scrap": 3, "Coal": 1}
 var inventory := {}
@@ -42,6 +54,8 @@ var _message := ""
 var _message_time := 0.0
 # The parchment page that notes and logs open on
 var _note_panel: Control
+# Seconds until the dowsing rod can pulse again
+var _dowse_wait := 0.0
 
 
 func _ready() -> void:
@@ -49,6 +63,8 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	# The look ray starts inside your own body, so tell it to ignore you
 	interact_ray.add_exception(self)
+	# So things like campfires can check what you're carrying
+	add_to_group("player")
 	_note_panel = NOTE_PANEL_SCENE.instantiate()
 	$HUD.add_child(_note_panel)
 	_refresh_inventory_display()
@@ -62,6 +78,25 @@ func _process(delta: float) -> void:
 	prompt_label.visible = target != null
 	if target:
 		prompt_label.text = "[E] %s" % target.get_prompt()
+
+	_dowse_wait = maxf(_dowse_wait - delta, 0.0)
+	_update_hints()
+
+
+# The key hints in the corner only list what you can actually do right now
+func _update_hints() -> void:
+	var hints: PackedStringArray = []
+	if inventory.get("Berries", 0) > 0:
+		hints.append("[F] Eat Berries")
+	if inventory.get("Wood", 0) >= CAMPFIRE_COST:
+		hints.append("[B] Build Campfire (%d Wood)" % CAMPFIRE_COST)
+	elif inventory.get("Sticks", 0) >= CAMPFIRE_STICKS and inventory.get("Stone", 0) >= CAMPFIRE_STONES:
+		hints.append("[B] Build Campfire (%d Sticks, %d Stone)" % [CAMPFIRE_STICKS, CAMPFIRE_STONES])
+	if inventory.has("Dowsing Rod"):
+		hints.append("[R] Dowse for buried ore")
+	elif inventory.get("Sticks", 0) >= ROD_STICKS and inventory.get("Plant Fiber", 0) >= ROD_FIBER:
+		hints.append("[C] Craft Dowsing Rod (%d Sticks, %d Plant Fiber)" % [ROD_STICKS, ROD_FIBER])
+	hints_label.text = "\n".join(hints)
 
 
 ## Opens a note, journal or log on the parchment panel. Anything readable calls this.
@@ -106,6 +141,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				_eat()
 			KEY_B:
 				_build_campfire()
+			KEY_C:
+				_craft_dowsing_rod()
+			KEY_R:
+				_dowse()
 			KEY_TAB, KEY_I:
 				_toggle_inventory()
 
@@ -218,7 +257,7 @@ func is_sheltered() -> bool:
 
 func _near_lit_fire() -> bool:
 	for fire in get_tree().get_nodes_in_group("campfires"):
-		if fire.is_lit() and global_position.distance_to(fire.global_position) < fire.warmth_radius:
+		if fire.is_lit() and global_position.distance_to(fire.global_position) < fire.heat_radius():
 			return true
 	return false
 
@@ -232,9 +271,71 @@ func _eat() -> void:
 		flash("You have nothing to eat")
 
 
+func _craft_dowsing_rod() -> void:
+	if inventory.has("Dowsing Rod"):
+		flash("You already have a dowsing rod")
+		return
+	if inventory.get("Sticks", 0) < ROD_STICKS or inventory.get("Plant Fiber", 0) < ROD_FIBER:
+		flash("A dowsing rod needs %d Sticks and %d Plant Fiber" % [ROD_STICKS, ROD_FIBER])
+		return
+	remove_item("Sticks", ROD_STICKS)
+	remove_item("Plant Fiber", ROD_FIBER)
+	add_item("Dowsing Rod", 1)
+	flash("Dowsing rod made. Press R to search for buried ore")
+
+
+# Sends out a pulse from the dowsing rod. Every hidden deposit within range shows itself
+# for a while: a dig spot on the ground with a faint marker floating above it.
+func _dowse() -> void:
+	if not inventory.has("Dowsing Rod") or _dowse_wait > 0.0:
+		return
+	_dowse_wait = DOWSING_COOLDOWN
+	var found := 0
+	for deposit in get_tree().get_nodes_in_group("hidden_deposits"):
+		if deposit.gathers_left > 0 and global_position.distance_to(deposit.global_position) <= DOWSING_RANGE:
+			deposit.reveal(DOWSING_REVEAL)
+			found += 1
+	_show_pulse()
+	if found == 0:
+		flash("The rod stays still. Nothing buried nearby")
+	elif found == 1:
+		flash("The rod tugs. Something is buried nearby")
+	else:
+		flash("The rod tugs hard. %d deposits buried nearby" % found)
+
+
+# A faint golden ring that sweeps out across the ground from your feet
+func _show_pulse() -> void:
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.96
+	ring.outer_radius = 1.0
+	ring.rings = 64
+	ring.ring_segments = 4
+	var glow := StandardMaterial3D.new()
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glow.albedo_color = Color(2.0, 1.6, 0.6, 0.6)
+	ring.material = glow
+	var pulse := MeshInstance3D.new()
+	pulse.mesh = ring
+	pulse.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	get_parent().add_child(pulse)
+	pulse.global_position = global_position + Vector3.DOWN * 0.8
+	var sweep := pulse.create_tween().set_parallel()
+	sweep.tween_property(pulse, "scale", Vector3(DOWSING_RANGE, 1.0, DOWSING_RANGE), 1.2).from(Vector3.ONE)
+	sweep.tween_property(glow, "albedo_color:a", 0.0, 1.2)
+	sweep.chain().tween_callback(pulse.queue_free)
+
+
 func _build_campfire() -> void:
-	if not remove_item("Wood", CAMPFIRE_COST):
-		flash("A campfire needs %d Wood" % CAMPFIRE_COST)
+	# Logs if you have them; otherwise a ring of stones with sticks piled inside
+	if inventory.get("Wood", 0) >= CAMPFIRE_COST:
+		remove_item("Wood", CAMPFIRE_COST)
+	elif inventory.get("Sticks", 0) >= CAMPFIRE_STICKS and inventory.get("Stone", 0) >= CAMPFIRE_STONES:
+		remove_item("Sticks", CAMPFIRE_STICKS)
+		remove_item("Stone", CAMPFIRE_STONES)
+	else:
+		flash("A campfire needs %d Wood, or %d Sticks and %d Stone" % [CAMPFIRE_COST, CAMPFIRE_STICKS, CAMPFIRE_STONES])
 		return
 
 	# Set it down on the ground a couple of steps in front of you
@@ -248,7 +349,7 @@ func _build_campfire() -> void:
 	var fire := CAMPFIRE_SCENE.instantiate()
 	get_parent().add_child(fire)
 	fire.global_position = spot
-	flash("Campfire built. Look at it and press E to add Coal")
+	flash("Campfire built. Look at it and press E to light it with Plant Fiber")
 
 
 ## Opens the backpack (freeing the mouse) or closes it (grabbing the mouse again).

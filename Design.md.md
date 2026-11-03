@@ -50,15 +50,21 @@ Four eras take the player from scrap to the sky, and each era's technology also 
 
 | Era | What the player builds | Key resources | Main threat |
 | --- | --- | --- | --- |
-| 1. Scrap and Survival | Hand tools, campfire, rough shelter | Scrap, wood, stone, berries, coal | Cold, hunger, wolves |
-| 2. The Forge | Forge, workshop, first boiler, better tools | Iron and copper ore | Lone Hollow scouts drawn by forge smoke |
-| 3. Steam Power | Sawmill, water wheel, steam pump, steam shovel, walls and steam defenses, clockwork helpers | Gears, springs, copper plating from Hollows | Hollow raiding parties |
-| 4. The Sky | Restored airship dock, trade with passing airships, own airship, clockwork guardians | Construct cores, trade goods | A major Hollow assault drawn by the dock's engines |
+| 1. Scrap and Survival | Stone tools, campfire, rough shelter | Stone, plant fiber, sticks, wood, scrap, berries | Cold, hunger, wolves |
+| 2. The Forge | Smelter, forge, workshop, bronze tools | Copper and tin, smelted into bronze; zinc for brass (proposed) | Lone Hollow scouts drawn by forge smoke |
+| 3. Steam Power | Sawmill, water wheel, steam pump, steam shovel, walls and steam defenses, clockwork helpers | Iron and coal from underground, steel (proposed), gears, springs, copper plating from Hollows | Hollow raiding parties |
+| 4. The Sky | Restored airship dock, trade with passing airships, own airship, clockwork guardians | Aether from capped vents, aluminum for airship frames, construct cores, trade goods | A major Hollow assault drawn by the dock's engines |
 
 **How technology unlocks.** Two routes, mixed:
 
 - **By doing:** chopping, mining, and crafting teach the basics (Medieval Dynasty style).
 - **By discovering:** schematics found in ruins, and Hollow parts studied at the workshop, unlock the advanced tech.
+
+**Underground resources.** Iron and coal don't sit on the surface. The player has to craft a prospecting tool to find deposits (ideas: a dowsing rod early, then a brass prospector's scope or seismic thumper), then dig or drill to reach them.
+
+**A building for each tier.** Every tier adds its own production buildings, for example a smelter and forge for bronze, a blast furnace for iron and steel, an aether extractor, and an airship yard.
+
+**Aluminum (proposed lore).** As in the real 1800s, aluminum is rarer than gold because refining it takes enormous power. Aether-powered refining is what finally makes it possible, which ties the last tier together. It is the lightweight metal for airship building.
 
 ## Threats
 
@@ -82,7 +88,7 @@ The player fights with a mix of melee, ranged weapons, firearms, and magitek, an
 | Firearms | Steam pistol, rifle, scattergun | High damage | Loud and hot, so it attracts Hollows; scarce ammo |
 | Magitek | Aether gauntlet (lightning), ward lantern, charged blades | Powerful; can stun or disable Hollows | Runs on aether; its glow draws Hollows most of all |
 
-**Aether.** The golden energy that gave the Gilded Empire its name. It powered the great control engine and every construct core, and whatever went wrong with it is what turned the constructs into Hollows. The player harvests aether from defeated Hollow cores, so magitek, the story, and the enemies all share one source.
+**Aether.** The golden energy that gave the Gilded Empire its name. It powered the great control engine and every construct core, and whatever went wrong with it is what turned the constructs into Hollows. Aether rises from vents in the ground. To collect it, the player caps a vent by placing an extractor building on top of it, so vents are fixed points on the map worth finding, claiming, and defending.
 
 ## Settlement and defense
 
@@ -94,6 +100,14 @@ The player starts out doing everything alone and gradually becomes the leader of
 - **Clockwork guardians:** late game, reprogrammed construct cores become defenders, turning the Empire's weapons against its ruins.
 - **Terraforming:** a craftable, coal-fuelled steam shovel raises, lowers, and flattens ground for foundations, ponds, and channels from the river. Height-based only, so no caves or tunnels. It needs a save system so changes persist.
 
+## Building system
+
+The player builds freely rather than following fixed plans: the goal is closer to RuneScape: Dragonwilds than to Medieval Dynasty's set build stages.
+
+- **Snap pieces (proposed approach):** foundations, walls, floors, roof sections, stairs, and doors that snap to a grid and to each other. Players design their own buildings while the number of pieces to build and test stays manageable.
+- **Production buildings:** each tier's workstations (smelter, forge, extractor) are placed as ready-made objects inside or beside the player's own structures.
+- **Build it early:** this is the hardest system and the one that matters most, so a small prototype (place a wall, snap a second to it) comes before content.
+
 ## World and look
 
 The valley is built from real-world elevation data and is heading toward a realistic natural look, with steampunk ruins layered on top.
@@ -102,6 +116,8 @@ The valley is built from real-world elevation data and is heading toward a reali
 - **Water:** a single water level fills the low ground, forming the river and lake.
 - **Visual target:** a realistic forest-and-stream look like the reference screenshot (rocky slopes, ferns, deer). Lighting, fog, shaders, and procedural grass come first; real art assets (Poly Haven, ambientCG, asset packs) replace placeholders in a later beauty pass.
 - **Places to discover:** the ruined airship dock, an abandoned workshop, and rusting machinery in the hills.
+- **Map shape and border:** the playable area doesn't need to be square. Natural borders such as steep hills, cliffs, a gorge, or fog mark the edge, with an invisible wall behind them as a backstop. Beyond the border, low-detail terrain with no foliage or collision keeps the world looking continuous.
+- **World map:** an overhead render of the terrain, styled like an old hand-drawn chart, with markers for the player and discovered vents (proposed).
 
 ## Regions
 
@@ -109,7 +125,7 @@ The world grows one region at a time: each region is its own open map, and airsh
 
 | Region | Character | Key resources | Hollow threat |
 | --- | --- | --- | --- |
-| The Valley (start) | Rolling hills, river and lake, crash site, outpost ruins | Wood, scrap, coal, stone, iron, copper | Scouts and small raids |
+| The Valley (start) | Rolling hills, river and lake, crash site, outpost ruins | Stone, fiber, sticks, wood, scrap, copper, tin; iron and coal underground; aether vents | Scouts and small raids |
 | Rust Wastes (idea) | Industrial ruins and old factories | Machine parts, oil, rare metals | Large working Hollows |
 | Frost Highlands (idea) | Cold peaks where steam heat is survival | Aether crystals, furs | Hollows that hunt heat |
 | The Fallen Capital (endgame) | The Empire's ruined heart and the great engine | Aether, the Empire's secrets | Everything |
@@ -144,10 +160,10 @@ Next comes filling the valley with things to find, then crafting and building, t
 
 **Next up, in order**
 
-1. More gatherables placed by the terrain script: stone, iron and copper ore, mushrooms, herbs
+1. More gatherables placed by the terrain script: stone, plant fiber, sticks, copper and tin ore, mushrooms, herbs (iron and coal move underground)
 2. Places to discover: the ruined airship dock and an abandoned workshop
 3. Wolves
-4. Crafting and first buildings, with a flatten-ground tool
+4. Crafting and a snap-piece building prototype, with a flatten-ground tool
 5. Save system
 6. Seasons
 7. Settlers and jobs
@@ -161,3 +177,6 @@ Next comes filling the valley with things to find, then crafting and building, t
 - [ ] What went wrong with the engine that controlled the constructs? Something went wrong with the aether; the details are still open.
 - [ ] What brought the refugee airship down?
 - [ ] Is the era 4 assault the game's final battle, or does that happen at the capital?
+- [ ] Where does aluminum ore come from: the Valley or another region?
+- [ ] Do Hollow cores still hold some aether, or do vents replace them entirely?
+- [ ] What shape is the Valley's playable area, and what forms its border?

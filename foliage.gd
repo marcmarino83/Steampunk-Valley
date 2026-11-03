@@ -90,7 +90,7 @@ func _grow_patch(chunk: Vector2i) -> Node3D:
 		if h < dry_above or valley.get_normal(x, z).y < 0.72 or valley.is_near_crash_site(x, z, 0.5):
 			continue
 		# Leave a little clear ground around trees and resources, so things you can gather stand out
-		if valley.is_spot_taken(x, z, 0.8):
+		if valley.is_spot_taken(x, z, 1.2):
 			continue
 		# Thick in some places, thin in others
 		if rng.randf() > smoothstep(-0.8, 0.1, _patch_noise.get_noise_2d(x, z)):
@@ -106,7 +106,7 @@ func _grow_patch(chunk: Vector2i) -> Node3D:
 		var x := rect.position.x + rng.randf() * rect.size.x
 		var z := rect.position.y + rng.randf() * rect.size.y
 		var h: float = valley.get_height(x, z)
-		if h < dry_above or valley.get_normal(x, z).y < 0.7 or valley.is_near_crash_site(x, z, 0.5):
+		if h < dry_above or valley.get_normal(x, z).y < 0.7 or valley.is_near_crash_site(x, z, 0.5) or valley.is_spot_taken(x, z, 1.2):
 			continue
 		var size := rng.randf_range(0.7, 1.4)
 		fern_spots.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * size), Vector3(x, h - 0.05, z)))

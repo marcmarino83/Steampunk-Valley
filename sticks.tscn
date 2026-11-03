@@ -1,0 +1,70 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://resource_node.gd" id="1_res"]
+
+[sub_resource type="BoxShape3D" id="Shape_pile"]
+size = Vector3(1.2, 0.3, 1.0)
+
+[sub_resource type="StandardMaterial3D" id="Mat_bark"]
+albedo_color = Color(0.52, 0.43, 0.32, 1)
+roughness = 0.95
+
+[sub_resource type="StandardMaterial3D" id="Mat_bark_pale"]
+albedo_color = Color(0.68, 0.6, 0.47, 1)
+roughness = 0.95
+
+[sub_resource type="CylinderMesh" id="Mesh_stick"]
+material = SubResource("Mat_bark")
+top_radius = 0.035
+bottom_radius = 0.045
+height = 1.1
+radial_segments = 5
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Mesh_stick_pale"]
+material = SubResource("Mat_bark_pale")
+top_radius = 0.03
+bottom_radius = 0.04
+height = 0.85
+radial_segments = 5
+rings = 1
+
+[node name="Sticks" type="StaticBody3D"]
+script = ExtResource("1_res")
+resource_name = "Sticks"
+amount_per_gather = 2
+gathers_left = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.12, 0)
+shape = SubResource("Shape_pile")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.1, 0)
+rotation_degrees = Vector3(0, 0, 90)
+mesh = SubResource("Mesh_stick")
+
+[node name="Stick2" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(0.0, 0.1, 0.08)
+rotation_degrees = Vector3(40, 0, 0)
+mesh = SubResource("Mesh_stick_pale")
+
+[node name="Stick3" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(0.05, -0.15, -0.12)
+rotation_degrees = Vector3(-55, 0, 0)
+mesh = SubResource("Mesh_stick")
+
+[node name="Stick4" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(0.07, 0.05, -0.2)
+rotation_degrees = Vector3(80, 0, 0)
+mesh = SubResource("Mesh_stick_pale")
+
+[node name="Stick5" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(0.1, -0.2, 0.15)
+rotation_degrees = Vector3(-20, 0, 0)
+mesh = SubResource("Mesh_stick_pale")
+
+[node name="Stick6" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(0.12, 0.25, 0.0)
+rotation_degrees = Vector3(65, 0, 0)
+mesh = SubResource("Mesh_stick")

@@ -39,15 +39,18 @@ extends StaticBody3D
 @export var stone_scene: PackedScene = preload("res://stone.tscn")
 ## Gray boulders: everywhere, more on steep slopes
 @export var stone_count := 450
-@export var iron_scene: PackedScene = preload("res://iron_ore.tscn")
-## Dark, rust-streaked rock on rocky slopes and hillsides
-@export var iron_count := 140
+@export var fiber_scene: PackedScene = preload("res://plant_fiber.tscn")
+## Tall grass and reed clumps, in meadows and along the water's edge
+@export var fiber_count := 320
+@export var stick_scene: PackedScene = preload("res://sticks.tscn")
+## Little piles of fallen branches on the forest floor
+@export var stick_count := 350
 @export var copper_scene: PackedScene = preload("res://copper_ore.tscn")
-## Green- and orange-flecked rock, rarer, high on the hills
-@export var copper_count := 60
-@export var coal_scene: PackedScene = preload("res://coal_deposit.tscn")
-## Black rock in clusters on the hillsides
-@export var coal_count := 110
+## Green- and orange-flecked rock on the hillsides
+@export var copper_count := 130
+@export var tin_scene: PackedScene = preload("res://tin_ore.tscn")
+## Pale, silver-flecked rock on the hillsides, often near copper
+@export var tin_count := 120
 @export var mushroom_scene: PackedScene = preload("res://mushrooms.tscn")
 ## Small clusters on the forest floor, close to trees
 @export var mushroom_count := 180
@@ -59,6 +62,14 @@ extends StaticBody3D
 @export var berry_count := 120
 ## Nothing gets scattered closer than this to the crash site (its own salvage is already there)
 @export var crash_site_gap := 20.0
+
+@export_group("Underground")
+## Hidden deposits buried in clusters under the hillsides. They can't be seen or dug
+## until a dowsing rod reveals them.
+@export var iron_seam_scene: PackedScene = preload("res://iron_seam.tscn")
+@export var iron_seam_count := 70
+@export var coal_seam_scene: PackedScene = preload("res://coal_seam.tscn")
+@export var coal_seam_count := 80
 
 @export_group("")
 ## The player, who starts beside the crash site (or on dry ground near the middle, if there isn't one)
@@ -98,6 +109,9 @@ var _highest := 1.0
 const SPOT_SQUARE := 4.0
 var _taken_spots := {}
 var _tree_spots := {}
+# Copper outcrops (so tin can grow near them) and buried deposits (kept apart from each other)
+var _copper_spots := {}
+var _deposit_spots := {}
 
 
 func _ready() -> void:
@@ -200,8 +214,11 @@ func generate() -> void:
 	_forest.frequency = 0.006
 	_taken_spots.clear()
 	_tree_spots.clear()
+	_copper_spots.clear()
+	_deposit_spots.clear()
 	_scatter_trees()
 	_scatter_resources()
+	_bury_deposits()
 
 	# Grass, ferns and boulders
 	var foliage = preload("res://foliage.gd").new()
@@ -470,16 +487,21 @@ func _scatter_trees() -> void:
 # Every kind of resource, with where it likes to grow:
 #   scene, count, how far apart (m), how big a clump pattern (smaller = bigger clumps),
 #   how clumpy (0 = spread evenly, 1 = only in tight clusters), size range,
-#   tilt to match the slope (rocks) or stand upright (plants), and its "likes this spot" check
+#   how much it leans to match the slope (0 = stands upright like a plant, 0.6 = settles
+#   partway like a rock, 1 = lies flat along the ground like fallen sticks), its "likes this
+#   spot" check, and how far it spreads from its middle (m, before resizing), which decides
+#   how deep to sink it
 func _resource_kinds() -> Array:
+	# Copper goes before tin, so tin can look for copper to grow near
 	return [
-		[stone_scene, stone_count, 3.0, 0.02, 0.25, Vector2(0.6, 1.6), true, _likes_stone],
-		[iron_scene, iron_count, 3.0, 0.015, 0.55, Vector2(0.8, 1.3), true, _likes_iron],
-		[copper_scene, copper_count, 3.0, 0.012, 0.6, Vector2(0.7, 1.2), true, _likes_copper],
-		[coal_scene, coal_count, 2.5, 0.02, 0.85, Vector2(0.8, 1.3), true, _likes_coal],
-		[mushroom_scene, mushroom_count, 1.5, 0.03, 0.5, Vector2(1.7, 2.3), false, _likes_mushrooms],
-		[herb_scene, herb_count, 1.5, 0.04, 0.45, Vector2(1.5, 2.0), false, _likes_herbs],
-		[berry_scene, berry_count, 3.0, 0.025, 0.4, Vector2(0.8, 1.2), false, _likes_berries],
+		[stone_scene, stone_count, 3.0, 0.02, 0.25, Vector2(0.6, 1.6), 0.6, _likes_stone, 0.75],
+		[fiber_scene, fiber_count, 2.0, 0.03, 0.4, Vector2(1.2, 1.6), 0.0, _likes_fiber, 0.3],
+		[stick_scene, stick_count, 2.0, 0.03, 0.3, Vector2(1.2, 1.6), 1.0, _likes_sticks, 0.4],
+		[copper_scene, copper_count, 3.0, 0.012, 0.55, Vector2(0.7, 1.2), 0.6, _likes_copper, 0.7],
+		[tin_scene, tin_count, 3.0, 0.012, 0.55, Vector2(0.7, 1.2), 0.6, _likes_tin, 0.7],
+		[mushroom_scene, mushroom_count, 1.5, 0.03, 0.5, Vector2(1.7, 2.3), 0.0, _likes_mushrooms, 0.2],
+		[herb_scene, herb_count, 1.5, 0.04, 0.45, Vector2(1.5, 2.0), 0.0, _likes_herbs, 0.2],
+		[berry_scene, berry_count, 3.0, 0.025, 0.4, Vector2(0.8, 1.2), 0.0, _likes_berries, 0.7],
 	]
 
 
@@ -496,8 +518,9 @@ func _scatter_resources() -> void:
 		var spacing: float = kinds[k][2]
 		var clumpiness: float = kinds[k][4]
 		var sizes: Vector2 = kinds[k][5]
-		var tilt: bool = kinds[k][6]
+		var lean: float = kinds[k][6]
 		var likes: Callable = kinds[k][7]
+		var footprint: float = kinds[k][8]
 		var rng := RandomNumberGenerator.new()
 		rng.seed = map_seed * 1000 + k
 		var clumps := FastNoiseLite.new()
@@ -530,18 +553,67 @@ func _scatter_resources() -> void:
 			var item := scene.instantiate()
 			var size := rng.randf_range(sizes.x, sizes.y)
 			var turn := Basis(Vector3.UP, rng.randf() * TAU)
-			if tilt:
-				# Rocks lean partway into the slope, like they've settled there
-				var lean := Quaternion(Vector3.UP, Vector3.UP.slerp(get_normal(x, z), 0.6))
-				turn = Basis(lean) * turn
+			if lean > 0.0:
+				# Rocks settle partway into the slope; fallen sticks lie along it
+				var settle := Quaternion(Vector3.UP, Vector3.UP.slerp(get_normal(x, z), lean))
+				turn = Basis(settle) * turn
 			item.transform = Transform3D(turn.scaled(Vector3.ONE * size), Vector3.ZERO)
-			# Sink it so its downhill edge still touches the ground on a slope (never floating).
-			# Leaning rocks already follow the slope partway, so they need less.
-			var uncovered_slope := slope * (0.6 if tilt else 1.0)
-			var sink := 0.1 + tan(deg_to_rad(minf(uncovered_slope, 60.0))) * 0.75 * size
+			# Sink it so its downhill edge still touches the ground on a slope (never floating),
+			# by just enough for its own width: a boulder needs much more than a mushroom.
+			# Things that lean with the slope already follow it partway, so they need less again.
+			var uncovered_slope := slope * (1.0 - lean * 0.67)
+			var reach := footprint * size
+			var sink := 0.07 + reach * 0.08 + tan(deg_to_rad(minf(uncovered_slope, 60.0))) * reach
 			item.position = Vector3(x, h - sink, z)
 			add_child(item)
 			_remember_spot(spot, _taken_spots)
+			if scene == copper_scene:
+				_remember_spot(spot, _copper_spots)
+			placed += 1
+
+
+# Buries iron and coal deposits in clusters under the hillsides. They're kept in their own
+# record, not the shared one, so the grass doesn't leave a tell-tale bare patch over them.
+func _bury_deposits() -> void:
+	var water := water_height()
+	var seams := [[iron_seam_scene, iron_seam_count, _likes_iron], [coal_seam_scene, coal_seam_count, _likes_coal]]
+	for s in seams.size():
+		var scene: PackedScene = seams[s][0]
+		var count: int = seams[s][1]
+		var likes: Callable = seams[s][2]
+		if scene == null or count <= 0:
+			continue
+		var rng := RandomNumberGenerator.new()
+		rng.seed = map_seed * 2000 + s
+		var clumps := FastNoiseLite.new()
+		clumps.seed = map_seed * 2000 + s
+		clumps.frequency = 0.012
+		var placed := 0
+		var tries := 0
+		while placed < count and tries < count * 400:
+			tries += 1
+			var x := rng.randf_range(-_width * 0.5 + 6.0, _width * 0.5 - 6.0)
+			var z := rng.randf_range(-_depth * 0.5 + 6.0, _depth * 0.5 - 6.0)
+			var spot := Vector2(x, z)
+			if _crash_radius > 0.0 and spot.distance_to(_crash_center) < crash_site_gap:
+				continue
+			var h := get_height(x, z)
+			if h < water + 0.5:
+				continue
+			# Seams run in clusters: only where this kind's pattern is high
+			if rng.randf() > smoothstep(0.15, 0.45, clumps.get_noise_2d(x, z)):
+				continue
+			var slope := get_slope(x, z)
+			# Dig spots need ground you can stand and dig on
+			if slope > 38.0 or rng.randf() > likes.call(x, z, h - water, slope):
+				continue
+			if _distance_to_nearest(spot, _deposit_spots, 8.0) < 8.0 or _distance_to_nearest(spot, _taken_spots, 2.5) < 2.5:
+				continue
+			var deposit := scene.instantiate()
+			deposit.rotation.y = rng.randf() * TAU
+			deposit.position = Vector3(x, h - 0.05 - tan(deg_to_rad(slope)) * 0.9, z)
+			add_child(deposit)
+			_remember_spot(spot, _deposit_spots)
 			placed += 1
 
 
@@ -552,19 +624,45 @@ func _likes_stone(_x: float, _z: float, _above_water: float, slope: float) -> fl
 	return (0.25 + 0.75 * smoothstep(8.0, 35.0, slope)) * (1.0 - smoothstep(55.0, 65.0, slope))
 
 
-func _likes_iron(_x: float, _z: float, above_water: float, slope: float) -> float:
-	var hillside := smoothstep(0.08, 0.25, above_water / _highest)
-	return smoothstep(14.0, 28.0, slope) * (1.0 - smoothstep(50.0, 60.0, slope)) * hillside
+func _likes_fiber(x: float, z: float, above_water: float, slope: float) -> float:
+	# Open meadows, and the grassy banks right by the water
+	var meadow := 1.0 - smoothstep(0.1, 0.35, _forest.get_noise_2d(x, z))
+	var bank := 0.0
+	if above_water < 4.0 and _water_nearby(x, z, 12.0):
+		bank = 1.0
+	return maxf(meadow, bank) * (1.0 - smoothstep(18.0, 28.0, slope))
+
+
+func _likes_sticks(x: float, z: float, _above_water: float, slope: float) -> float:
+	# Under the trees, where branches fall
+	var tree := _distance_to_nearest(Vector2(x, z), _tree_spots, 8.0)
+	if tree < 1.0 or tree > 7.0:
+		return 0.0
+	return 1.0 - smoothstep(28.0, 38.0, slope)
 
 
 func _likes_copper(_x: float, _z: float, above_water: float, slope: float) -> float:
-	var high_up := smoothstep(0.3, 0.5, above_water / _highest)
-	return high_up * smoothstep(10.0, 22.0, slope) * (1.0 - smoothstep(50.0, 60.0, slope))
+	# On the hillsides: up off the valley floor, but no longer only near the tops
+	var hillside := smoothstep(0.12, 0.3, above_water / _highest)
+	return hillside * smoothstep(10.0, 22.0, slope) * (1.0 - smoothstep(50.0, 60.0, slope))
+
+
+func _likes_tin(x: float, z: float, above_water: float, slope: float) -> float:
+	# The same hillsides as copper, and much more likely close to a copper outcrop
+	var hillside := smoothstep(0.12, 0.3, above_water / _highest)
+	var copper_close := _distance_to_nearest(Vector2(x, z), _copper_spots, 30.0) < 30.0
+	return hillside * smoothstep(10.0, 22.0, slope) * (1.0 - smoothstep(50.0, 60.0, slope)) \
+		* (1.0 if copper_close else 0.3)
+
+
+func _likes_iron(_x: float, _z: float, above_water: float, slope: float) -> float:
+	var hillside := smoothstep(0.08, 0.25, above_water / _highest)
+	return smoothstep(10.0, 24.0, slope) * hillside
 
 
 func _likes_coal(_x: float, _z: float, above_water: float, slope: float) -> float:
-	var hillside := 1.0 - smoothstep(0.45, 0.65, above_water / _highest)
-	return smoothstep(10.0, 22.0, slope) * (1.0 - smoothstep(45.0, 55.0, slope)) * hillside
+	var lower_hills := 1.0 - smoothstep(0.45, 0.65, above_water / _highest)
+	return smoothstep(8.0, 20.0, slope) * lower_hills
 
 
 func _likes_mushrooms(x: float, z: float, _above_water: float, slope: float) -> float:

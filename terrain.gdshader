@@ -23,6 +23,13 @@ uniform float rock_bumpiness = 0.5;
 uniform float water_height = 42.0;
 // How far above the water the ground stays dark and muddy
 uniform float shore_width = 1.5;
+// Churned-up mud with rain puddles, around the crash site. The valley sets these;
+// a radius of 0 means no mud anywhere.
+uniform vec2 mud_center = vec2(0.0);
+uniform float mud_radius = 0.0;
+// Ground burnt black around the crashed boiler. A radius of 0 means no scorch mark.
+uniform vec2 scorch_center = vec2(0.0);
+uniform float scorch_radius = 0.0;
 
 varying vec3 world_pos;
 varying vec3 world_normal;
@@ -72,6 +79,27 @@ void fragment() {
 	float shore = 1.0 - smoothstep(water_height, water_height + shore_width, world_pos.y);
 	ground = mix(ground, dirt_color * 0.45, shore);
 
+	// Around the crash site: ground churned to mud, with a ragged edge, and rain puddles in it
+	float churned = 0.0;
+	float puddle = 0.0;
+	if (mud_radius > 0.0) {
+		float ragged = (medium - 0.5) * mud_radius * 0.6;
+		churned = 1.0 - smoothstep(mud_radius * 0.5, mud_radius, distance(world_pos.xz, mud_center) + ragged);
+		ground = mix(ground, dirt_color * vec3(1.05, 0.95, 0.82) * (0.85 + small * 0.4), churned * 0.85);
+		float pools = texture(detail_noise, world_pos.xz * 0.06 + vec2(0.37, 0.61)).r;
+		puddle = churned * smoothstep(0.72, 0.76, pools);
+	}
+
+	// Scorched black around the boiler, with a ragged, sooty edge (and no puddles in it)
+	if (scorch_radius > 0.0) {
+		float ragged = (medium - 0.5) * scorch_radius * 0.7 + (small - 0.5) * scorch_radius * 0.3;
+		float burnt = 1.0 - smoothstep(scorch_radius * 0.55, scorch_radius, distance(world_pos.xz, scorch_center) + ragged);
+		// Black soot, flecked with pale grey ash
+		vec3 soot = mix(vec3(0.018, 0.016, 0.015), vec3(0.085, 0.08, 0.075), smoothstep(0.74, 0.84, small));
+		ground = mix(ground, soot, burnt * 0.95);
+		puddle *= 1.0 - burnt;
+	}
+
 	// Rock: blotchy color plus horizontal layers, like the strata in a cliff face
 	float blotches = triplanar(world_pos * 0.09, n);
 	float layers = triplanar(world_pos * vec3(0.07, 0.2, 0.07), n);
@@ -83,11 +111,16 @@ void fragment() {
 	float steep = smoothstep(rock_start, rock_full, n.y + (medium - 0.5) * 0.18);
 
 	ALBEDO = mix(ground, rock, steep);
-	ROUGHNESS = mix(0.95, 0.82, steep) - shore * 0.35;
+	ROUGHNESS = mix(0.95, 0.82, steep) - shore * 0.35 - churned * 0.25;
+
+	// Puddles: dark, glassy and dead flat, so they mirror the sky
+	ALBEDO = mix(ALBEDO, vec3(0.06, 0.05, 0.04), puddle * 0.9);
+	ROUGHNESS = mix(ROUGHNESS, 0.08, puddle);
+	SPECULAR = mix(0.5, 0.65, puddle);
 
 	// Fake little bumps and ledges by tilting the lighting ("bump mapping")
-	float bump = steep * (blotches * 0.6 + grit * 0.25 + layers * 0.4) * rock_bumpiness
-		+ (1.0 - steep) * small * 0.06;
+	float bump = (steep * (blotches * 0.6 + grit * 0.25 + layers * 0.4) * rock_bumpiness
+		+ (1.0 - steep) * small * 0.06) * (1.0 - puddle);
 	vec3 dpdx = dFdx(VERTEX);
 	vec3 dpdy = dFdy(VERTEX);
 	vec3 r1 = cross(dpdy, NORMAL);

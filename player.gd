@@ -15,8 +15,11 @@ const DAY_WARMTH = 0.3
 const FIRE_WARMTH = 6.0
 ## Wood it takes to build a campfire
 const CAMPFIRE_COST = 3
+## Inside a shelter, the cold gets to you only this fast (0.35 = a bit over a third as fast)
+const SHELTER_CHILL = 0.35
 
 const CAMPFIRE_SCENE = preload("res://campfire.tscn")
+const NOTE_PANEL_SCENE = preload("res://note_panel.tscn")
 
 @onready var camera: Camera3D = $Camera3D
 @onready var interact_ray: RayCast3D = $Camera3D/InteractRay
@@ -37,6 +40,8 @@ var warmth := 100.0
 # A short message shown at the top of the screen, and how long it has left
 var _message := ""
 var _message_time := 0.0
+# The parchment page that notes and logs open on
+var _note_panel: Control
 
 
 func _ready() -> void:
@@ -44,6 +49,8 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	# The look ray starts inside your own body, so tell it to ignore you
 	interact_ray.add_exception(self)
+	_note_panel = NOTE_PANEL_SCENE.instantiate()
+	$HUD.add_child(_note_panel)
 	_refresh_inventory_display()
 
 
@@ -51,13 +58,27 @@ func _process(delta: float) -> void:
 	_update_survival(delta)
 
 	# Show "[E] ..." while you're looking at something you can use
-	var target = _looked_at()
+	var target = null if _note_panel.is_open() else _looked_at()
 	prompt_label.visible = target != null
 	if target:
 		prompt_label.text = "[E] %s" % target.get_prompt()
 
 
+## Opens a note, journal or log on the parchment panel. Anything readable calls this.
+func read_note(title: String, text: String) -> void:
+	if inventory_screen.visible:
+		_toggle_inventory()
+	_note_panel.open(title, text)
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	# While reading, E or Esc puts the page away, and nothing else happens
+	if _note_panel.is_open():
+		var close_key: bool = event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_E
+		if close_key or event.is_action_pressed("ui_cancel"):
+			_note_panel.close()
+		return
+
 	# Moving the mouse turns your body left/right and tilts your head up/down
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		rotate_y(-event.relative.x * MOUSE_SENSITIVITY)
@@ -98,12 +119,13 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("ui_accept") and is_on_floor():
 		velocity.y = JUMP_VELOCITY
 
-	# WASD to walk
+	# WASD to walk (but stand still while reading)
 	var input_dir := Vector2.ZERO
-	if Input.is_key_pressed(KEY_W): input_dir.y -= 1
-	if Input.is_key_pressed(KEY_S): input_dir.y += 1
-	if Input.is_key_pressed(KEY_A): input_dir.x -= 1
-	if Input.is_key_pressed(KEY_D): input_dir.x += 1
+	if not _note_panel.is_open():
+		if Input.is_key_pressed(KEY_W): input_dir.y -= 1
+		if Input.is_key_pressed(KEY_S): input_dir.y += 1
+		if Input.is_key_pressed(KEY_A): input_dir.x -= 1
+		if Input.is_key_pressed(KEY_D): input_dir.x += 1
 
 	# Starving or freezing slows you to a trudge
 	var speed := WALK_SPEED
@@ -159,6 +181,10 @@ func _update_survival(delta: float) -> void:
 	if sun:
 		daylight = sun.daylight
 	var warmth_change := lerpf(-NIGHT_CHILL, DAY_WARMTH, daylight)
+	# Out of the wind, the cold creeps in much more slowly
+	var sheltered := is_sheltered()
+	if sheltered and warmth_change < 0.0:
+		warmth_change *= SHELTER_CHILL
 	if _near_lit_fire():
 		warmth_change = FIRE_WARMTH
 	warmth = clampf(warmth + warmth_change * delta, 0.0, 100.0)
@@ -176,7 +202,18 @@ func _update_survival(delta: float) -> void:
 			warnings.append("You're starving! Eat something [F]")
 		if warmth <= 0.0:
 			warnings.append("You're freezing! Get to a fire")
+		if warnings.is_empty() and sheltered:
+			warnings.append("Sheltered: the cold creeps in slowly here")
 		status_label.text = "\n".join(warnings)
+
+
+## True while standing inside a shelter (any Area3D in the "shelters" group), like the
+## intact half of the wreck. Wind and rain will check this too, later.
+func is_sheltered() -> bool:
+	for shelter in get_tree().get_nodes_in_group("shelters"):
+		if shelter.overlaps_body(self):
+			return true
+	return false
 
 
 func _near_lit_fire() -> bool:

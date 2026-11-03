@@ -34,8 +34,10 @@ extends StaticBody3D
 @export var map_seed := 1
 
 @export_group("")
-## The player, who gets put on dry ground near the middle of the map when the game starts
+## The player, who starts beside the crash site (or on dry ground near the middle, if there isn't one)
 @export var player_path: NodePath = ^"../Player"
+## The wreck the player arrives in. The valley finds a flat, dry spot for it and clears the trees.
+@export var crash_site_path: NodePath = ^"../CrashSite"
 ## Tick this in the Inspector to rebuild after changing settings
 @export var rebuild := false:
 	set(value):
@@ -54,6 +56,11 @@ var _cell_x := 1.0
 var _cell_z := 1.0
 var _width := 0.0
 var _depth := 0.0
+# Where the crash site is (x, z), and how much ground around it is kept clear. 0 = no crash site.
+var _crash_center := Vector2.ZERO
+var _crash_radius := 0.0
+# Where the boiler lies (x, z), for the scorch mark around it
+var _scorch_center := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -136,9 +143,16 @@ func generate() -> void:
 
 	if not _load_heights():
 		return
-	# Let the ground's paint know where the water is, for the muddy shoreline
+	# Find the crash site's spot first, so trees and boulders can keep clear of it
+	_place_crash_site()
+	# Let the ground's paint know where the water is, for the muddy shoreline,
+	# and where the ship came down, for the churned mud and puddles
 	if ground_material is ShaderMaterial:
 		ground_material.set_shader_parameter("water_height", water_height())
+		ground_material.set_shader_parameter("mud_center", _crash_center)
+		ground_material.set_shader_parameter("mud_radius", _crash_radius * 0.75)
+		ground_material.set_shader_parameter("scorch_center", _scorch_center)
+		ground_material.set_shader_parameter("scorch_radius", 8.5 if _crash_radius > 0.0 else 0.0)
 	for cz in _chunks_z:
 		for cx in _chunks_x:
 			_build_chunk(cx, cz)
@@ -401,7 +415,7 @@ func _scatter_trees() -> void:
 		if rng.randf() > smoothstep(-0.15, 0.35, forest.get_noise_2d(x, z)) + 0.03:
 			continue
 		var h := get_height(x, z)
-		if h < dry_above or get_slope(x, z) > max_tree_slope:
+		if h < dry_above or get_slope(x, z) > max_tree_slope or is_near_crash_site(x, z):
 			continue
 		var tree := tree_scene.instantiate()
 		tree.position = Vector3(x, h - 0.2, z)
@@ -411,13 +425,114 @@ func _scatter_trees() -> void:
 		placed += 1
 
 
-# Puts the player on dry, fairly flat ground as close to the middle of the map as possible
+## True within the cleared ground around the crash site. `fraction` shrinks the area,
+## e.g. 0.5 for just the middle, where the wreck itself lies.
+func is_near_crash_site(x: float, z: float, fraction := 1.0) -> bool:
+	return _crash_radius > 0.0 and Vector2(x, z).distance_to(_crash_center) < _crash_radius * fraction
+
+
+# Moves the crash site to a good spot. Once the game is running, also sets every piece
+# of the wreck down on the ground. (In the editor it's only moved, so the scene's own
+# layout isn't overwritten.)
+func _place_crash_site() -> void:
+	_crash_radius = 0.0
+	var site = get_node_or_null(crash_site_path)
+	if site == null:
+		return
+	var spot := _find_crash_spot()
+	_crash_center = spot
+	_crash_radius = site.clear_radius
+	# The ship plowed the ground flat where it came down
+	_level_ground(spot, _crash_radius * 0.6, _crash_radius * 1.1)
+	site.global_position = Vector3(spot.x, get_height(spot.x, spot.y), spot.y)
+	_scorch_center = site.scorch_point()
+	if not Engine.is_editor_hint():
+		site.settle(self)
+
+
+# Looks near the middle of the map for a big, flat, dry stretch of valley floor,
+# well away from the water
+func _find_crash_spot() -> Vector2:
+	var dry_above := water_height() + 1.5
+	var best := Vector2.ZERO
+	var best_score := INF
+	for xi in range(-30, 31):
+		for zi in range(-30, 31):
+			var center := Vector2(xi, zi) * 10.0
+			if center.length() > 300.0:
+				continue
+			var h := get_height(center.x, center.y)
+			if h < dry_above + 1.5:
+				continue
+			# Dry ground all around it, at least 45 m out in every direction
+			var dry := true
+			for ring in [15.0, 30.0, 45.0]:
+				for k in 12:
+					var p: Vector2 = center + Vector2.from_angle(TAU * k / 12.0) * ring
+					if get_height(p.x, p.y) < dry_above:
+						dry = false
+						break
+				if not dry:
+					break
+			if not dry:
+				continue
+			# How bumpy the ground is under the whole wreck, about 42 m across
+			var lowest := INF
+			var highest := -INF
+			for gx in range(-3, 4):
+				for gz in range(-3, 4):
+					var g := get_height(center.x + gx * 7.0, center.y + gz * 7.0)
+					lowest = minf(lowest, g)
+					highest = maxf(highest, g)
+			# The ground gets leveled under the wreck anyway, so being near the middle
+			# matters as much as being flat; and it should be down on the valley floor
+			var score := (highest - lowest) * 0.4 + center.length() * 0.04 + (h - dry_above) * 0.05
+			if score < best_score:
+				best_score = score
+				best = center
+	return best
+
+
+# Flattens the ground to its average height within `flat_radius` of `center`, then blends
+# smoothly back into the natural slope by `blend_radius`. Changes the heights themselves,
+# so the mesh, collision, trees and grass all follow.
+func _level_ground(center: Vector2, flat_radius: float, blend_radius: float) -> void:
+	var total := 0.0
+	var samples := 0
+	for k in 24:
+		for r in [0.0, flat_radius * 0.5, flat_radius]:
+			var p: Vector2 = center + Vector2.from_angle(TAU * k / 24.0) * r
+			total += get_height(p.x, p.y)
+			samples += 1
+	var flat_height := total / samples
+
+	var first_x := maxi(0, floori((center.x - blend_radius + _width * 0.5) / _cell_x))
+	var last_x := mini(_points_x - 1, ceili((center.x + blend_radius + _width * 0.5) / _cell_x))
+	var first_z := maxi(0, floori((center.y - blend_radius + _depth * 0.5) / _cell_z))
+	var last_z := mini(_points_z - 1, ceili((center.y + blend_radius + _depth * 0.5) / _cell_z))
+	for gz in range(first_z, last_z + 1):
+		for gx in range(first_x, last_x + 1):
+			var spot := Vector2(-_width * 0.5 + gx * _cell_x, -_depth * 0.5 + gz * _cell_z)
+			var how_flat := 1.0 - smoothstep(flat_radius, blend_radius, spot.distance_to(center))
+			var i := gz * _points_x + gx
+			_heights[i] = lerpf(_heights[i], flat_height, how_flat)
+
+
+# Puts the player beside the crash site, facing the wreck. With no crash site, it uses
+# dry, fairly flat ground as close to the middle of the map as possible.
 func _place_player() -> void:
 	var player := get_node_or_null(player_path) as Node3D
 	if player == null:
 		return
+	var site = get_node_or_null(crash_site_path)
+	if site and _crash_radius > 0.0:
+		var start: Vector3 = site.spawn_point()
+		# The player's middle is 1 m above their feet; start them a little above the ground
+		player.global_position = Vector3(start.x, get_height(start.x, start.z) + 1.5, start.z)
+		var toward: Vector3 = site.spawn_look_target() - player.global_position
+		player.rotation.y = atan2(-toward.x, -toward.z)
+		return
 	var spot := find_dry_spot(Vector2.ZERO)
-	# The player's middle is 1 m above their feet; start them a little above the ground
 	player.global_position = Vector3(spot.x, get_height(spot.x, spot.y) + 1.5, spot.y)
 
 

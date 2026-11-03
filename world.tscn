@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" uid="uid://chlsvu01bkeuv" path="res://tree.tscn" id="6_pkg7o"]
 [ext_resource type="PackedScene" path="res://berry_bush.tscn" id="7_berry"]
 [ext_resource type="Material" path="res://terrain_material.tres" id="8_terrain"]
+[ext_resource type="PackedScene" path="res://crash_site.tscn" id="9_crash"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.26, 0.42, 0.68, 1)
@@ -160,3 +161,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0, 9)
 
 [node name="BerryBush6" parent="." instance=ExtResource("7_berry")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, 7)
+
+[node name="CrashSite" parent="." instance=ExtResource("9_crash")]
+rotation_degrees = Vector3(0, 30, 0)

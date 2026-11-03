@@ -1,0 +1,112 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tree.gd" id="1_2e805"]
+[ext_resource type="Material" path="res://assets/trees/pine_pack/materials/bark_mat.tres" id="2_eoo17"]
+[ext_resource type="ArrayMesh" path="res://assets/trees/pine_pack/meshes/pine_big_1_lod0_bark.res" id="3_y45gg"]
+[ext_resource type="Material" path="res://assets/trees/pine_pack/materials/clusters_mat.tres" id="4_c0fvg"]
+[ext_resource type="ArrayMesh" path="res://assets/trees/pine_pack/meshes/pine_big_1_lod0_leaves.res" id="5_m1ja8"]
+[ext_resource type="ArrayMesh" path="res://assets/trees/pine_pack/meshes/pine_big_1_lod1_bark.res" id="6_ysjmq"]
+[ext_resource type="ArrayMesh" path="res://assets/trees/pine_pack/meshes/pine_big_1_lod1_leaves.res" id="7_fwlr5"]
+[ext_resource type="ArrayMesh" path="res://assets/trees/pine_pack/meshes/pine_big_1_lod2_bark.res" id="8_rnoam"]
+[ext_resource type="ArrayMesh" path="res://assets/trees/pine_pack/meshes/pine_big_1_lod2_leaves.res" id="9_q7o6s"]
+[ext_resource type="Material" path="res://assets/trees/pine_pack/materials/pine_big_1_billboard_mat.tres" id="10_x2wlc"]
+[ext_resource type="ArrayMesh" path="res://assets/trees/pine_pack/meshes/pine_big_1_billboard_leaves.res" id="11_7bpym"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_ckqbg"]
+height = 0.5
+radius = 0.4
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_rueer"]
+height = 3.0
+radius = 0.4
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_qx1wy"]
+top_radius = 0.38
+bottom_radius = 0.44
+height = 0.5
+radial_segments = 10
+rings = 1
+
+[node name="Pine_big_1" type="StaticBody3D" unique_id=302963058]
+script = ExtResource("1_2e805")
+resource_name = "Wood"
+gathers_left = 4
+
+[node name="StumpCollision" type="CollisionShape3D" parent="." unique_id=1213023069]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+shape = SubResource("CylinderShape3D_ckqbg")
+
+[node name="TrunkCollision" type="CollisionShape3D" parent="." unique_id=798714664]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+shape = SubResource("CylinderShape3D_rueer")
+
+[node name="Stump" type="MeshInstance3D" parent="." unique_id=783175869]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+material_override = ExtResource("2_eoo17")
+mesh = SubResource("CylinderMesh_qx1wy")
+
+[node name="Top" type="Node3D" parent="." unique_id=1775080030]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+
+[node name="Model" type="Node3D" parent="Top" unique_id=467792440]
+transform = Transform3D(0.9474543, 0, 0, 0, 0.9474543, 0, 0, 0, 0.9474543, 0, -0.5, 0)
+
+[node name="Lod0_Bark" type="MeshInstance3D" parent="Top/Model" unique_id=1943042716]
+transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
+material_override = ExtResource("2_eoo17")
+visibility_range_end = 35.0
+visibility_range_end_margin = 2.0
+mesh = ExtResource("3_y45gg")
+
+[node name="Lod0_Leaves" type="MeshInstance3D" parent="Top/Model" unique_id=2049189821]
+transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
+material_override = ExtResource("4_c0fvg")
+visibility_range_end = 35.0
+visibility_range_end_margin = 2.0
+mesh = ExtResource("5_m1ja8")
+
+[node name="Lod1_Bark" type="MeshInstance3D" parent="Top/Model" unique_id=391270896]
+transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
+material_override = ExtResource("2_eoo17")
+visibility_range_begin = 35.0
+visibility_range_begin_margin = 2.0
+visibility_range_end = 80.0
+visibility_range_end_margin = 2.0
+mesh = ExtResource("6_ysjmq")
+
+[node name="Lod1_Leaves" type="MeshInstance3D" parent="Top/Model" unique_id=1841149799]
+transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
+material_override = ExtResource("4_c0fvg")
+visibility_range_begin = 35.0
+visibility_range_begin_margin = 2.0
+visibility_range_end = 80.0
+visibility_range_end_margin = 2.0
+mesh = ExtResource("7_fwlr5")
+
+[node name="Lod2_Bark" type="MeshInstance3D" parent="Top/Model" unique_id=831963420]
+transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
+material_override = ExtResource("2_eoo17")
+visibility_range_begin = 80.0
+visibility_range_begin_margin = 2.0
+visibility_range_end = 180.0
+visibility_range_end_margin = 2.0
+mesh = ExtResource("8_rnoam")
+
+[node name="Lod2_Leaves" type="MeshInstance3D" parent="Top/Model" unique_id=1744896360]
+transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
+material_override = ExtResource("4_c0fvg")
+visibility_range_begin = 80.0
+visibility_range_begin_margin = 2.0
+visibility_range_end = 180.0
+visibility_range_end_margin = 2.0
+mesh = ExtResource("9_q7o6s")
+
+[node name="Billboard_Leaves" type="MeshInstance3D" parent="Top/Model" unique_id=379257420]
+transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
+material_override = ExtResource("10_x2wlc")
+cast_shadow = 0
+visibility_range_begin = 180.0
+visibility_range_begin_margin = 2.0
+visibility_range_end = 1500.0
+visibility_range_end_margin = 2.0
+mesh = ExtResource("11_7bpym")

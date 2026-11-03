@@ -26,7 +26,33 @@ extends StaticBody3D
 @export var chunk_cells := 32
 
 @export_group("Trees")
+## The old single placeholder pine: only used if both lists below are empty
 @export var tree_scene: PackedScene
+## Full-grown forest trees (12-20 m), picked at random for each tree placed
+@export var forest_trees: Array[PackedScene] = [
+	preload("res://assets/trees/pine_pack/scenes/pine_large_1.tscn"),
+	preload("res://assets/trees/pine_pack/scenes/pine_large_2.tscn"),
+	preload("res://assets/trees/pine_pack/scenes/pine_large_3.tscn"),
+	preload("res://assets/trees/pine_pack/scenes/pine_big_1.tscn"),
+	preload("res://assets/trees/pine_pack/scenes/pine_big_2.tscn"),
+	preload("res://assets/trees/pine_pack/scenes/pine_big_3.tscn"),
+	preload("res://assets/trees/pine_pack/scenes/pine_medium_1.tscn"),
+	preload("res://assets/trees/pine_pack/scenes/pine_medium_2.tscn"),
+	preload("res://assets/trees/pine_pack/scenes/pine_medium_3.tscn"),
+]
+## Young trees and saplings (1.5-5 m), mixed in among the forest
+@export var young_trees: Array[PackedScene] = [
+	preload("res://assets/trees/pine_pack/scenes/pine_small_1.tscn"),
+	preload("res://assets/trees/pine_pack/scenes/pine_small_2.tscn"),
+	preload("res://assets/trees/pine_pack/scenes/pine_small_3.tscn"),
+	preload("res://assets/trees/pine_pack/scenes/pine_sapling_1.tscn"),
+	preload("res://assets/trees/pine_pack/scenes/pine_sapling_2.tscn"),
+	preload("res://assets/trees/pine_pack/scenes/pine_sapling_3.tscn"),
+]
+## How many of the trees placed are young ones (0.25 = one in four)
+@export_range(0.0, 1.0, 0.01) var young_tree_share := 0.25
+## Each tree is scaled randomly by up to this much either way, so no two look the same
+@export_range(0.0, 0.5, 0.01) var tree_size_variation := 0.12
 @export var tree_count := 4000
 ## Trees won't grow on ground steeper than this, in degrees
 @export_range(0.0, 90.0) var max_tree_slope := 42.0
@@ -564,7 +590,8 @@ func _build_walls() -> void:
 
 # Scatter trees anywhere that's dry and not too steep
 func _scatter_trees() -> void:
-	if not tree_scene:
+	var using_pack := not forest_trees.is_empty() or not young_trees.is_empty()
+	if not using_pack and not tree_scene:
 		return
 	var rng := RandomNumberGenerator.new()
 	rng.seed = map_seed
@@ -581,10 +608,19 @@ func _scatter_trees() -> void:
 		var h := get_height(x, z)
 		if h < dry_above or get_slope(x, z) > max_tree_slope or is_near_crash_site(x, z) or is_on_trail(x, z, 2.0) or is_cleared(x, z, "trees"):
 			continue
-		var tree := tree_scene.instantiate()
-		tree.position = Vector3(x, h - 0.2, z)
+		var tree: Node3D
+		if using_pack:
+			# Mostly full-grown trees, with some young ones among them
+			var young := not young_trees.is_empty() and (forest_trees.is_empty() or rng.randf() < young_tree_share)
+			var pool: Array[PackedScene] = young_trees if young else forest_trees
+			tree = pool[rng.randi() % pool.size()].instantiate()
+			tree.scale = Vector3.ONE * rng.randf_range(1.0 - tree_size_variation, 1.0 + tree_size_variation)
+			tree.position = Vector3(x, h - 0.05, z)
+		else:
+			tree = tree_scene.instantiate()
+			tree.scale = Vector3.ONE * rng.randf_range(0.8, 1.4)
+			tree.position = Vector3(x, h - 0.2, z)
 		tree.rotation.y = rng.randf() * TAU
-		tree.scale = Vector3.ONE * rng.randf_range(0.8, 1.4)
 		add_child(tree)
 		_remember_spot(Vector2(x, z), _taken_spots)
 		_remember_spot(Vector2(x, z), _tree_spots)

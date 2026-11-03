@@ -1,0 +1,17 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://assets/trees/pine_pack/pine_leaves.gdshader" id="1_mp4bm"]
+[ext_resource type="Texture2D" path="res://assets/trees/pine_pack/pine_trees_pack_lowpoly_game_ready_lods_21.png" id="2_808px"]
+[ext_resource type="Texture2D" path="res://assets/trees/pine_pack/pine_trees_pack_lowpoly_game_ready_lods_22.png" id="3_hl48c"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_mp4bm")
+shader_parameter/sway_strength = null
+shader_parameter/sway_speed = null
+shader_parameter/albedo_texture = ExtResource("2_808px")
+shader_parameter/normal_texture = ExtResource("3_hl48c")
+shader_parameter/use_normal = true
+shader_parameter/use_roughness = false
+shader_parameter/tint = null
+shader_parameter/alpha_cut = 0.5

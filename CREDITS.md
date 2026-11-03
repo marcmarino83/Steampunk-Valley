@@ -1,3 +1,3 @@
 # Third-Party Assets
 
-- **Pine Tree** by EmreAlkan, from Sketchfab. Licensed under Creative Commons Attribution 4.0 (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/. Used in: scattered forest trees. File: `assets/trees/pine_tree.fbx`.
+- **Pine trees pack (lowpoly, game ready, LODs)** by LOLIPOP, from Sketchfab. Licensed under Creative Commons Attribution 4.0 (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/. Used in: scattered forest trees. File: `assets/trees/pine_pack/pine_trees_pack_lowpoly_game_ready_lods.glb`.

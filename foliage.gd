@@ -90,7 +90,7 @@ func _grow_patch(chunk: Vector2i) -> Node3D:
 		if h < dry_above or valley.get_normal(x, z).y < 0.72 or valley.is_near_crash_site(x, z, 0.5):
 			continue
 		# Leave a little clear ground around trees and resources, so things you can gather stand out
-		if valley.is_spot_taken(x, z, 1.2):
+		if valley.is_spot_taken(x, z, 1.2) or valley.trail_amount(x, z) > 0.35 or valley.is_cleared(x, z, "plants"):
 			continue
 		# Thick in some places, thin in others
 		if rng.randf() > smoothstep(-0.8, 0.1, _patch_noise.get_noise_2d(x, z)):
@@ -106,7 +106,7 @@ func _grow_patch(chunk: Vector2i) -> Node3D:
 		var x := rect.position.x + rng.randf() * rect.size.x
 		var z := rect.position.y + rng.randf() * rect.size.y
 		var h: float = valley.get_height(x, z)
-		if h < dry_above or valley.get_normal(x, z).y < 0.7 or valley.is_near_crash_site(x, z, 0.5) or valley.is_spot_taken(x, z, 1.2):
+		if h < dry_above or valley.get_normal(x, z).y < 0.7 or valley.is_near_crash_site(x, z, 0.5) or valley.is_spot_taken(x, z, 1.2) or valley.trail_amount(x, z) > 0.2 or valley.is_on_trail(x, z, 0.0) or valley.is_cleared(x, z, "plants"):
 			continue
 		var size := rng.randf_range(0.7, 1.4)
 		fern_spots.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * size), Vector3(x, h - 0.05, z)))
@@ -134,7 +134,7 @@ func build_rocks(material: Material) -> void:
 		var z := bounds.position.y + rng.randf() * bounds.size.y
 		var steepness: float = 1.0 - valley.get_normal(x, z).y
 		# A few anywhere, lots where it's steep
-		if rng.randf() > 0.03 + smoothstep(0.1, 0.35, steepness) * 0.9 or valley.is_near_crash_site(x, z):
+		if rng.randf() > 0.03 + smoothstep(0.1, 0.35, steepness) * 0.9 or valley.is_near_crash_site(x, z) or valley.is_on_trail(x, z, 1.0) or valley.is_cleared(x, z, "rocks"):
 			continue
 		# Lots of small rocks, a few big ones
 		var size := pow(rng.randf(), 1.6) * 4.0 + 0.5

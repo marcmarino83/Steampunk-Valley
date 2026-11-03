@@ -5,6 +5,7 @@
 [ext_resource type="Script" uid="uid://ot3536xogk55" path="res://valley.gd" id="5_dwbse"]
 [ext_resource type="PackedScene" uid="uid://chlsvu01bkeuv" path="res://tree.tscn" id="6_pkg7o"]
 [ext_resource type="PackedScene" path="res://terrain_modifier.tscn" id="7_pkg7o"]
+[ext_resource type="PackedScene" path="res://terrain_path.tscn" id="8_gbfbk"]
 [ext_resource type="Material" uid="uid://bm46i82rjv7ap" path="res://terrain_material.tres" id="8_terrain"]
 [ext_resource type="PackedScene" path="res://crash_site.tscn" id="9_crash"]
 
@@ -41,6 +42,14 @@ adjustment_enabled = true
 adjustment_contrast = 1.08
 adjustment_saturation = 1.1
 
+[sub_resource type="Curve3D" id="Curve3D_gbfbk"]
+bake_interval = 1.0
+_data = {
+"points": PackedVector3Array(-6.4279766, -0.7198601, 1.9235725, 6.4279766, 0.7198601, -1.9235725, -8.213806, -11.970329, -4.7139893, -6.487162, -1.4319261, -0.21563976, 6.487162, 1.4319261, 0.21563976, 17.4981, -9.090889, -12.408279, -3.9023807, -1.617293, -2.720454, 3.9023807, 1.617293, 2.720454, 30.709167, -3.3787727, -3.4201508, -4.6904106, -1.7497921, -0.5470403, 4.6904106, 1.7497921, 0.5470403, 40.912384, 0.61286926, 3.914444, -4.867269, -1.8172188, 0.013900757, 4.867269, 1.8172188, -0.013900757, 58.85163, 7.11998, -0.13790894, -3.6998837, -1.3400282, 0.06464895, 3.6998837, 1.3400282, -0.06464895, 70.116, 11.516182, 3.8310394, -3.334118, -1.1798311, -0.10859171, 3.334118, 1.1798311, 0.10859171, 81.050934, 15.160149, -0.5258026, -3.7480812, -1.3986727, -0.13442485, 3.7480812, 1.3986727, 0.13442485, 90.120705, 18.59517, 4.4825897, -4.0406966, -1.4881529, 0.5692037, 4.0406966, 1.4881529, -0.5692037, 103.53942, 23.552185, 0.28074646, -2.7951672, -0.8383052, -0.93656415, 2.7951672, 0.8383052, 0.93656415, 114.36488, 27.524086, 1.0673676, -2.4452133, -0.22298813, -1.8072662, 2.4452133, 0.22298813, 1.8072662, 120.310425, 28.582016, 5.900131, -2.4109447, -0.34446463, -4.36923, 2.4109447, 0.34446463, 4.36923, 129.03616, 28.862015, 11.910965, -1.4349823, -0.44669724, -5.051136, 1.4349823, 0.44669724, 5.051136, 134.7761, 30.648804, 32.11551),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 13
+
 [node name="World" type="Node3D" unique_id=1463340647]
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=2068020516]
@@ -64,10 +73,84 @@ ground_material = ExtResource("8_terrain")
 tree_scene = ExtResource("6_pkg7o")
 
 [node name="CrashSite" parent="." unique_id=1327350621 instance=ExtResource("9_crash")]
-transform = Transform3D(0.8660254, 0, 0.5, 0, 1, 0, -0.5, 0, 0.8660254, 5.881901, 31.389303, 256.14096)
+transform = Transform3D(0.8660254, 0, 0.5, 0, 1, 0, -0.5, 0, 0.8660254, 5.881901, 31.656088, 256.14096)
 
-[node name="TerrainModifier" parent="." unique_id=1864664326 instance=ExtResource("7_pkg7o")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 52.406044, 58.712147, 134.56989)
-radius = 2.5
-strength = 0.8
-falloff = 0.95
+[node name="TerrainEdits" type="Node3D" parent="." unique_id=278350606]
+
+[node name="Modifiers" type="Node3D" parent="TerrainEdits" unique_id=1894013475]
+
+[node name="TerrainModifier" parent="TerrainEdits/Modifiers" unique_id=494865028 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(0.9909832, -0.035355344, -0.12923737, 0, 0.9645574, -0.26387304, 0.13398619, 0.26149374, 0.9558602, 53.551, 22.469643, 135.748)
+visible = false
+radius = 18.5
+strength = 0.3
+falloff = 0.53
+
+[node name="TerrainModifier2" parent="TerrainEdits/Modifiers" unique_id=1589117980 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 0.099319786, -0.99505556, 0, 0.99505556, 0.099319786, 71.74018, 38.97113, 130.69963)
+visible = false
+mode = 1
+radius = 13.5
+falloff = 0.45
+height = 8.0
+
+[node name="TerrainModifier3" parent="TerrainEdits/Modifiers" unique_id=2036727006 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 67.44976, 48.806957, 127.407196)
+visible = false
+radius = 16.0
+strength = 0.51
+
+[node name="TerrainModifier4" parent="TerrainEdits/Modifiers" unique_id=1033606202 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(0.5880681, -0.079509936, -0.8048938, 0.13398619, 0.9909832, 0, 0.7976362, -0.10784465, 0.5934189, 46.113987, 34.994835, 91.014145)
+visible = false
+radius = 35.5
+strength = 0.5
+amount = 0.31
+
+[node name="TerrainModifier5" parent="TerrainEdits/Modifiers" unique_id=484232630 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 68.41369, 44.870068, 80.815895)
+visible = false
+mode = 3
+radius = 22.0
+falloff = 0.16
+
+[node name="TerrainModifier6" parent="TerrainEdits/Modifiers" unique_id=939329846 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 84.24348, 34.982197, 64.89062)
+visible = false
+mode = 1
+height = 8.0
+
+[node name="TerrainModifier7" parent="TerrainEdits/Modifiers" unique_id=2096843272 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 85.617195, 42.80164, 65.520645)
+visible = false
+mode = 3
+radius = 29.0
+
+[node name="TerrainModifier8" parent="TerrainEdits/Modifiers" unique_id=1692220785 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(0.5934189, -0.5789921, -0.55912626, 0, 0.6946584, -0.7193398, 0.8048938, 0.4268698, 0.41222343, 123.51561, 66.09099, 147.81744)
+visible = false
+mode = 3
+radius = 9.5
+
+[node name="TerrainModifier9" parent="TerrainEdits/Modifiers" unique_id=1031173948 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(0.67549, -0.39948365, 0.619779, 0.50904137, 0.86074203, 0, -0.53346986, 0.31549314, 0.7847764, 122.85055, 73.18921, 151.04367)
+visible = false
+mode = 0
+radius = 6.5
+strength = 0.15
+
+[node name="Paths" type="Node3D" parent="TerrainEdits" unique_id=1597188750]
+visible = false
+
+[node name="TerrainPath" parent="TerrainEdits/Paths" unique_id=1652268771 instance=ExtResource("8_gbfbk")]
+transform = Transform3D(0.5934189, 0, 0.8048938, 0, 1, 0, -0.8048938, 0, 0.5934189, 81.28022, 55.826675, 201.38873)
+curve = SubResource("Curve3D_gbfbk")
+saved_points = PackedVector3Array(-8.21380615234375, -11.970329284668, -4.7139892578125, 17.4981002807617, -9.09088897705078, -12.4082794189453, 30.7091674804688, -3.3787727355957, -3.42015075683594, 40.9123840332031, 0.61286926269531, 3.91444396972656, 58.8516311645508, 7.11997985839844, -0.13790893554688, 70.1159973144531, 11.5161819458008, 3.83103942871094, 81.0509338378906, 15.1601486206055, -0.52580261230469, 90.1207046508789, 18.5951690673828, 4.48258972167969, 103.539421081543, 23.5521850585938, 0.28074645996094, 114.364883422852, 27.5240859985352, 1.06736755371094, 120.310424804688, 28.5820159912109, 5.90013122558594, 129.036163330078, 28.8620147705078, 11.9109649658203, 134.776092529297, 30.6488037109375, 32.1155090332031)
+
+[node name="TerrainModifier" parent="TerrainEdits/Paths" unique_id=1890741374 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 101.90139, 53.451744, 167.59001)
+mode = 3
+
+[node name="ClearZones" type="Node3D" parent="TerrainEdits" unique_id=1619069690]
+
+[node name="Trees" type="Node3D" parent="TerrainEdits" unique_id=743867619]

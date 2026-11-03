@@ -35,6 +35,11 @@ uniform float scorch_radius = 0.0;
 uniform bool slope_view = false;
 // The steepest ground the player can walk up, in degrees
 uniform float walk_limit_degrees = 45.0;
+// Where trails have worn the ground bare: one pixel per terrain grid point (0 = grass,
+// 1 = dirt). The valley fills this in, along with where the map starts and its grid spacing.
+uniform sampler2D trail_mask : hint_default_black, filter_linear, repeat_disable;
+uniform vec4 trail_map = vec4(0.0, 0.0, 1.0, 1.0);
+uniform vec3 trail_dirt : source_color = vec3(0.36, 0.29, 0.2);
 
 varying vec3 world_pos;
 varying vec3 world_normal;
@@ -117,6 +122,16 @@ void fragment() {
 
 	ALBEDO = mix(ground, rock, steep);
 	ROUGHNESS = mix(0.95, 0.82, steep) - shore * 0.35 - churned * 0.25;
+
+	// Trails: packed, worn dirt, with a ragged edge where it frays into the grass
+	vec2 trail_uv = ((world_pos.xz - trail_map.xy) / trail_map.zw + 0.5) / vec2(textureSize(trail_mask, 0));
+	float trodden = texture(trail_mask, trail_uv).r;
+	if (trodden > 0.0) {
+		float fray = smoothstep(0.25, 0.75, trodden + (medium - 0.5) * 0.5 + (small - 0.5) * 0.3);
+		vec3 dirt = trail_dirt * (0.8 + small * 0.35) * (0.9 + grit_soil(world_pos) * 0.2);
+		ALBEDO = mix(ALBEDO, dirt, fray);
+		ROUGHNESS = mix(ROUGHNESS, 0.97, fray);
+	}
 
 	// Puddles: dark, glassy and dead flat, so they mirror the sky
 	ALBEDO = mix(ALBEDO, vec3(0.06, 0.05, 0.04), puddle * 0.9);

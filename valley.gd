@@ -95,6 +95,8 @@ extends StaticBody3D
 		if is_inside_tree():
 			for modifier in get_tree().get_nodes_in_group("terrain_modifiers"):
 				modifier.refresh_rings()
+			for zone in get_tree().get_nodes_in_group("clear_zones"):
+				zone.refresh_rings()
 
 # The smoothed height of every grid point, in game meters above the lowest ground.
 # Stored row by row, west to east, starting from the north edge.
@@ -102,6 +104,17 @@ var _heights := PackedFloat32Array()
 # The same heights straight from the heightmap, before any terrain modifiers, so one
 # marker's patch can be redone without rebuilding the whole valley
 var _base_heights := PackedFloat32Array()
+# How worn each grid point is by trails (0 = grass, 255 = bare dirt), handed to the ground's
+# paint as a texture so trails show up in both the editor and the game
+var _trail_mask := PackedByteArray()
+# Where trails run (1 = on a trail), so trees, rocks and plants are kept off them
+var _trail_cover := PackedByteArray()
+# The Clear Zones in the world, gathered at the start of each build
+var _clear_zones: Array = []
+# For each trail (by instance id), the ground just before it shaped it
+var _trail_ground := {}
+var _trail_image: Image
+var _trail_texture: ImageTexture
 var _points_x := 0
 var _points_z := 0
 var _chunks_x := 0
@@ -184,6 +197,16 @@ func water_height() -> float:
 	return (water_level - min_elevation) * height_scale
 
 
+## How high the ground is for a trail's own points: the heightmap plus every other modifier,
+## but not that trail itself (or any trail it's shaped together with). Falls back to the
+## finished ground for a trail that hasn't been built yet.
+func ground_height_for(trail: Node, x: float, z: float) -> float:
+	var ground: PackedFloat32Array = _trail_ground.get(trail.get_instance_id(), _heights)
+	if ground.size() != _heights.size():
+		ground = _heights
+	return _height_in(ground, x, z)
+
+
 ## True once the heights have been read, so get_height() has something to answer with
 func has_heights() -> bool:
 	return not _heights.is_empty()
@@ -264,8 +287,14 @@ func generate() -> void:
 	if not _load_heights():
 		return
 	_base_heights = _heights.duplicate()
+	_trail_mask.resize(_heights.size())
+	_trail_mask.fill(0)
+	_trail_cover.resize(_heights.size())
+	_trail_ground.clear()
+	_trail_cover.fill(0)
 	# Reshape the ground with any terrain modifiers, before anything is built on it
 	_apply_modifiers()
+	_update_trail_texture()
 	# Set the crash site and other hand-placed things down on the final ground, and note
 	# where the wreck is so trees and boulders can keep clear of it
 	_place_crash_site()
@@ -291,6 +320,8 @@ func generate() -> void:
 	_tree_spots.clear()
 	_copper_spots.clear()
 	_deposit_spots.clear()
+	# Clear zones are looked up once here, since every tree, rock and plant checks them
+	_clear_zones = get_tree().get_nodes_in_group("clear_zones")
 	_scatter_trees()
 	_scatter_resources()
 	_bury_deposits()
@@ -548,7 +579,7 @@ func _scatter_trees() -> void:
 		if rng.randf() > smoothstep(-0.15, 0.35, _forest.get_noise_2d(x, z)) + 0.03:
 			continue
 		var h := get_height(x, z)
-		if h < dry_above or get_slope(x, z) > max_tree_slope or is_near_crash_site(x, z):
+		if h < dry_above or get_slope(x, z) > max_tree_slope or is_near_crash_site(x, z) or is_on_trail(x, z, 2.0) or is_cleared(x, z, "trees"):
 			continue
 		var tree := tree_scene.instantiate()
 		tree.position = Vector3(x, h - 0.2, z)
@@ -610,7 +641,7 @@ func _scatter_resources() -> void:
 			var x := rng.randf_range(-_width * 0.5 + 6.0, _width * 0.5 - 6.0)
 			var z := rng.randf_range(-_depth * 0.5 + 6.0, _depth * 0.5 - 6.0)
 			var spot := Vector2(x, z)
-			if _crash_radius > 0.0 and spot.distance_to(_crash_center) < crash_site_gap:
+			if (_crash_radius > 0.0 and spot.distance_to(_crash_center) < crash_site_gap) or is_on_trail(x, z, 1.0) or is_cleared(x, z, "resources"):
 				continue
 			var h := get_height(x, z)
 			# Never underwater (herbs check how close to the water they are themselves)
@@ -671,7 +702,7 @@ func _bury_deposits() -> void:
 			var x := rng.randf_range(-_width * 0.5 + 6.0, _width * 0.5 - 6.0)
 			var z := rng.randf_range(-_depth * 0.5 + 6.0, _depth * 0.5 - 6.0)
 			var spot := Vector2(x, z)
-			if _crash_radius > 0.0 and spot.distance_to(_crash_center) < crash_site_gap:
+			if (_crash_radius > 0.0 and spot.distance_to(_crash_center) < crash_site_gap) or is_on_trail(x, z, 1.5) or is_cleared(x, z, "resources"):
 				continue
 			var h := get_height(x, z)
 			if h < water + 0.5:
@@ -809,9 +840,91 @@ func is_near_crash_site(x: float, z: float, fraction := 1.0) -> bool:
 # Applies every TerrainModifier in the world to the heights, in scene order. With a patch
 # given (grid columns and rows), only the ground inside it is changed.
 func _apply_modifiers(patch := Rect2i()) -> void:
+	# Trails listed one after another are shaped together, so where they meet or cross the
+	# ground stays smooth instead of one trail's cut being stacked on top of another's
+	var trails: Array = []
 	for modifier in get_tree().get_nodes_in_group("terrain_modifiers"):
-		if modifier.is_inside_tree():
-			_apply_modifier(modifier, patch)
+		if not modifier.is_inside_tree():
+			continue
+		if modifier.has_method("trail_points"):
+			trails.append(modifier)
+			continue
+		_apply_trails(trails, patch)
+		trails.clear()
+		_apply_modifier(modifier, patch)
+	_apply_trails(trails, patch)
+
+
+# Shapes a group of trails at once. Each one works from the same ground (as it was before
+# any of them), and wherever two overlap, the lower result wins. Lower is also smoother here:
+# trails only cut down along their length, so the deeper cut is the one meeting the gentler grade.
+func _apply_trails(trails: Array, patch: Rect2i) -> void:
+	if trails.is_empty():
+		return
+	var ground := _heights.duplicate()
+	# Remember the ground each trail starts from, so its points can sit on it (without the
+	# trail's own cut moving them)
+	for trail in trails:
+		_trail_ground[trail.get_instance_id()] = ground
+	var shapes := _trail_shapes(trails, patch, ground, PackedFloat32Array())
+	if shapes.is_empty():
+		return
+	_blend_trails(shapes, ground)
+	# Where trails meet, run them all once more, each easing down (within its own Max Slope)
+	# to the ground the others left along its line, so one trail doesn't drop sharply into
+	# another's cut
+	if shapes.size() > 1:
+		var joined := _heights.duplicate()
+		_heights = ground.duplicate()
+		_blend_trails(_trail_shapes(trails, patch, ground, joined), ground)
+
+
+func _trail_shapes(trails: Array, patch: Rect2i, ground: PackedFloat32Array, joined: PackedFloat32Array) -> Array:
+	var shapes: Array = []
+	for trail in trails:
+		var shape := _trail_shape(trail, patch, ground, joined)
+		if not shape.is_empty():
+			shapes.append(shape)
+	return shapes
+
+
+func _blend_trails(shapes: Array, ground: PackedFloat32Array) -> void:
+	var cover := Rect2i(shapes[0]["cells"])
+	for shape in shapes:
+		cover = cover.merge(shape["cells"])
+
+	# Each spot near a trail heads toward a blend of the trails' surfaces. Each trail counts
+	# by how strongly it covers the spot, and much less if another trail there is lower, so
+	# where both are at full strength the lower one wins, and nothing jumps or forms a ridge.
+	var softness := 0.4
+	for gz in range(cover.position.y, cover.end.y):
+		for gx in range(cover.position.x, cover.end.x):
+			var surfaces := PackedFloat32Array()
+			var weights := PackedFloat32Array()
+			for shape in shapes:
+				var cells: Rect2i = shape["cells"]
+				if not cells.has_point(Vector2i(gx, gz)):
+					continue
+				var j := (gz - cells.position.y) * cells.size.x + (gx - cells.position.x)
+				var w: float = shape["weight"][j]
+				if w > 0.0:
+					surfaces.append(shape["surface"][j])
+					weights.append(w)
+			if weights.is_empty():
+				continue
+			var strongest := 0.0
+			var total := 0.0
+			var blended := 0.0
+			for p in weights.size():
+				var counts := weights[p]
+				for q in weights.size():
+					if q != p and surfaces[p] > surfaces[q]:
+						counts *= exp(-(surfaces[p] - surfaces[q]) * weights[q] / softness)
+				total += counts
+				blended += counts * surfaces[p]
+				strongest = maxf(strongest, weights[p])
+			var i := gz * _points_x + gx
+			_heights[i] = lerpf(ground[i], blended / total, strongest)
 
 
 # The grid points (columns, rows) covering a patch of map (x, z), clipped to the map
@@ -825,8 +938,8 @@ func _grid_patch(area: Rect2) -> Rect2i:
 
 func _apply_modifier(modifier, patch := Rect2i()) -> void:
 	# Trails (TerrainPath) have their own way of shaping the ground
-	if modifier is Path3D:
-		_apply_path(modifier, patch)
+	if modifier.has_method("trail_points"):
+		_apply_trails([modifier], patch)
 		return
 	var center := Vector2(modifier.global_position.x, modifier.global_position.z)
 	var reach: float = modifier.radius
@@ -896,20 +1009,28 @@ func _apply_modifier(modifier, patch := Rect2i()) -> void:
 						_heights[i] = base + (_heights[i] - base) * (1.0 - modifier.amount * weight)
 
 
-# Smooths the ground along a trail: works out a gentle height for every point along it
-# (following the ground, evened out, and never steeper than the trail's Max Slope), then
-# presses the trail into the ground, fading its sides back into the hillside.
-func _apply_path(path, patch := Rect2i()) -> void:
+# Works out how a trail wants to shape the ground: a gentle height for every point along it
+# (following the ground, evened out, and never steeper than the trail's Max Slope), and for
+# each bit of ground nearby, the trail's surface there and how strongly the trail covers it
+# (1 across the trail, fading to 0 at the edge). Also marks the trail's dirt and footprint.
+# Returns {"cells", "surface", "weight"}, or nothing if the trail doesn't reach the patch.
+func _trail_shape(path, patch: Rect2i, ground: PackedFloat32Array, joined: PackedFloat32Array) -> Dictionary:
 	var points: PackedVector3Array = path.trail_points()
 	if points.size() < 2:
-		return
+		return {}
 	var cells := _grid_patch(path.area())
 	if patch.has_area():
 		cells = cells.intersection(patch)
 	if not cells.has_area():
-		return
+		return {}
 	var half: float = path.width * 0.5
 	var reach: float = half + path.edge_blend
+	# Kept clear of trees and the like: the width plus Clear Margin, and never less than the
+	# worn dirt, so nothing ever stands on the trail's surface
+	var clear_reach: float = half + path.clear_margin
+	if path.dirt_texture:
+		clear_reach = maxf(clear_reach, half + minf(path.edge_blend * 0.4, 2.0))
+	var outer := maxf(reach, clear_reach)
 
 	# 1. How high the ground is along the trail, and how far along each point is
 	var count := points.size()
@@ -918,13 +1039,19 @@ func _apply_path(path, patch := Rect2i()) -> void:
 	along.resize(count)
 	profile.resize(count)
 	for i in count:
-		profile[i] = get_height(points[i].x, points[i].z)
+		profile[i] = _height_in(ground, points[i].x, points[i].z)
 		if i > 0:
 			along[i] = along[i - 1] + Vector2(points[i].x, points[i].z).distance_to(Vector2(points[i - 1].x, points[i - 1].z))
+	# The ground right on the center line, before the trail changes it
+	var natural := profile.duplicate()
 	# 2. Even out the ups and downs: average each point with its neighbors along the trail.
 	# Smoothness 0 looks a couple of meters each way, 1 looks about 25 m each way.
 	var spacing := maxf(along[count - 1] / (count - 1), 0.1)
 	profile = _smooth_line(profile, maxi(1, int(lerpf(2.0, 25.0, path.smoothness) / spacing)))
+	# Where other trails have already cut lower along this line, meet them there
+	if not joined.is_empty():
+		for i in count:
+			profile[i] = minf(profile[i], _height_in(joined, points[i].x, points[i].z))
 	# 3. Never steeper than Max Slope: where it would be, the trail cuts in or builds up
 	_limit_grade(profile, along, tan(deg_to_rad(path.max_slope)))
 
@@ -932,14 +1059,16 @@ func _apply_path(path, patch := Rect2i()) -> void:
 	var size := cells.size
 	var closest := PackedFloat32Array()
 	var level := PackedFloat32Array()
+	var center_ground := PackedFloat32Array()
 	closest.resize(size.x * size.y)
 	level.resize(size.x * size.y)
+	center_ground.resize(size.x * size.y)
 	closest.fill(INF)
 	for s in count - 1:
 		var a := Vector2(points[s].x, points[s].z)
 		var b := Vector2(points[s + 1].x, points[s + 1].z)
 		var length_squared := a.distance_squared_to(b)
-		var nearby := _grid_patch(Rect2(a, Vector2.ZERO).expand(b).grow(reach)).intersection(cells)
+		var nearby := _grid_patch(Rect2(a, Vector2.ZERO).expand(b).grow(outer)).intersection(cells)
 		for gz in range(nearby.position.y, nearby.end.y):
 			for gx in range(nearby.position.x, nearby.end.x):
 				var spot := Vector2(-_width * 0.5 + gx * _cell_x, -_depth * 0.5 + gz * _cell_z)
@@ -949,15 +1078,34 @@ func _apply_path(path, patch := Rect2i()) -> void:
 				if distance < closest[j]:
 					closest[j] = distance
 					level[j] = lerpf(profile[s], profile[s + 1], t)
-	# ...and bring it to the trail's height: fully across the trail, fading over the edges
+					center_ground[j] = lerpf(natural[s], natural[s + 1], t)
+	# ...and bring it to the trail's height: fully across the trail, fading over the edges.
+	# Cross Slope decides how level it is side to side: at 1 it's flat across (cut into the
+	# uphill side, built up on the downhill side); at 0 it keeps the hillside's own tilt.
+	var keep_tilt: float = 1.0 - path.cross_slope
+	# Worn dirt covers the walkable part and frays out a little way into the edges
+	var dirt_reach: float = half + minf(path.edge_blend * 0.4, 2.0)
+	var surfaces := PackedFloat32Array()
+	var weights := PackedFloat32Array()
+	surfaces.resize(size.x * size.y)
+	weights.resize(size.x * size.y)
 	for gz in range(cells.position.y, cells.end.y):
 		for gx in range(cells.position.x, cells.end.x):
 			var j := (gz - cells.position.y) * size.x + (gx - cells.position.x)
+			if closest[j] >= outer:
+				continue
+			var i := gz * _points_x + gx
+			# The trail's footprint, kept clear of trees, rocks and plants
+			if path.clear_objects and closest[j] < clear_reach:
+				_trail_cover[i] = 1
 			if closest[j] >= reach:
 				continue
-			var blend := 1.0 if closest[j] <= half else 1.0 - smoothstep(half, reach, closest[j])
-			var i := gz * _points_x + gx
-			_heights[i] = lerpf(_heights[i], level[j], blend)
+			weights[j] = 1.0 if closest[j] <= half else 1.0 - smoothstep(half, reach, closest[j])
+			surfaces[j] = level[j] + (ground[i] - center_ground[j]) * keep_tilt
+			if path.dirt_texture and closest[j] < dirt_reach:
+				var worn := 1.0 - smoothstep(half * 0.6, dirt_reach, closest[j])
+				_trail_mask[i] = maxi(_trail_mask[i], int(worn * 255.0))
+	return {"cells": cells, "surface": surfaces, "weight": weights}
 
 
 # Averages each value with `reach` neighbors on each side (fewer near the ends)
@@ -998,7 +1146,7 @@ func _rebuild_area(area: Rect2) -> void:
 	while grew:
 		grew = false
 		for modifier in get_tree().get_nodes_in_group("terrain_modifiers"):
-			if modifier is Path3D and modifier.area().intersects(area) and not area.encloses(modifier.area()):
+			if modifier.has_method("trail_points") and modifier.area().intersects(area) and not area.encloses(modifier.area()):
 				area = area.merge(modifier.area())
 				grew = true
 	# A little extra margin, so the ground's lighting stays seamless at the patch's edges
@@ -1010,7 +1158,10 @@ func _rebuild_area(area: Rect2) -> void:
 		for gx in range(patch.position.x, patch.end.x):
 			var i := gz * _points_x + gx
 			_heights[i] = _base_heights[i]
+			_trail_mask[i] = 0
+			_trail_cover[i] = 0
 	_apply_modifiers(patch)
+	_update_trail_texture()
 
 	# Rebuild every chunk the patch overlaps
 	var first := chunk_at(area.position.x, area.position.y) - Vector2i.ONE
@@ -1034,6 +1185,11 @@ func _rebuild_area(area: Rect2) -> void:
 			continue
 		var spot := Vector2(thing.position.x, thing.position.z)
 		if region.has_point(spot):
+			# A trail now runs here: clear it away (a full rebuild will place things afresh)
+			var margin := 2.0 if thing.get("resource_name") == "Wood" else 1.0
+			if is_on_trail(spot.x, spot.y, margin) and not thing.is_in_group("hidden_deposits"):
+				thing.queue_free()
+				continue
 			thing.position.y += get_height(spot.x, spot.y) - _height_in(before, spot.x, spot.y)
 	# ...and so do the boulders
 	var foliage := get_node_or_null("Foliage")
@@ -1044,12 +1200,62 @@ func _rebuild_area(area: Rect2) -> void:
 			var place := multimesh.get_instance_transform(i)
 			var spot := Vector2(place.origin.x, place.origin.z)
 			if region.has_point(spot):
+				# Boulders a trail now runs over shrink away to nothing
+				if is_on_trail(spot.x, spot.y, 1.0):
+					place = place.scaled_local(Vector3.ZERO)
 				place.origin.y += get_height(spot.x, spot.y) - _height_in(before, spot.x, spot.y)
 				multimesh.set_instance_transform(i, place)
 
 	_place_crash_site()
 	_snap_hand_placed()
 	_refresh_marker_rings(area)
+
+
+## True if a Clear Zone covering this spot keeps out `what`: "trees", "resources", "rocks" or "plants"
+func is_cleared(x: float, z: float, what: String) -> bool:
+	for zone in _clear_zones:
+		if is_instance_valid(zone) and zone.is_inside_tree() and zone.get("clear_" + what) and zone.covers(x, z):
+			return true
+	return false
+
+
+## True if a spot is on a trail, or within `margin` meters of one
+func is_on_trail(x: float, z: float, margin := 0.0) -> bool:
+	if _trail_cover.is_empty():
+		return false
+	var cells := ceili(margin / minf(_cell_x, _cell_z))
+	var gx := roundi((x + _width * 0.5) / _cell_x)
+	var gz := roundi((z + _depth * 0.5) / _cell_z)
+	for dz in range(-cells, cells + 1):
+		for dx in range(-cells, cells + 1):
+			var cx := clampi(gx + dx, 0, _points_x - 1)
+			var cz := clampi(gz + dz, 0, _points_z - 1)
+			if _trail_cover[cz * _points_x + cx] > 0:
+				return true
+	return false
+
+
+## How worn by trails the ground is at a spot: 0 = untouched grass, 1 = bare trail dirt
+func trail_amount(x: float, z: float) -> float:
+	if _trail_mask.is_empty():
+		return 0.0
+	var gx := clampi(roundi((x + _width * 0.5) / _cell_x), 0, _points_x - 1)
+	var gz := clampi(roundi((z + _depth * 0.5) / _cell_z), 0, _points_z - 1)
+	return _trail_mask[gz * _points_x + gx] / 255.0
+
+
+# Hands the trail map to the ground's paint: one pixel per grid point
+func _update_trail_texture() -> void:
+	if not ground_material is ShaderMaterial or _trail_mask.size() != _points_x * _points_z:
+		return
+	if _trail_image == null or _trail_image.get_width() != _points_x or _trail_image.get_height() != _points_z:
+		_trail_image = Image.create_from_data(_points_x, _points_z, false, Image.FORMAT_R8, _trail_mask)
+		_trail_texture = ImageTexture.create_from_image(_trail_image)
+	else:
+		_trail_image.set_data(_points_x, _points_z, false, Image.FORMAT_R8, _trail_mask)
+		_trail_texture.update(_trail_image)
+	ground_material.set_shader_parameter("trail_mask", _trail_texture)
+	ground_material.set_shader_parameter("trail_map", Vector4(-_width * 0.5, -_depth * 0.5, _cell_x, _cell_z))
 
 
 # Switches the ground's slope tint on or off. It uses the player's own climbing limit, and
@@ -1075,6 +1281,9 @@ func _refresh_marker_rings(area: Rect2) -> void:
 	for modifier in get_tree().get_nodes_in_group("terrain_modifiers"):
 		if modifier.is_inside_tree() and modifier.area().intersects(area):
 			modifier.refresh_rings()
+	for zone in get_tree().get_nodes_in_group("clear_zones"):
+		if zone.is_inside_tree():
+			zone.refresh_rings()
 
 
 # The average height of the grid points within `cells` of this one

@@ -56,6 +56,8 @@ var _message_time := 0.0
 var _note_panel: Control
 # Seconds until the dowsing rod can pulse again
 var _dowse_wait := 0.0
+# Frames per second, in the top-right corner (F3 shows or hides it)
+var _fps_label: Label
 
 
 func _ready() -> void:
@@ -67,6 +69,15 @@ func _ready() -> void:
 	add_to_group("player")
 	_note_panel = NOTE_PANEL_SCENE.instantiate()
 	$HUD.add_child(_note_panel)
+	_fps_label = Label.new()
+	_fps_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 16)
+	_fps_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_fps_label.add_theme_font_size_override("font_size", 18)
+	_fps_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_fps_label.add_theme_constant_override("outline_size", 5)
+	_fps_label.visible = false
+	$HUD.add_child(_fps_label)
 	_refresh_inventory_display()
 
 
@@ -80,6 +91,9 @@ func _process(delta: float) -> void:
 		prompt_label.text = "[E] %s" % target.get_prompt()
 
 	_dowse_wait = maxf(_dowse_wait - delta, 0.0)
+	if _fps_label.visible:
+		var triangles := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
+		_fps_label.text = "%d FPS\n%d triangles" % [Engine.get_frames_per_second(), triangles]
 	_update_hints()
 
 
@@ -145,6 +159,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_craft_dowsing_rod()
 			KEY_R:
 				_dowse()
+			KEY_F3:
+				_fps_label.visible = not _fps_label.visible
 			KEY_TAB, KEY_I:
 				_toggle_inventory()
 

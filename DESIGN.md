@@ -115,6 +115,7 @@ The valley is built from real-world elevation data and is heading toward a reali
 - **Terrain:** a heightmap of rolling hills in the English Midlands (36 to 226 m real elevation), built in chunks. Currently 1500 m across with the hills exaggerated. The rest of the heightmap is room to expand, and airship travel can open new regions later.
 - **Water:** a single water level fills the low ground, forming the river and lake.
 - **Visual target:** a realistic forest-and-stream look like the reference screenshot (rocky slopes, ferns, deer). Lighting, fog, shaders, and procedural grass come first; real art assets (Poly Haven, ambientCG, asset packs) replace placeholders in a later beauty pass.
+- **Asset credits:** every third-party asset must be listed in `CREDITS.md` (name, author, source, license, where it is used, and file path). `CREDITS.md` will feed an in-game credits screen later.
 - **Places to discover:** the ruined airship dock, an abandoned workshop, and rusting machinery in the hills.
 - **Map shape and border:** the playable area doesn't need to be square. Natural borders such as steep hills, cliffs, a gorge, or fog mark the edge, with an invisible wall behind them as a backstop. Beyond the border, low-detail terrain with no foliage or collision keeps the world looking continuous.
 - **World map:** an overhead render of the terrain, styled like an old hand-drawn chart, with markers for the player and discovered vents (proposed).

@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://terrain_path.gd" id="1_path"]
 
-[node name="TerrainPath" type="Path3D"]
+[node name="TerrainPath" type="Node3D"]
 script = ExtResource("1_path")
 
 [node name="Edges" type="MeshInstance3D" parent="."]

@@ -1,0 +1,64 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://resource_node.gd" id="1_res"]
+
+[sub_resource type="BoxShape3D" id="Shape_rock"]
+size = Vector3(1.6, 1.0, 1.4)
+
+[sub_resource type="StandardMaterial3D" id="Mat_rock"]
+albedo_color = Color(0.17, 0.155, 0.145, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Mat_rust"]
+albedo_color = Color(0.48, 0.2, 0.09, 1)
+metallic = 0.3
+roughness = 0.8
+
+[sub_resource type="SphereMesh" id="Mesh_rock"]
+material = SubResource("Mat_rock")
+radius = 0.78
+height = 1.05
+radial_segments = 7
+rings = 4
+
+[sub_resource type="BoxMesh" id="Mesh_streak"]
+material = SubResource("Mat_rust")
+size = Vector3(0.9, 0.06, 0.16)
+
+[node name="IronOre" type="StaticBody3D"]
+script = ExtResource("1_res")
+resource_name = "Iron Ore"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.45, 0)
+shape = SubResource("Shape_rock")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.4, 0)
+rotation_degrees = Vector3(-6, 10, 8)
+mesh = SubResource("Mesh_rock")
+
+[node name="Streak1" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(0.1, 0.42, 0.12)
+rotation_degrees = Vector3(10, 30, 18)
+mesh = SubResource("Mesh_streak")
+
+[node name="Streak2" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(0.62, 0.12, -0.1)
+rotation_degrees = Vector3(70, 80, 0)
+mesh = SubResource("Mesh_streak")
+
+[node name="Streak3" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(-0.4, 0.28, 0.42)
+rotation_degrees = Vector3(-40, -35, 25)
+mesh = SubResource("Mesh_streak")
+
+[node name="Streak4" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(-0.55, 0.05, -0.4)
+rotation_degrees = Vector3(55, -60, -30)
+mesh = SubResource("Mesh_streak")
+
+[node name="Streak5" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(0.25, 0.1, 0.68)
+rotation_degrees = Vector3(-75, 5, 10)
+mesh = SubResource("Mesh_streak")

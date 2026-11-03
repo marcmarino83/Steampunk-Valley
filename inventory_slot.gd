@@ -7,6 +7,11 @@ const ITEM_COLORS := {
 	"Coal": Color(0.12, 0.12, 0.12),
 	"Wood": Color(0.45, 0.3, 0.18),
 	"Berries": Color(0.72, 0.12, 0.18),
+	"Stone": Color(0.62, 0.61, 0.58),
+	"Iron Ore": Color(0.5, 0.22, 0.12),
+	"Copper Ore": Color(0.2, 0.62, 0.5),
+	"Mushrooms": Color(0.78, 0.6, 0.42),
+	"Herbs": Color(0.36, 0.66, 0.26),
 }
 
 ## Real icon images. When you have one, add a line like:

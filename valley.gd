@@ -30,8 +30,35 @@ extends StaticBody3D
 @export var tree_count := 4000
 ## Trees won't grow on ground steeper than this, in degrees
 @export_range(0.0, 90.0) var max_tree_slope := 42.0
-## Change this for a different layout of trees
+## Change this for a different layout of trees and resources
 @export var map_seed := 1
+
+@export_group("Resources")
+## How many of each resource to scatter over the map. 0 turns that kind off.
+## Each kind has its own scene, so a real model can replace the placeholder later.
+@export var stone_scene: PackedScene = preload("res://stone.tscn")
+## Gray boulders: everywhere, more on steep slopes
+@export var stone_count := 450
+@export var iron_scene: PackedScene = preload("res://iron_ore.tscn")
+## Dark, rust-streaked rock on rocky slopes and hillsides
+@export var iron_count := 140
+@export var copper_scene: PackedScene = preload("res://copper_ore.tscn")
+## Green- and orange-flecked rock, rarer, high on the hills
+@export var copper_count := 60
+@export var coal_scene: PackedScene = preload("res://coal_deposit.tscn")
+## Black rock in clusters on the hillsides
+@export var coal_count := 110
+@export var mushroom_scene: PackedScene = preload("res://mushrooms.tscn")
+## Small clusters on the forest floor, close to trees
+@export var mushroom_count := 180
+@export var herb_scene: PackedScene = preload("res://herbs.tscn")
+## Leafy plants along the water's edge
+@export var herb_count := 150
+@export var berry_scene: PackedScene = preload("res://berry_bush.tscn")
+## Bushes at the edges of woods and out in meadows
+@export var berry_count := 120
+## Nothing gets scattered closer than this to the crash site (its own salvage is already there)
+@export var crash_site_gap := 20.0
 
 @export_group("")
 ## The player, who starts beside the crash site (or on dry ground near the middle, if there isn't one)
@@ -61,6 +88,16 @@ var _crash_center := Vector2.ZERO
 var _crash_radius := 0.0
 # Where the boiler lies (x, z), for the scorch mark around it
 var _scorch_center := Vector2.ZERO
+# The pattern that decides where woods grow thick and where clearings open up
+var _forest := FastNoiseLite.new()
+# The highest ground on the map, in game meters
+var _highest := 1.0
+# Where things have been scattered, sorted into squares of the map so nearby ones are
+# quick to find: one record for everything (so nothing lands on top of anything else)
+# and one for trees alone (so mushrooms can find them)
+const SPOT_SQUARE := 4.0
+var _taken_spots := {}
+var _tree_spots := {}
 
 
 func _ready() -> void:
@@ -159,7 +196,12 @@ func generate() -> void:
 	_build_skirt()
 	_build_water()
 	_build_walls()
+	_forest.seed = map_seed
+	_forest.frequency = 0.006
+	_taken_spots.clear()
+	_tree_spots.clear()
 	_scatter_trees()
+	_scatter_resources()
 
 	# Grass, ferns and boulders
 	var foliage = preload("res://foliage.gd").new()
@@ -382,6 +424,7 @@ func _build_walls() -> void:
 	var highest := 0.0
 	for h in _heights:
 		highest = maxf(highest, h)
+	_highest = maxf(highest, 1.0)
 	var wall_height := highest + 200.0
 	for side in [Vector3.RIGHT, Vector3.LEFT, Vector3.FORWARD, Vector3.BACK]:
 		var box := BoxShape3D.new()
@@ -402,17 +445,14 @@ func _scatter_trees() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = map_seed
 	var dry_above := water_height() + 0.5
-	# Trees grow in woods and stands, with open clearings between
-	var forest := FastNoiseLite.new()
-	forest.seed = map_seed
-	forest.frequency = 0.006
 	var placed := 0
 	var tries := 0
 	while placed < tree_count and tries < tree_count * 20:
 		tries += 1
 		var x := rng.randf_range(-_width * 0.5 + 5.0, _width * 0.5 - 5.0)
 		var z := rng.randf_range(-_depth * 0.5 + 5.0, _depth * 0.5 - 5.0)
-		if rng.randf() > smoothstep(-0.15, 0.35, forest.get_noise_2d(x, z)) + 0.03:
+		# Trees grow in woods and stands, with open clearings between
+		if rng.randf() > smoothstep(-0.15, 0.35, _forest.get_noise_2d(x, z)) + 0.03:
 			continue
 		var h := get_height(x, z)
 		if h < dry_above or get_slope(x, z) > max_tree_slope or is_near_crash_site(x, z):
@@ -422,7 +462,168 @@ func _scatter_trees() -> void:
 		tree.rotation.y = rng.randf() * TAU
 		tree.scale = Vector3.ONE * rng.randf_range(0.8, 1.4)
 		add_child(tree)
+		_remember_spot(Vector2(x, z), _taken_spots)
+		_remember_spot(Vector2(x, z), _tree_spots)
 		placed += 1
+
+
+# Every kind of resource, with where it likes to grow:
+#   scene, count, how far apart (m), how big a clump pattern (smaller = bigger clumps),
+#   how clumpy (0 = spread evenly, 1 = only in tight clusters), size range,
+#   tilt to match the slope (rocks) or stand upright (plants), and its "likes this spot" check
+func _resource_kinds() -> Array:
+	return [
+		[stone_scene, stone_count, 3.0, 0.02, 0.25, Vector2(0.6, 1.6), true, _likes_stone],
+		[iron_scene, iron_count, 3.0, 0.015, 0.55, Vector2(0.8, 1.3), true, _likes_iron],
+		[copper_scene, copper_count, 3.0, 0.012, 0.6, Vector2(0.7, 1.2), true, _likes_copper],
+		[coal_scene, coal_count, 2.5, 0.02, 0.85, Vector2(0.8, 1.3), true, _likes_coal],
+		[mushroom_scene, mushroom_count, 1.5, 0.03, 0.5, Vector2(1.7, 2.3), false, _likes_mushrooms],
+		[herb_scene, herb_count, 1.5, 0.04, 0.45, Vector2(1.5, 2.0), false, _likes_herbs],
+		[berry_scene, berry_count, 3.0, 0.025, 0.4, Vector2(0.8, 1.2), false, _likes_berries],
+	]
+
+
+# Scatters every kind of resource. Each kind has its own random numbers and its own
+# clump pattern, both worked out from the map seed, so the same seed gives the same valley.
+func _scatter_resources() -> void:
+	var kinds := _resource_kinds()
+	var water := water_height()
+	for k in kinds.size():
+		var scene: PackedScene = kinds[k][0]
+		var count: int = kinds[k][1]
+		if scene == null or count <= 0:
+			continue
+		var spacing: float = kinds[k][2]
+		var clumpiness: float = kinds[k][4]
+		var sizes: Vector2 = kinds[k][5]
+		var tilt: bool = kinds[k][6]
+		var likes: Callable = kinds[k][7]
+		var rng := RandomNumberGenerator.new()
+		rng.seed = map_seed * 1000 + k
+		var clumps := FastNoiseLite.new()
+		clumps.seed = map_seed * 1000 + k
+		clumps.frequency = kinds[k][3]
+
+		var placed := 0
+		var tries := 0
+		while placed < count and tries < count * 400:
+			tries += 1
+			var x := rng.randf_range(-_width * 0.5 + 6.0, _width * 0.5 - 6.0)
+			var z := rng.randf_range(-_depth * 0.5 + 6.0, _depth * 0.5 - 6.0)
+			var spot := Vector2(x, z)
+			if _crash_radius > 0.0 and spot.distance_to(_crash_center) < crash_site_gap:
+				continue
+			var h := get_height(x, z)
+			# Never underwater (herbs check how close to the water they are themselves)
+			if h < water + 0.2:
+				continue
+			# Clumpy kinds only grow where their pattern is high; even kinds grow almost anywhere
+			var clump := smoothstep(lerpf(-1.0, 0.25, clumpiness), lerpf(-0.6, 0.5, clumpiness), clumps.get_noise_2d(x, z))
+			if rng.randf() > clump:
+				continue
+			var slope := get_slope(x, z)
+			if rng.randf() > likes.call(x, z, h - water, slope):
+				continue
+			if _distance_to_nearest(spot, _taken_spots, spacing) < spacing:
+				continue
+
+			var item := scene.instantiate()
+			var size := rng.randf_range(sizes.x, sizes.y)
+			var turn := Basis(Vector3.UP, rng.randf() * TAU)
+			if tilt:
+				# Rocks lean partway into the slope, like they've settled there
+				var lean := Quaternion(Vector3.UP, Vector3.UP.slerp(get_normal(x, z), 0.6))
+				turn = Basis(lean) * turn
+			item.transform = Transform3D(turn.scaled(Vector3.ONE * size), Vector3.ZERO)
+			# Sink it so its downhill edge still touches the ground on a slope (never floating).
+			# Leaning rocks already follow the slope partway, so they need less.
+			var uncovered_slope := slope * (0.6 if tilt else 1.0)
+			var sink := 0.1 + tan(deg_to_rad(minf(uncovered_slope, 60.0))) * 0.75 * size
+			item.position = Vector3(x, h - sink, z)
+			add_child(item)
+			_remember_spot(spot, _taken_spots)
+			placed += 1
+
+
+# Each "likes" check gives a chance from 0 (never here) to 1 (loves it here).
+# above_water is how high the spot is above the water, in meters; slope is in degrees.
+
+func _likes_stone(_x: float, _z: float, _above_water: float, slope: float) -> float:
+	return (0.25 + 0.75 * smoothstep(8.0, 35.0, slope)) * (1.0 - smoothstep(55.0, 65.0, slope))
+
+
+func _likes_iron(_x: float, _z: float, above_water: float, slope: float) -> float:
+	var hillside := smoothstep(0.08, 0.25, above_water / _highest)
+	return smoothstep(14.0, 28.0, slope) * (1.0 - smoothstep(50.0, 60.0, slope)) * hillside
+
+
+func _likes_copper(_x: float, _z: float, above_water: float, slope: float) -> float:
+	var high_up := smoothstep(0.3, 0.5, above_water / _highest)
+	return high_up * smoothstep(10.0, 22.0, slope) * (1.0 - smoothstep(50.0, 60.0, slope))
+
+
+func _likes_coal(_x: float, _z: float, above_water: float, slope: float) -> float:
+	var hillside := 1.0 - smoothstep(0.45, 0.65, above_water / _highest)
+	return smoothstep(10.0, 22.0, slope) * (1.0 - smoothstep(45.0, 55.0, slope)) * hillside
+
+
+func _likes_mushrooms(x: float, z: float, _above_water: float, slope: float) -> float:
+	# In the shade near a tree, but not right up against its trunk
+	var tree := _distance_to_nearest(Vector2(x, z), _tree_spots, 6.0)
+	if tree < 1.2 or tree > 5.0:
+		return 0.0
+	return 1.0 - smoothstep(20.0, 30.0, slope)
+
+
+func _likes_herbs(x: float, z: float, above_water: float, slope: float) -> float:
+	# Just above the waterline, on gentle banks, with actual water a few steps away
+	var low_enough := smoothstep(0.2, 0.5, above_water) * (1.0 - smoothstep(3.0, 5.0, above_water))
+	if low_enough <= 0.0 or not _water_nearby(x, z, 14.0):
+		return 0.0
+	return low_enough * (1.0 - smoothstep(15.0, 25.0, slope))
+
+
+# True if any ground within `reach` meters dips below the water
+func _water_nearby(x: float, z: float, reach: float) -> bool:
+	var water := water_height()
+	for ring in [reach * 0.35, reach * 0.7, reach]:
+		for k in 10:
+			var p: Vector2 = Vector2(x, z) + Vector2.from_angle(TAU * k / 10.0) * ring
+			if get_height(p.x, p.y) < water:
+				return true
+	return false
+
+
+func _likes_berries(x: float, z: float, _above_water: float, slope: float) -> float:
+	# Out in the meadows and along the edges of woods, but not deep in the forest
+	var woods := _forest.get_noise_2d(x, z)
+	return (1.0 - smoothstep(0.25, 0.45, woods)) * (1.0 - smoothstep(14.0, 22.0, slope))
+
+
+## True if a tree or resource stands within `radius` meters of this spot
+func is_spot_taken(x: float, z: float, radius: float) -> bool:
+	return _distance_to_nearest(Vector2(x, z), _taken_spots, radius) < radius
+
+
+# Notes down that something now stands at this spot
+func _remember_spot(spot: Vector2, record: Dictionary) -> void:
+	var square := Vector2i(floori(spot.x / SPOT_SQUARE), floori(spot.y / SPOT_SQUARE))
+	if not record.has(square):
+		record[square] = []
+	record[square].append(spot)
+
+
+# How far it is to the nearest thing in the record, looking no further than `reach`
+# (anything beyond that comes back as INF, meaning "nothing close")
+func _distance_to_nearest(spot: Vector2, record: Dictionary, reach: float) -> float:
+	var nearest := INF
+	var square := Vector2i(floori(spot.x / SPOT_SQUARE), floori(spot.y / SPOT_SQUARE))
+	var squares_out := ceili(reach / SPOT_SQUARE)
+	for dz in range(-squares_out, squares_out + 1):
+		for dx in range(-squares_out, squares_out + 1):
+			for other in record.get(square + Vector2i(dx, dz), []):
+				nearest = minf(nearest, spot.distance_to(other))
+	return nearest if nearest <= reach else INF
 
 
 ## True within the cleared ground around the crash site. `fraction` shrinks the area,

@@ -89,6 +89,9 @@ func _grow_patch(chunk: Vector2i) -> Node3D:
 		# Not underwater, not on ground steep enough to be bare rock, and not under the wreck
 		if h < dry_above or valley.get_normal(x, z).y < 0.72 or valley.is_near_crash_site(x, z, 0.5):
 			continue
+		# Leave a little clear ground around trees and resources, so things you can gather stand out
+		if valley.is_spot_taken(x, z, 0.8):
+			continue
 		# Thick in some places, thin in others
 		if rng.randf() > smoothstep(-0.8, 0.1, _patch_noise.get_noise_2d(x, z)):
 			continue

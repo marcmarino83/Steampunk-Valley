@@ -933,6 +933,9 @@ func _grid_patch(area: Rect2) -> Rect2i:
 	var last_x := mini(_points_x - 1, ceili((area.end.x + _width * 0.5) / _cell_x))
 	var first_z := maxi(0, floori((area.position.y + _depth * 0.5) / _cell_z))
 	var last_z := mini(_points_z - 1, ceili((area.end.y + _depth * 0.5) / _cell_z))
+	# Entirely off the map: an empty patch, not a negative one
+	if last_x < first_x or last_z < first_z:
+		return Rect2i()
 	return Rect2i(first_x, first_z, last_x - first_x + 1, last_z - first_z + 1)
 
 

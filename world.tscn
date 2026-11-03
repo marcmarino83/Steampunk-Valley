@@ -7,10 +7,14 @@
 [ext_resource type="Script" uid="uid://ot3536xogk55" path="res://valley.gd" id="5_dwbse"]
 [ext_resource type="PackedScene" uid="uid://chlsvu01bkeuv" path="res://tree.tscn" id="6_pkg7o"]
 [ext_resource type="PackedScene" path="res://berry_bush.tscn" id="7_berry"]
+[ext_resource type="Material" path="res://terrain_material.tres" id="8_terrain"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
-sky_horizon_color = Color(0.662243, 0.671743, 0.686743, 1)
-ground_horizon_color = Color(0.662243, 0.671743, 0.686743, 1)
+sky_top_color = Color(0.26, 0.42, 0.68, 1)
+sky_horizon_color = Color(0.7, 0.74, 0.78, 1)
+ground_bottom_color = Color(0.16, 0.15, 0.13, 1)
+ground_horizon_color = Color(0.7, 0.74, 0.78, 1)
+sun_angle_max = 20.0
 
 [sub_resource type="Sky" id="Sky_main"]
 sky_material = SubResource("ProceduralSkyMaterial_sky")
@@ -18,8 +22,25 @@ sky_material = SubResource("ProceduralSkyMaterial_sky")
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 2
 sky = SubResource("Sky_main")
-tonemap_mode = 2
+tonemap_mode = 4
+ssao_enabled = true
+ssao_radius = 1.5
+ssao_intensity = 2.5
 glow_enabled = true
+glow_intensity = 0.5
+glow_bloom = 0.05
+fog_enabled = true
+fog_light_color = Color(0.64, 0.7, 0.78, 1)
+fog_density = 0.0006
+fog_aerial_perspective = 0.6
+fog_sky_affect = 0.25
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.003
+volumetric_fog_albedo = Color(0.92, 0.92, 0.95, 1)
+volumetric_fog_length = 120.0
+adjustment_enabled = true
+adjustment_contrast = 1.08
+adjustment_saturation = 1.1
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_copper"]
 albedo_color = Color(0.541176, 0.294118, 0.164706, 1)
@@ -35,6 +56,9 @@ albedo_color = Color(0.41960785, 0.41568628, 0.2901961, 1)
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=2068020516]
 transform = Transform3D(-0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, 0.75, -0.433013, 0, 0, 0)
 shadow_enabled = true
+shadow_blur = 1.5
+directional_shadow_max_distance = 300.0
+light_angular_distance = 0.5
 script = ExtResource("1_fj7yv")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=2078245402]
@@ -115,7 +139,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -24)
 [node name="Valley" type="StaticBody3D" parent="." unique_id=361776968]
 script = ExtResource("5_dwbse")
 resolution = 512
-ground_material = SubResource("StandardMaterial3D_tisue")
+ground_material = ExtResource("8_terrain")
 tree_scene = ExtResource("6_pkg7o")
 rebuild = true
 

@@ -27,9 +27,9 @@ extends StaticBody3D
 
 @export_group("Trees")
 @export var tree_scene: PackedScene
-@export var tree_count := 1500
+@export var tree_count := 4000
 ## Trees won't grow on ground steeper than this, in degrees
-@export_range(0.0, 90.0) var max_tree_slope := 30.0
+@export_range(0.0, 90.0) var max_tree_slope := 42.0
 ## Change this for a different layout of trees
 @export var map_seed := 1
 
@@ -79,6 +79,33 @@ func get_height(x: float, z: float) -> float:
 	return lerpf(north, south, gz - zi)
 
 
+## Which way the ground faces at a spot (straight up = flat). Quicker than get_slope().
+func get_normal(x: float, z: float) -> Vector3:
+	var gx := clampi(roundi((x + _width * 0.5) / _cell_x), 0, _points_x - 1)
+	var gz := clampi(roundi((z + _depth * 0.5) / _cell_z), 0, _points_z - 1)
+	return _normal_at(gx, gz)
+
+
+## The whole map as a rectangle, seen from above (x, z)
+func map_rect() -> Rect2:
+	return Rect2(-_width * 0.5, -_depth * 0.5, _width, _depth)
+
+
+## Which chunk a spot is in
+func chunk_at(x: float, z: float) -> Vector2i:
+	return Vector2i(floori((x + _width * 0.5) / (chunk_cells * _cell_x)), floori((z + _depth * 0.5) / (chunk_cells * _cell_z)))
+
+
+func has_chunk(chunk: Vector2i) -> bool:
+	return chunk.x >= 0 and chunk.y >= 0 and chunk.x < _chunks_x and chunk.y < _chunks_z
+
+
+## The area a chunk covers, seen from above (x, z)
+func chunk_rect(chunk: Vector2i) -> Rect2:
+	var size := Vector2(chunk_cells * _cell_x, chunk_cells * _cell_z)
+	return Rect2(Vector2(-_width * 0.5, -_depth * 0.5) + Vector2(chunk) * size, size)
+
+
 ## How steep the ground is at a spot, in degrees (0 = flat)
 func get_slope(x: float, z: float) -> float:
 	var dx := (get_height(x + 1.0, z) - get_height(x - 1.0, z)) / 2.0
@@ -109,6 +136,9 @@ func generate() -> void:
 
 	if not _load_heights():
 		return
+	# Let the ground's paint know where the water is, for the muddy shoreline
+	if ground_material is ShaderMaterial:
+		ground_material.set_shader_parameter("water_height", water_height())
 	for cz in _chunks_z:
 		for cx in _chunks_x:
 			_build_chunk(cx, cz)
@@ -116,6 +146,13 @@ func generate() -> void:
 	_build_water()
 	_build_walls()
 	_scatter_trees()
+
+	# Grass, ferns and boulders
+	var foliage = preload("res://foliage.gd").new()
+	foliage.name = "Foliage"
+	foliage.valley = self
+	add_child(foliage)
+	foliage.build_rocks(ground_material)
 
 
 # Reads the heightmap into _heights. Returns false if the image couldn't be loaded.
@@ -351,12 +388,18 @@ func _scatter_trees() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = map_seed
 	var dry_above := water_height() + 0.5
+	# Trees grow in woods and stands, with open clearings between
+	var forest := FastNoiseLite.new()
+	forest.seed = map_seed
+	forest.frequency = 0.006
 	var placed := 0
 	var tries := 0
-	while placed < tree_count and tries < tree_count * 10:
+	while placed < tree_count and tries < tree_count * 20:
 		tries += 1
 		var x := rng.randf_range(-_width * 0.5 + 5.0, _width * 0.5 - 5.0)
 		var z := rng.randf_range(-_depth * 0.5 + 5.0, _depth * 0.5 - 5.0)
+		if rng.randf() > smoothstep(-0.15, 0.35, forest.get_noise_2d(x, z)) + 0.03:
+			continue
 		var h := get_height(x, z)
 		if h < dry_above or get_slope(x, z) > max_tree_slope:
 			continue
@@ -390,13 +433,18 @@ func _make_mesh(vertices: PackedVector3Array, normals: PackedVector3Array, uvs: 
 	return mesh
 
 
-# Clear blue-green water you can see the ground through
-func _default_water() -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.2, 0.42, 0.5, 0.7)
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.metallic = 0.3
-	material.roughness = 0.08
-	# Visible from underneath too, if you wade in and look up
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+# Water that's clear in the shallows and darker the deeper it gets, with drifting ripples
+func _default_water() -> ShaderMaterial:
+	var ripple_noise := FastNoiseLite.new()
+	ripple_noise.frequency = 0.02
+	var ripples := NoiseTexture2D.new()
+	ripples.width = 512
+	ripples.height = 512
+	ripples.seamless = true
+	ripples.as_normal_map = true
+	ripples.bump_strength = 6.0
+	ripples.noise = ripple_noise
+	var material := ShaderMaterial.new()
+	material.shader = preload("res://water.gdshader")
+	material.set_shader_parameter("ripples", ripples)
 	return material

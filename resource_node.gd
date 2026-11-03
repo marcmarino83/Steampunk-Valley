@@ -8,13 +8,17 @@ extends StaticBody3D
 ## How many times you can gather before it's used up
 @export var gathers_left := 3
 
-@onready var mesh: Node3D = $MeshInstance3D
-
 var _tween: Tween
+
+
+## The text shown after "[E]" when you look at this
+func get_prompt() -> String:
+	return "Gather %s" % resource_name
 
 
 ## Takes one gather's worth from this pile and returns how much you got
 func gather() -> int:
+	var mesh: Node3D = $MeshInstance3D
 	gathers_left -= 1
 	if _tween:
 		_tween.kill()

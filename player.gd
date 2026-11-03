@@ -26,7 +26,7 @@ func _process(_delta: float) -> void:
 	var target := _looked_at_resource()
 	prompt_label.visible = target != null
 	if target:
-		prompt_label.text = "[E] Gather %s" % target.resource_name
+		prompt_label.text = "[E] %s" % target.get_prompt()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -46,7 +46,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_E:
 		var target := _looked_at_resource()
 		if target:
-			_add_to_inventory(target.resource_name, target.gather())
+			var amount := target.gather()
+			# Some things (like trees) take a few hits before giving anything
+			if amount > 0:
+				_add_to_inventory(target.resource_name, amount)
 
 
 func _physics_process(delta: float) -> void:
@@ -76,7 +79,10 @@ func _physics_process(delta: float) -> void:
 ## The gatherable thing in front of you (within reach), or null
 func _looked_at_resource() -> ResourceNode:
 	if interact_ray.is_colliding():
-		return interact_ray.get_collider() as ResourceNode
+		var target := interact_ray.get_collider() as ResourceNode
+		# Stumps and emptied piles are still there, but have nothing left
+		if target and target.gathers_left > 0:
+			return target
 	return null
 
 

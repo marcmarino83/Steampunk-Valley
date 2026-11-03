@@ -18,12 +18,12 @@ mesh = SubResource("CapsuleMesh_body")
 [node name="Camera3D" type="Camera3D" parent="." unique_id=1818793635]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
 
-[node name="InteractRay" type="RayCast3D" parent="Camera3D"]
+[node name="InteractRay" type="RayCast3D" parent="Camera3D" unique_id=126087239]
 target_position = Vector3(0, 0, -3)
 
-[node name="HUD" type="CanvasLayer" parent="."]
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1534333101]
 
-[node name="Crosshair" type="Label" parent="HUD"]
+[node name="Crosshair" type="Label" parent="HUD" unique_id=886388623]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -36,7 +36,7 @@ text = "+"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Prompt" type="Label" parent="HUD"]
+[node name="Prompt" type="Label" parent="HUD" unique_id=1590497414]
 visible = false
 anchors_preset = 15
 anchor_right = 1.0
@@ -52,7 +52,7 @@ text = "[E] Gather"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Inventory" type="Label" parent="HUD"]
+[node name="Inventory" type="Label" parent="HUD" unique_id=158166589]
 offset_left = 16.0
 offset_top = 16.0
 offset_right = 316.0

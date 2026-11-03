@@ -4,7 +4,8 @@
 [ext_resource type="Script" uid="uid://qxbe3pxvube4" path="res://directional_light_3d.gd" id="1_fj7yv"]
 [ext_resource type="Script" uid="uid://ot3536xogk55" path="res://valley.gd" id="5_dwbse"]
 [ext_resource type="PackedScene" uid="uid://chlsvu01bkeuv" path="res://tree.tscn" id="6_pkg7o"]
-[ext_resource type="Material" path="res://terrain_material.tres" id="8_terrain"]
+[ext_resource type="PackedScene" path="res://terrain_modifier.tscn" id="7_pkg7o"]
+[ext_resource type="Material" uid="uid://bm46i82rjv7ap" path="res://terrain_material.tres" id="8_terrain"]
 [ext_resource type="PackedScene" path="res://crash_site.tscn" id="9_crash"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
@@ -40,31 +41,33 @@ adjustment_enabled = true
 adjustment_contrast = 1.08
 adjustment_saturation = 1.1
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tisue"]
-albedo_color = Color(0.41960785, 0.41568628, 0.2901961, 1)
-
 [node name="World" type="Node3D" unique_id=1463340647]
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=2068020516]
 transform = Transform3D(-0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, 0.75, -0.433013, 0, 0, 0)
+light_angular_distance = 0.5
 shadow_enabled = true
 shadow_blur = 1.5
 directional_shadow_max_distance = 300.0
-light_angular_distance = 0.5
 script = ExtResource("1_fj7yv")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=2078245402]
 environment = SubResource("Environment_main")
 
 [node name="Player" parent="." unique_id=232283361 instance=ExtResource("1_f3sb7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 1.5, -1.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2125835, 28.588007, -1.4)
 
 [node name="Valley" type="StaticBody3D" parent="." unique_id=361776968]
 script = ExtResource("5_dwbse")
-resolution = 512
+height_scale = 1.3
 ground_material = ExtResource("8_terrain")
 tree_scene = ExtResource("6_pkg7o")
-rebuild = true
 
-[node name="CrashSite" parent="." instance=ExtResource("9_crash")]
-rotation_degrees = Vector3(0, 30, 0)
+[node name="CrashSite" parent="." unique_id=1327350621 instance=ExtResource("9_crash")]
+transform = Transform3D(0.8660254, 0, 0.5, 0, 1, 0, -0.5, 0, 0.8660254, 5.881901, 31.389303, 256.14096)
+
+[node name="TerrainModifier" parent="." unique_id=1864664326 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 52.406044, 58.712147, 134.56989)
+radius = 2.5
+strength = 0.8
+falloff = 0.95

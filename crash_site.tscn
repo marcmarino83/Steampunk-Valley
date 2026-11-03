@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://note.gd" id="2_note"]
 [ext_resource type="PackedScene" path="res://scrap_pile.tscn" id="3_scrap"]
 [ext_resource type="PackedScene" path="res://plank_pile.tscn" id="4_planks"]
+[ext_resource type="PackedScene" path="res://terrain_modifier.tscn" id="5_flatten"]
 
 [sub_resource type="FastNoiseLite" id="Noise_grime"]
 frequency = 0.03
@@ -1445,3 +1446,10 @@ rotation_degrees = Vector3(0, -60, 0)
 
 [node name="PlayerSpawn" type="Marker3D" parent="."]
 position = Vector3(12.5, 0, -1.5)
+
+[node name="GroundFlatten" parent="." instance=ExtResource("5_flatten")]
+position = Vector3(-3, 0, -1)
+mode = 2
+radius = 38.0
+falloff = 0.35
+level_to_ground = true

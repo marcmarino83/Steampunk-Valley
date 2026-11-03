@@ -81,10 +81,27 @@ extends StaticBody3D
 	set(value):
 		if value and is_inside_tree():
 			generate()
+## Editor planning view: tint the ground green where the player can walk, yellow near the
+## limit, and red where it's too steep to climb. Never shows in the game.
+@export var show_slope_view := false:
+	set(value):
+		show_slope_view = value
+		_update_slope_view()
+## Show terrain modifier markers in the editor. Unticking hides them all (they still shape
+## the ground); they never show in the game either way.
+@export var show_modifier_markers := true:
+	set(value):
+		show_modifier_markers = value
+		if is_inside_tree():
+			for modifier in get_tree().get_nodes_in_group("terrain_modifiers"):
+				modifier.refresh_rings()
 
 # The smoothed height of every grid point, in game meters above the lowest ground.
 # Stored row by row, west to east, starting from the north edge.
 var _heights := PackedFloat32Array()
+# The same heights straight from the heightmap, before any terrain modifiers, so one
+# marker's patch can be redone without rebuilding the whole valley
+var _base_heights := PackedFloat32Array()
 var _points_x := 0
 var _points_z := 0
 var _chunks_x := 0
@@ -114,10 +131,52 @@ var _copper_spots := {}
 var _deposit_spots := {}
 
 
+const TerrainModifierScript = preload("res://terrain_modifier.gd")
+
+# Counts rebuild requests, so a burst of them (like dragging a marker) only rebuilds once
+var _rebuild_ticket := 0
+# The patch of map (x, z) waiting to be rebuilt, gathered from every request in that burst
+var _dirty_area := Rect2()
+
+
+func _enter_tree() -> void:
+	# So terrain modifiers can find the valley and ask it to rebuild
+	add_to_group("valley")
+
+
 func _ready() -> void:
 	generate()
 	if not Engine.is_editor_hint():
 		_place_player()
+
+
+## In the editor: rebuild the terrain shortly after the last change (a terrain modifier was
+## moved or adjusted). Waiting a moment means dragging a marker doesn't rebuild every frame.
+func request_rebuild() -> void:
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	_dirty_area = Rect2()
+	_rebuild_ticket += 1
+	var ticket := _rebuild_ticket
+	get_tree().create_timer(0.5).timeout.connect(func():
+		if ticket == _rebuild_ticket and is_inside_tree():
+			generate())
+
+
+## In the editor: rebuild just one patch of the map (x, z) shortly after the last request.
+## Terrain modifiers call this when they're moved or adjusted, so only the chunks they touch
+## are redone and the change shows up quickly.
+func request_rebuild_area(area: Rect2) -> void:
+	if not Engine.is_editor_hint() or not is_inside_tree() or not area.has_area():
+		return
+	_dirty_area = area if not _dirty_area.has_area() else _dirty_area.merge(area)
+	_rebuild_ticket += 1
+	var ticket := _rebuild_ticket
+	get_tree().create_timer(0.15).timeout.connect(func():
+		if ticket == _rebuild_ticket and is_inside_tree():
+			var patch := _dirty_area
+			_dirty_area = Rect2()
+			_rebuild_area(patch))
 
 
 ## How high the water surface sits, in game meters
@@ -125,15 +184,25 @@ func water_height() -> float:
 	return (water_level - min_elevation) * height_scale
 
 
+## True once the heights have been read, so get_height() has something to answer with
+func has_heights() -> bool:
+	return not _heights.is_empty()
+
+
 ## How high the ground is at any spot on the map, blending smoothly between grid points
 func get_height(x: float, z: float) -> float:
+	return _height_in(_heights, x, z)
+
+
+# The same, but reading from any set of heights (like a copy from before a change)
+func _height_in(values: PackedFloat32Array, x: float, z: float) -> float:
 	var gx := clampf((x + _width * 0.5) / _cell_x, 0.0, _points_x - 1.001)
 	var gz := clampf((z + _depth * 0.5) / _cell_z, 0.0, _points_z - 1.001)
 	var xi := int(gx)
 	var zi := int(gz)
 	var i := zi * _points_x + xi
-	var north := lerpf(_heights[i], _heights[i + 1], gx - xi)
-	var south := lerpf(_heights[i + _points_x], _heights[i + _points_x + 1], gx - xi)
+	var north := lerpf(values[i], values[i + 1], gx - xi)
+	var south := lerpf(values[i + _points_x], values[i + _points_x + 1], gx - xi)
 	return lerpf(north, south, gz - zi)
 
 
@@ -194,10 +263,16 @@ func generate() -> void:
 
 	if not _load_heights():
 		return
-	# Find the crash site's spot first, so trees and boulders can keep clear of it
+	_base_heights = _heights.duplicate()
+	# Reshape the ground with any terrain modifiers, before anything is built on it
+	_apply_modifiers()
+	# Set the crash site and other hand-placed things down on the final ground, and note
+	# where the wreck is so trees and boulders can keep clear of it
 	_place_crash_site()
+	_snap_hand_placed()
 	# Let the ground's paint know where the water is, for the muddy shoreline,
 	# and where the ship came down, for the churned mud and puddles
+	_update_slope_view()
 	if ground_material is ShaderMaterial:
 		ground_material.set_shader_parameter("water_height", water_height())
 		ground_material.set_shader_parameter("mud_center", _crash_center)
@@ -226,6 +301,7 @@ func generate() -> void:
 	foliage.valley = self
 	add_child(foliage)
 	foliage.build_rocks(ground_material)
+	_refresh_marker_rings(map_rect())
 
 
 # Reads the heightmap into _heights. Returns false if the image couldn't be loaded.
@@ -730,91 +806,327 @@ func is_near_crash_site(x: float, z: float, fraction := 1.0) -> bool:
 	return _crash_radius > 0.0 and Vector2(x, z).distance_to(_crash_center) < _crash_radius * fraction
 
 
-# Moves the crash site to a good spot. Once the game is running, also sets every piece
-# of the wreck down on the ground. (In the editor it's only moved, so the scene's own
-# layout isn't overwritten.)
+# Applies every TerrainModifier in the world to the heights, in scene order. With a patch
+# given (grid columns and rows), only the ground inside it is changed.
+func _apply_modifiers(patch := Rect2i()) -> void:
+	for modifier in get_tree().get_nodes_in_group("terrain_modifiers"):
+		if modifier.is_inside_tree():
+			_apply_modifier(modifier, patch)
+
+
+# The grid points (columns, rows) covering a patch of map (x, z), clipped to the map
+func _grid_patch(area: Rect2) -> Rect2i:
+	var first_x := maxi(0, floori((area.position.x + _width * 0.5) / _cell_x))
+	var last_x := mini(_points_x - 1, ceili((area.end.x + _width * 0.5) / _cell_x))
+	var first_z := maxi(0, floori((area.position.y + _depth * 0.5) / _cell_z))
+	var last_z := mini(_points_z - 1, ceili((area.end.y + _depth * 0.5) / _cell_z))
+	return Rect2i(first_x, first_z, last_x - first_x + 1, last_z - first_z + 1)
+
+
+func _apply_modifier(modifier, patch := Rect2i()) -> void:
+	# Trails (TerrainPath) have their own way of shaping the ground
+	if modifier is Path3D:
+		_apply_path(modifier, patch)
+		return
+	var center := Vector2(modifier.global_position.x, modifier.global_position.z)
+	var reach: float = modifier.radius
+	var mode: int = modifier.mode
+	var cells := _grid_patch(modifier.area())
+	if patch.has_area():
+		cells = cells.intersection(patch)
+	if not cells.has_area():
+		return
+	var first_x := cells.position.x
+	var last_x := cells.end.x - 1
+	var first_z := cells.position.y
+	var last_z := cells.end.y - 1
+
+	# Flatten levels to the marker's own height, or to the average of the ground there
+	var level: float = modifier.global_position.y
+	if mode == TerrainModifierScript.Mode.FLATTEN and modifier.level_to_ground:
+		var core := maxf(reach * (1.0 - modifier.falloff), reach * 0.3)
+		var total := 0.0
+		var samples := 0
+		for k in 24:
+			for r in [0.0, core * 0.5, core]:
+				var p: Vector2 = center + Vector2.from_angle(TAU * k / 24.0) * r
+				total += get_height(p.x, p.y)
+				samples += 1
+		level = total / samples
+	# Squash shrinks the ground's height above a base: either a level set by hand, or
+	# (automatically) the ground on the outer ring, measured in every direction. Following
+	# the ring like that means a hill on a slope squashes toward its own hillside, with no
+	# trench around it, and the edge stays exactly where it was.
+	var ring := PackedFloat32Array()
+	if mode == TerrainModifierScript.Mode.SQUASH and modifier.auto_base:
+		ring.resize(64)
+		for k in 64:
+			var p: Vector2 = center + Vector2.from_angle(TAU * k / 64.0) * reach
+			ring[k] = get_height(p.x, p.y)
+	# Smoothing averages each spot with its neighbors as they were before this modifier.
+	# Bigger markers average over a wider area, so they soften bigger bumps.
+	var before := _heights.duplicate() if mode == TerrainModifierScript.Mode.SMOOTH else PackedFloat32Array()
+	var smooth_cells := clampi(int(reach / (_cell_x * 3.0)), 2, 10)
+
+	for gz in range(first_z, last_z + 1):
+		for gx in range(first_x, last_x + 1):
+			var spot := Vector2(-_width * 0.5 + gx * _cell_x, -_depth * 0.5 + gz * _cell_z)
+			var weight: float = modifier.weight_at(spot.distance_to(center))
+			if weight <= 0.0:
+				continue
+			var i := gz * _points_x + gx
+			match mode:
+				TerrainModifierScript.Mode.LOWER:
+					_heights[i] -= modifier.height * weight
+				TerrainModifierScript.Mode.RAISE:
+					_heights[i] += modifier.height * weight
+				TerrainModifierScript.Mode.FLATTEN:
+					_heights[i] = lerpf(_heights[i], level, weight)
+				TerrainModifierScript.Mode.SMOOTH:
+					_heights[i] = lerpf(_heights[i], _neighbor_average(before, gx, gz, smooth_cells), weight)
+				TerrainModifierScript.Mode.SQUASH:
+					var base: float = modifier.base_height
+					if not ring.is_empty():
+						# The ring's height in this spot's direction, blended between samples
+						var turn := fposmod((spot - center).angle() / TAU, 1.0) * 64.0
+						var k := int(turn) % 64
+						base = lerpf(ring[k], ring[(k + 1) % 64], turn - int(turn))
+					# Scale the height above the base: a peak gets shorter but keeps its rounded shape
+					if _heights[i] > base:
+						_heights[i] = base + (_heights[i] - base) * (1.0 - modifier.amount * weight)
+
+
+# Smooths the ground along a trail: works out a gentle height for every point along it
+# (following the ground, evened out, and never steeper than the trail's Max Slope), then
+# presses the trail into the ground, fading its sides back into the hillside.
+func _apply_path(path, patch := Rect2i()) -> void:
+	var points: PackedVector3Array = path.trail_points()
+	if points.size() < 2:
+		return
+	var cells := _grid_patch(path.area())
+	if patch.has_area():
+		cells = cells.intersection(patch)
+	if not cells.has_area():
+		return
+	var half: float = path.width * 0.5
+	var reach: float = half + path.edge_blend
+
+	# 1. How high the ground is along the trail, and how far along each point is
+	var count := points.size()
+	var along := PackedFloat32Array()
+	var profile := PackedFloat32Array()
+	along.resize(count)
+	profile.resize(count)
+	for i in count:
+		profile[i] = get_height(points[i].x, points[i].z)
+		if i > 0:
+			along[i] = along[i - 1] + Vector2(points[i].x, points[i].z).distance_to(Vector2(points[i - 1].x, points[i - 1].z))
+	# 2. Even out the ups and downs: average each point with its neighbors along the trail.
+	# Smoothness 0 looks a couple of meters each way, 1 looks about 25 m each way.
+	var spacing := maxf(along[count - 1] / (count - 1), 0.1)
+	profile = _smooth_line(profile, maxi(1, int(lerpf(2.0, 25.0, path.smoothness) / spacing)))
+	# 3. Never steeper than Max Slope: where it would be, the trail cuts in or builds up
+	_limit_grade(profile, along, tan(deg_to_rad(path.max_slope)))
+
+	# 4. For every bit of ground near the trail, find the closest point on it...
+	var size := cells.size
+	var closest := PackedFloat32Array()
+	var level := PackedFloat32Array()
+	closest.resize(size.x * size.y)
+	level.resize(size.x * size.y)
+	closest.fill(INF)
+	for s in count - 1:
+		var a := Vector2(points[s].x, points[s].z)
+		var b := Vector2(points[s + 1].x, points[s + 1].z)
+		var length_squared := a.distance_squared_to(b)
+		var nearby := _grid_patch(Rect2(a, Vector2.ZERO).expand(b).grow(reach)).intersection(cells)
+		for gz in range(nearby.position.y, nearby.end.y):
+			for gx in range(nearby.position.x, nearby.end.x):
+				var spot := Vector2(-_width * 0.5 + gx * _cell_x, -_depth * 0.5 + gz * _cell_z)
+				var t := 0.0 if length_squared < 0.0001 else clampf((spot - a).dot(b - a) / length_squared, 0.0, 1.0)
+				var distance := spot.distance_to(a.lerp(b, t))
+				var j := (gz - cells.position.y) * size.x + (gx - cells.position.x)
+				if distance < closest[j]:
+					closest[j] = distance
+					level[j] = lerpf(profile[s], profile[s + 1], t)
+	# ...and bring it to the trail's height: fully across the trail, fading over the edges
+	for gz in range(cells.position.y, cells.end.y):
+		for gx in range(cells.position.x, cells.end.x):
+			var j := (gz - cells.position.y) * size.x + (gx - cells.position.x)
+			if closest[j] >= reach:
+				continue
+			var blend := 1.0 if closest[j] <= half else 1.0 - smoothstep(half, reach, closest[j])
+			var i := gz * _points_x + gx
+			_heights[i] = lerpf(_heights[i], level[j], blend)
+
+
+# Averages each value with `reach` neighbors on each side (fewer near the ends)
+func _smooth_line(values: PackedFloat32Array, reach: int) -> PackedFloat32Array:
+	var result := PackedFloat32Array()
+	result.resize(values.size())
+	for i in values.size():
+		var total := 0.0
+		var n := 0
+		for k in range(maxi(i - reach, 0), mini(i + reach, values.size() - 1) + 1):
+			total += values[k]
+			n += 1
+		result[i] = total / n
+	return result
+
+
+# Keeps a line of heights from ever climbing or dropping faster than `grade` (rise per meter)
+# by cutting down wherever it's too steep: each point ends up no higher than any other point
+# on the trail plus the climb allowed between them. The trail never builds up above the
+# ground, so its ends stay exactly where the ground is (like the edge of a flattened area).
+# A pass each way means it works whichever end of the trail is higher.
+func _limit_grade(heights: PackedFloat32Array, along: PackedFloat32Array, grade: float) -> void:
+	for i in range(1, heights.size()):
+		heights[i] = minf(heights[i], heights[i - 1] + grade * (along[i] - along[i - 1]))
+	for i in range(heights.size() - 2, -1, -1):
+		heights[i] = minf(heights[i], heights[i + 1] + grade * (along[i + 1] - along[i]))
+
+
+# Redoes one patch of the map after a terrain modifier changed: resets the heights there to
+# the original heightmap, re-applies every modifier, rebuilds just the chunks that patch
+# touches, and moves everything standing in it up or down to the new ground.
+func _rebuild_area(area: Rect2) -> void:
+	if _base_heights.size() != _heights.size() or _heights.is_empty():
+		generate()
+		return
+	# A trail's heights depend on its whole length, so any trail this touches is redone in full
+	var grew := true
+	while grew:
+		grew = false
+		for modifier in get_tree().get_nodes_in_group("terrain_modifiers"):
+			if modifier is Path3D and modifier.area().intersects(area) and not area.encloses(modifier.area()):
+				area = area.merge(modifier.area())
+				grew = true
+	# A little extra margin, so the ground's lighting stays seamless at the patch's edges
+	var patch := _grid_patch(area.grow(maxf(_cell_x, _cell_z) * 2.0))
+	if not patch.has_area():
+		return
+	var before := _heights.duplicate()
+	for gz in range(patch.position.y, patch.end.y):
+		for gx in range(patch.position.x, patch.end.x):
+			var i := gz * _points_x + gx
+			_heights[i] = _base_heights[i]
+	_apply_modifiers(patch)
+
+	# Rebuild every chunk the patch overlaps
+	var first := chunk_at(area.position.x, area.position.y) - Vector2i.ONE
+	var last := chunk_at(area.end.x, area.end.y) + Vector2i.ONE
+	for cz in range(maxi(first.y, 0), mini(last.y, _chunks_z - 1) + 1):
+		for cx in range(maxi(first.x, 0), mini(last.x, _chunks_x - 1) + 1):
+			if not chunk_rect(Vector2i(cx, cz)).grow(1.0).intersects(area):
+				continue
+			var old := get_node_or_null("Chunk_%d_%d" % [cx, cz])
+			if old:
+				remove_child(old)
+				old.queue_free()
+			_build_chunk(cx, cz)
+
+	# Trees, resources and buried deposits in the patch move with the ground under them
+	var region := area.grow(1.0)
+	for child in get_children():
+		# Only things that stand on the ground (not the water, walls or chunks themselves)
+		var thing := child as Node3D
+		if thing == null or not thing.has_method("gather"):
+			continue
+		var spot := Vector2(thing.position.x, thing.position.z)
+		if region.has_point(spot):
+			thing.position.y += get_height(spot.x, spot.y) - _height_in(before, spot.x, spot.y)
+	# ...and so do the boulders
+	var foliage := get_node_or_null("Foliage")
+	var rocks: MultiMeshInstance3D = foliage.get_node_or_null("Rocks") if foliage else null
+	if rocks:
+		var multimesh := rocks.multimesh
+		for i in multimesh.instance_count:
+			var place := multimesh.get_instance_transform(i)
+			var spot := Vector2(place.origin.x, place.origin.z)
+			if region.has_point(spot):
+				place.origin.y += get_height(spot.x, spot.y) - _height_in(before, spot.x, spot.y)
+				multimesh.set_instance_transform(i, place)
+
+	_place_crash_site()
+	_snap_hand_placed()
+	_refresh_marker_rings(area)
+
+
+# Switches the ground's slope tint on or off. It uses the player's own climbing limit, and
+# is always off once the game is running.
+func _update_slope_view() -> void:
+	if not ground_material is ShaderMaterial:
+		return
+	var limit := 45.0
+	var player: CharacterBody3D = null
+	if is_inside_tree():
+		player = get_node_or_null(player_path) as CharacterBody3D
+	if player:
+		limit = rad_to_deg(player.floor_max_angle)
+	ground_material.set_shader_parameter("walk_limit_degrees", limit)
+	ground_material.set_shader_parameter("slope_view", show_slope_view and Engine.is_editor_hint())
+
+
+# Redraws the rings of any terrain modifier markers inside this patch of map, so they hug
+# the new ground
+func _refresh_marker_rings(area: Rect2) -> void:
+	if not Engine.is_editor_hint():
+		return
+	for modifier in get_tree().get_nodes_in_group("terrain_modifiers"):
+		if modifier.is_inside_tree() and modifier.area().intersects(area):
+			modifier.refresh_rings()
+
+
+# The average height of the grid points within `cells` of this one
+func _neighbor_average(values: PackedFloat32Array, gx: int, gz: int, cells: int) -> float:
+	var total := 0.0
+	var count := 0
+	for dz in range(-cells, cells + 1):
+		for dx in range(-cells, cells + 1):
+			var x := clampi(gx + dx, 0, _points_x - 1)
+			var z := clampi(gz + dz, 0, _points_z - 1)
+			total += values[z * _points_x + x]
+			count += 1
+	return total / count
+
+
+# Sets the crash site down where it's been placed (only its height changes), and notes
+# where it is. Once the game is running, also sets every piece of the wreck down on the
+# ground. (In the editor only the whole site is moved, so the scene's own layout isn't
+# overwritten.)
 func _place_crash_site() -> void:
 	_crash_radius = 0.0
 	var site = get_node_or_null(crash_site_path)
 	if site == null:
 		return
-	var spot := _find_crash_spot()
+	var spot := Vector2(site.global_position.x, site.global_position.z)
 	_crash_center = spot
 	_crash_radius = site.clear_radius
-	# The ship plowed the ground flat where it came down
-	_level_ground(spot, _crash_radius * 0.6, _crash_radius * 1.1)
-	site.global_position = Vector3(spot.x, get_height(spot.x, spot.y), spot.y)
+	_set_height(site, get_height(spot.x, spot.y))
 	_scorch_center = site.scorch_point()
 	if not Engine.is_editor_hint():
 		site.settle(self)
 
 
-# Looks near the middle of the map for a big, flat, dry stretch of valley floor,
-# well away from the water
-func _find_crash_spot() -> Vector2:
-	var dry_above := water_height() + 1.5
-	var best := Vector2.ZERO
-	var best_score := INF
-	for xi in range(-30, 31):
-		for zi in range(-30, 31):
-			var center := Vector2(xi, zi) * 10.0
-			if center.length() > 300.0:
-				continue
-			var h := get_height(center.x, center.y)
-			if h < dry_above + 1.5:
-				continue
-			# Dry ground all around it, at least 45 m out in every direction
-			var dry := true
-			for ring in [15.0, 30.0, 45.0]:
-				for k in 12:
-					var p: Vector2 = center + Vector2.from_angle(TAU * k / 12.0) * ring
-					if get_height(p.x, p.y) < dry_above:
-						dry = false
-						break
-				if not dry:
-					break
-			if not dry:
-				continue
-			# How bumpy the ground is under the whole wreck, about 42 m across
-			var lowest := INF
-			var highest := -INF
-			for gx in range(-3, 4):
-				for gz in range(-3, 4):
-					var g := get_height(center.x + gx * 7.0, center.y + gz * 7.0)
-					lowest = minf(lowest, g)
-					highest = maxf(highest, g)
-			# The ground gets leveled under the wreck anyway, so being near the middle
-			# matters as much as being flat; and it should be down on the valley floor
-			var score := (highest - lowest) * 0.4 + center.length() * 0.04 + (h - dry_above) * 0.05
-			if score < best_score:
-				best_score = score
-				best = center
-	return best
+# Snaps everything in the "snap_to_ground" group onto the ground, keeping where it is on
+# the map. Give a node a "ground_offset" metadata value to set it that far above (or, if
+# negative, below) the surface.
+func _snap_hand_placed() -> void:
+	for node in get_tree().get_nodes_in_group("snap_to_ground"):
+		var thing := node as Node3D
+		if thing == null or is_ancestor_of(thing):
+			continue
+		var spot := thing.global_position
+		_set_height(thing, get_height(spot.x, spot.z) + float(thing.get_meta("ground_offset", 0.0)))
 
 
-# Flattens the ground to its average height within `flat_radius` of `center`, then blends
-# smoothly back into the natural slope by `blend_radius`. Changes the heights themselves,
-# so the mesh, collision, trees and grass all follow.
-func _level_ground(center: Vector2, flat_radius: float, blend_radius: float) -> void:
-	var total := 0.0
-	var samples := 0
-	for k in 24:
-		for r in [0.0, flat_radius * 0.5, flat_radius]:
-			var p: Vector2 = center + Vector2.from_angle(TAU * k / 24.0) * r
-			total += get_height(p.x, p.y)
-			samples += 1
-	var flat_height := total / samples
-
-	var first_x := maxi(0, floori((center.x - blend_radius + _width * 0.5) / _cell_x))
-	var last_x := mini(_points_x - 1, ceili((center.x + blend_radius + _width * 0.5) / _cell_x))
-	var first_z := maxi(0, floori((center.y - blend_radius + _depth * 0.5) / _cell_z))
-	var last_z := mini(_points_z - 1, ceili((center.y + blend_radius + _depth * 0.5) / _cell_z))
-	for gz in range(first_z, last_z + 1):
-		for gx in range(first_x, last_x + 1):
-			var spot := Vector2(-_width * 0.5 + gx * _cell_x, -_depth * 0.5 + gz * _cell_z)
-			var how_flat := 1.0 - smoothstep(flat_radius, blend_radius, spot.distance_to(center))
-			var i := gz * _points_x + gx
-			_heights[i] = lerpf(_heights[i], flat_height, how_flat)
+# Moves something up or down to `height`, but only if it's actually off. (Moving things
+# in the editor makes their terrain modifiers ask for a rebuild, so this avoids a loop.)
+func _set_height(thing: Node3D, height: float) -> void:
+	if absf(thing.global_position.y - height) > 0.01:
+		var spot := thing.global_position
+		spot.y = height
+		thing.global_position = spot
 
 
 # Puts the player beside the crash site, facing the wreck. With no crash site, it uses

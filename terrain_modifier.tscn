@@ -1,0 +1,24 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://terrain_modifier.gd" id="1_mod"]
+
+[sub_resource type="CylinderMesh" id="Mesh_pole"]
+top_radius = 0.08
+bottom_radius = 0.08
+height = 4.0
+radial_segments = 8
+rings = 1
+
+[node name="TerrainModifier" type="Node3D"]
+script = ExtResource("1_mod")
+
+[node name="InnerRing" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+
+[node name="OuterRing" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+
+[node name="Pole" type="MeshInstance3D" parent="."]
+position = Vector3(0, 2, 0)
+cast_shadow = 0
+mesh = SubResource("Mesh_pole")

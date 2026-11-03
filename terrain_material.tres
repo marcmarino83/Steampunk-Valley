@@ -1,18 +1,33 @@
-[gd_resource type="ShaderMaterial" format=3]
+[gd_resource type="ShaderMaterial" format=3 uid="uid://bm46i82rjv7ap"]
 
-[ext_resource type="Shader" path="res://terrain.gdshader" id="1_shader"]
+[ext_resource type="Shader" uid="uid://ii1qdvoc6vmk" path="res://terrain.gdshader" id="1_shader"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_detail"]
 frequency = 0.008
 fractal_octaves = 6
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_detail"]
-width = 512
-height = 512
-seamless = true
 noise = SubResource("FastNoiseLite_detail")
+seamless = true
 
 [resource]
 render_priority = 0
 shader = ExtResource("1_shader")
 shader_parameter/detail_noise = SubResource("NoiseTexture2D_detail")
+shader_parameter/grass_dark = Color(0.13, 0.2, 0.06, 1)
+shader_parameter/grass_light = Color(0.3, 0.34, 0.12, 1)
+shader_parameter/grass_dry = Color(0.4, 0.36, 0.19, 1)
+shader_parameter/dirt_color = Color(0.28, 0.24, 0.17, 1)
+shader_parameter/rock_dark = Color(0.22, 0.2, 0.17, 1)
+shader_parameter/rock_light = Color(0.47, 0.43, 0.37, 1)
+shader_parameter/rock_start = 0.62
+shader_parameter/rock_full = 0.45
+shader_parameter/rock_bumpiness = 0.5
+shader_parameter/water_height = 27.3
+shader_parameter/shore_width = 1.5
+shader_parameter/mud_center = Vector2(5.881901, 256.14096)
+shader_parameter/mud_radius = 33.75
+shader_parameter/scorch_center = Vector2(7.310104, 242.61469)
+shader_parameter/scorch_radius = 8.5
+shader_parameter/slope_view = false
+shader_parameter/walk_limit_degrees = 45.00000125223908

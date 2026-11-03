@@ -8,6 +8,8 @@ extends Node3D
 
 ## How far around the wreck to keep clear of trees and boulders, in meters
 @export var clear_radius := 45.0
+## How much deeper than its layout the wreck sinks into the ground, in meters
+@export var dig_in := 0.3
 
 # The rigging: each rope runs from one point to the next (in this scene's own coordinates),
 # sagging by the given amount in the middle. "rope" is hemp, "cable" is thin iron wire.
@@ -68,17 +70,23 @@ func _process(_delta: float) -> void:
 		bird.scale.y = 1.0 + sin(t * 14.0 + crow[4]) * 0.9 * flapping
 
 
-## Sets every piece of the wreck down on the valley's ground
+## Sets every piece of the wreck down on the valley's ground. The ship's own parts (hulls,
+## envelope, engine, crates, rigging...) sink an extra `dig_in` meters, so it looks like it
+## plowed into the ground; salvage piles and the player's start point sit right on top.
 func settle(valley) -> void:
 	for child in get_children():
 		var piece := child as Node3D
-		if piece == null:
+		# The flatten marker reshapes the ground itself, so it stays put
+		if piece == null or piece.is_in_group("terrain_modifiers"):
 			continue
 		# Remember the height it was given in the scene, so settling twice doesn't stack up
 		if not piece.has_meta("ground_offset"):
 			piece.set_meta("ground_offset", piece.position.y)
+		var offset := float(piece.get_meta("ground_offset"))
+		if not (piece.has_method("gather") or piece is Marker3D):
+			offset -= dig_in
 		var spot := piece.global_position
-		spot.y = valley.get_height(spot.x, spot.z) + float(piece.get_meta("ground_offset"))
+		spot.y = valley.get_height(spot.x, spot.z) + offset
 		piece.global_position = spot
 
 

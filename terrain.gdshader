@@ -30,6 +30,11 @@ uniform float mud_radius = 0.0;
 // Ground burnt black around the crashed boiler. A radius of 0 means no scorch mark.
 uniform vec2 scorch_center = vec2(0.0);
 uniform float scorch_radius = 0.0;
+// Editor planning view: tint the ground by how steep it is. The valley switches this on
+// from its Show Slope View checkbox, and always off in the game.
+uniform bool slope_view = false;
+// The steepest ground the player can walk up, in degrees
+uniform float walk_limit_degrees = 45.0;
 
 varying vec3 world_pos;
 varying vec3 world_normal;
@@ -128,4 +133,16 @@ void fragment() {
 	float det = dot(dpdx, r1);
 	vec3 slope = sign(det) * (dFdx(bump) * r1 + dFdy(bump) * r2);
 	NORMAL = normalize(abs(det) * NORMAL - slope);
+
+	// Slope view: green = easy walking, yellow = close to the limit, red = too steep to climb
+	if (slope_view) {
+		float angle = degrees(acos(clamp(n.y, -1.0, 1.0)));
+		vec3 tint = vec3(0.15, 0.75, 0.2);
+		if (angle >= walk_limit_degrees) {
+			tint = vec3(0.9, 0.15, 0.1);
+		} else if (angle >= walk_limit_degrees - 8.0) {
+			tint = vec3(0.95, 0.8, 0.1);
+		}
+		ALBEDO = mix(ALBEDO, tint, 0.7);
+	}
 }

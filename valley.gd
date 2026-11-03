@@ -15,7 +15,17 @@ extends StaticBody3D
 @export var bump_height := 2.0
 ## Change this for a differently shaped valley
 @export var map_seed := 1
+## Width of the river's flat bed, down the middle of the valley floor
+@export var river_width := 8.0
+## How far the muddy banks slope up on each side of the bed
+@export var bank_width := 2.5
+## How far the riverbed sinks below the valley floor
+@export var river_depth := 1.5
+## Height of the water surface (the valley floor is around 0)
+@export var water_level := -0.4
 @export var ground_material: Material
+## Leave empty to use a plain see-through blue
+@export var water_material: Material
 @export var tree_scene: PackedScene
 @export var tree_count := 150
 ## Tick this in the Inspector to rebuild after changing settings
@@ -41,8 +51,11 @@ func get_height(x: float, z: float) -> float:
 	var distance_from_center := absf(x - valley_center(z))
 	var t := clampf((distance_from_center - floor_width * 0.5) / slope_width, 0.0, 1.0)
 	var height := smoothstep(0.0, 1.0, t) * hill_height
-	# Lumps: small on the valley floor, bigger up on the hills
-	height += noise.get_noise_2d(x, z) * bump_height * (0.3 + t)
+	# The riverbed: 1 on the flat bed, easing to 0 at the top of the banks
+	var river := 1.0 - smoothstep(river_width * 0.5, river_width * 0.5 + bank_width, distance_from_center)
+	height -= river * river_depth
+	# Lumps: small on the valley floor, bigger up on the hills, none in the riverbed
+	height += noise.get_noise_2d(x, z) * bump_height * (0.3 + t) * (1.0 - river)
 	return height
 
 
@@ -99,6 +112,32 @@ func generate() -> void:
 	collision.scale = Vector3(step, 1.0, step)
 	add_child(collision)
 
+	# Lay a flat water ribbon along the river, tucked under the banks at its edges
+	var water_half_width := river_width * 0.5 + bank_width
+	var water := SurfaceTool.new()
+	water.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for zi in points:
+		var z := -half + zi * step
+		var center := valley_center(z)
+		water.set_uv(Vector2(0, zi * 0.2))
+		water.add_vertex(Vector3(center - water_half_width, water_level, z))
+		water.set_uv(Vector2(1, zi * 0.2))
+		water.add_vertex(Vector3(center + water_half_width, water_level, z))
+	for zi in resolution:
+		var i := zi * 2
+		water.add_index(i)
+		water.add_index(i + 1)
+		water.add_index(i + 2)
+		water.add_index(i + 1)
+		water.add_index(i + 3)
+		water.add_index(i + 2)
+	water.generate_normals()
+
+	var river_surface := MeshInstance3D.new()
+	river_surface.mesh = water.commit()
+	river_surface.material_override = water_material if water_material else _default_water()
+	add_child(river_surface)
+
 	# Scatter trees on the slopes, keeping the valley floor open
 	if tree_scene:
 		var rng := RandomNumberGenerator.new()
@@ -117,3 +156,15 @@ func generate() -> void:
 			tree.scale = Vector3.ONE * rng.randf_range(0.8, 1.4)
 			add_child(tree)
 			placed += 1
+
+
+# Clear blue-green water you can see the riverbed through
+func _default_water() -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(0.2, 0.42, 0.5, 0.7)
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.metallic = 0.3
+	material.roughness = 0.08
+	# Visible from underneath too, if you wade in and look up
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return material

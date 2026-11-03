@@ -11,9 +11,22 @@ extends StaticBody3D
 var _tween: Tween
 
 
+## Whether looking at this shows a prompt (stumps and emptied piles don't)
+func can_interact() -> bool:
+	return gathers_left > 0
+
+
 ## The text shown after "[E]" when you look at this
 func get_prompt() -> String:
 	return "Gather %s" % resource_name
+
+
+## What happens when you press E on this
+func interact(player) -> void:
+	var amount := gather()
+	# Some things (like trees) take a few hits before giving anything
+	if amount > 0:
+		player.add_item(resource_name, amount)
 
 
 ## Takes one gather's worth from this pile and returns how much you got

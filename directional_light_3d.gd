@@ -7,6 +7,13 @@ extends DirectionalLight3D
 ## The sky, so it can dim at night
 @export var world_environment: WorldEnvironment
 
+## 1 in full daylight, 0 at night. The player reads this to know how cold it is.
+var daylight := 1.0
+
+
+func _ready() -> void:
+	add_to_group("sun")
+
 
 func _process(delta: float) -> void:
 	# Move time forward, wrapping back to midnight after a full day
@@ -17,7 +24,7 @@ func _process(delta: float) -> void:
 
 	# How high the sun is: 1 at noon, 0 at the horizon, below 0 at night
 	var sun_height := sin((time_of_day - 0.25) * TAU)
-	var daylight := clampf(sun_height * 3.0, 0.0, 1.0)
+	daylight = clampf(sun_height * 3.0, 0.0, 1.0)
 
 	# Fade the sunlight, and warm it to orange near sunrise and sunset
 	light_energy = daylight

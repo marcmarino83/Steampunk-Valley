@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://c3m8p5r2tyhaw"]
 
 [ext_resource type="Script" uid="uid://desoyuy7a8elk" path="res://player.gd" id="1_4flbx"]
+[ext_resource type="PackedScene" path="res://inventory_screen.tscn" id="2_inv"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 
@@ -153,3 +154,5 @@ text = "[F] Eat Berries
 [B] Build Campfire (3 Wood)"
 horizontal_alignment = 2
 vertical_alignment = 2
+
+[node name="InventoryScreen" parent="HUD" instance=ExtResource("2_inv")]

@@ -25,6 +25,7 @@ const CAMPFIRE_SCENE = preload("res://campfire.tscn")
 @onready var hunger_bar: ProgressBar = $HUD/Meters/HungerBar
 @onready var warmth_bar: ProgressBar = $HUD/Meters/WarmthBar
 @onready var status_label: Label = $HUD/Status
+@onready var inventory_screen: Control = $HUD/InventoryScreen
 
 ## What you're carrying, like {"Scrap": 3, "Coal": 1}
 var inventory := {}
@@ -43,7 +44,7 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	# The look ray starts inside your own body, so tell it to ignore you
 	interact_ray.add_exception(self)
-	_update_inventory_label()
+	_refresh_inventory_display()
 
 
 func _process(delta: float) -> void:
@@ -63,10 +64,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		camera.rotate_x(-event.relative.y * MOUSE_SENSITIVITY)
 		camera.rotation.x = clamp(camera.rotation.x, deg_to_rad(-89), deg_to_rad(89))
 
-	# Esc frees the mouse; clicking in the window grabs it again
+	# Esc closes the inventory if it's open, otherwise frees the mouse.
+	# Clicking in the window grabs the mouse again (but not while the inventory is open).
 	if event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	elif event is InputEventMouseButton and event.pressed:
+		if inventory_screen.visible:
+			_toggle_inventory()
+		else:
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	elif event is InputEventMouseButton and event.pressed and not inventory_screen.visible:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -80,6 +85,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_eat()
 			KEY_B:
 				_build_campfire()
+			KEY_TAB, KEY_I:
+				_toggle_inventory()
 
 
 func _physics_process(delta: float) -> void:
@@ -119,7 +126,7 @@ func flash(text: String) -> void:
 
 func add_item(item: String, amount: int) -> void:
 	inventory[item] = inventory.get(item, 0) + amount
-	_update_inventory_label()
+	_refresh_inventory_display()
 
 
 ## Takes items out of your pockets. Returns false (and takes nothing) if you don't have enough.
@@ -129,7 +136,7 @@ func remove_item(item: String, amount: int) -> bool:
 	inventory[item] -= amount
 	if inventory[item] == 0:
 		inventory.erase(item)
-	_update_inventory_label()
+	_refresh_inventory_display()
 	return true
 
 
@@ -207,7 +214,20 @@ func _build_campfire() -> void:
 	flash("Campfire built. Look at it and press E to add Coal")
 
 
-func _update_inventory_label() -> void:
+## Opens the backpack (freeing the mouse) or closes it (grabbing the mouse again).
+## The game keeps running either way.
+func _toggle_inventory() -> void:
+	inventory_screen.visible = not inventory_screen.visible
+	if inventory_screen.visible:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	else:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## Call this whenever the inventory changes, so the counter and the backpack both stay current
+func _refresh_inventory_display() -> void:
+	inventory_screen.show_items(inventory)
+
 	if inventory.is_empty():
 		inventory_label.text = "Carrying nothing"
 		return

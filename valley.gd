@@ -1,324 +1,381 @@
 @tool
 extends StaticBody3D
 
-## Size of the whole map in meters (it's square)
-@export var size := 400.0
-## Ground detail. Higher = smoother hills, slower to build
-@export var resolution := 512
-## Width of the flat-ish valley floor
-@export var floor_width := 30.0
-## How far the slopes stretch before reaching the hilltops
-@export var slope_width := 50.0
-## How tall the hills on each side get
-@export var hill_height := 30.0
-## Small random lumps so nothing is perfectly smooth
-@export var bump_height := 2.0
-## Change this for a differently shaped valley
-@export var map_seed := 1
+## A grayscale heightmap: black is the lowest ground, white the highest
+@export_file("*.png") var heightmap_path := "res://heightmap.png"
+## The real-world elevation of pure black in the heightmap, in meters
+@export var min_elevation := 42.0
+## The real-world elevation of pure white in the heightmap, in meters
+@export var max_elevation := 224.0
+## Width of the world in meters, west to east. North to south follows the image's shape.
+@export var world_size := 1500.0
+## Stretches the hills taller. 1 = true to life, 2 = twice as tall.
+@export var height_scale := 2.0
+## The real-world elevation the water rises to, in meters. Anything lower is underwater.
+@export var water_level := 63.0
+## How much to smooth away the little stair-steps from the image (0 = none)
+@export_range(0, 8) var smoothing := 3
 @export var ground_material: Material
-
-@export_group("River")
-## Width of the river's flat bed, down the middle of the valley floor
-@export var river_width := 8.0
-## How far the muddy banks slope up on each side of the bed
-@export var bank_width := 2.5
-## How far the riverbed sinks below the valley floor
-@export var river_depth := 1.5
-## Height of the water surface (the valley floor is around 0)
-@export var water_level := -0.4
 ## Leave empty to use a plain see-through blue
 @export var water_material: Material
 
-@export_group("Lake")
-## How far down the valley the river pools into a lake
-@export var lake_z := 90.0
-## Radius of the open water
-@export var lake_radius := 28.0
-## How far the sloping shore reaches past the water's edge
-@export var lake_shore := 10.0
-## How deep the lake is in the middle, below the water surface
-@export var lake_depth := 3.0
-
-@export_group("Side Valley")
-## Where along the main valley the side valley branches off
-@export var side_valley_z := -60.0
-## Width of the side valley's floor
-@export var side_floor_width := 14.0
-## How quickly the side valley's floor climbs as it heads into the hills
-@export var side_rise := 0.08
-
-@export_group("Mountains")
-## How tall the mountains at the map's edge get, on top of the normal hills
-@export var mountain_height := 60.0
-## How far in from the edge the mountains start rising
-@export var mountain_width := 40.0
-## Width of the gorge floor where the river cuts through the mountains
-@export var gorge_width := 18.0
-## How far the gorge's sloping walls reach out on each side before they're full mountain
-@export var gorge_wall := 45.0
+@export_group("Chunks")
+## Roughly how big each square piece of terrain is, in meters
+@export var chunk_size := 64.0
+## How many grid squares across each chunk. 32 squares in 64 m = a point every 2 m.
+@export var chunk_cells := 32
 
 @export_group("Trees")
 @export var tree_scene: PackedScene
-@export var tree_count := 600
+@export var tree_count := 1500
+## Trees won't grow on ground steeper than this, in degrees
+@export_range(0.0, 90.0) var max_tree_slope := 30.0
+## Change this for a different layout of trees
+@export var map_seed := 1
 
 @export_group("")
+## The player, who gets put on dry ground near the middle of the map when the game starts
+@export var player_path: NodePath = ^"../Player"
 ## Tick this in the Inspector to rebuild after changing settings
 @export var rebuild := false:
 	set(value):
 		if value and is_inside_tree():
 			generate()
 
-## How far the scenery carries on past the invisible walls. You can't walk there,
-## but it means the mountains look solid from every side, even from outside the map.
-const OUTSIDE_MARGIN := 40.0
-## How far the cliff around the outside of the scenery drops
-const SKIRT_BOTTOM := -60.0
-
-var noise := FastNoiseLite.new()
-var _lake_center := Vector2.ZERO
-var _side_start_x := 0.0
+# The smoothed height of every grid point, in game meters above the lowest ground.
+# Stored row by row, west to east, starting from the north edge.
+var _heights := PackedFloat32Array()
+var _points_x := 0
+var _points_z := 0
+var _chunks_x := 0
+var _chunks_z := 0
+# Meters between grid points, west-east and north-south
+var _cell_x := 1.0
+var _cell_z := 1.0
+var _width := 0.0
+var _depth := 0.0
 
 
 func _ready() -> void:
 	generate()
+	if not Engine.is_editor_hint():
+		_place_player()
 
 
-# The valley floor winds gently from side to side
-func valley_center(z: float) -> float:
-	var center := sin(z * 0.02) * 15.0
-	# Past the north and south walls, the river gorges bend sharply away, so looking
-	# down a gorge you see rock walls instead of the end of the world
-	var beyond := absf(z) - size * 0.5
-	if beyond > 0.0:
-		center -= beyond * beyond * 0.03 * signf(z)
-	return center
+## How high the water surface sits, in game meters
+func water_height() -> float:
+	return (water_level - min_elevation) * height_scale
 
 
-# The side valley heads off toward +x, angling away down the map as it goes
-func side_valley_center(x: float) -> float:
-	var along := x - _side_start_x
-	return side_valley_z - along * 0.6 + sin(along * 0.03) * 8.0
-
-
-# How far up the main valley's slopes a spot is: 0 on the floor, 1 at the hilltops.
-# The floor widens into a round basin around the lake.
-func _main_slope(x: float, z: float) -> float:
-	var lake_distance := Vector2(x, z).distance_to(_lake_center)
-	var basin := 1.0 - smoothstep(lake_radius, lake_radius + slope_width, lake_distance)
-	var half_floor := floor_width * 0.5 + basin * (lake_radius + lake_shore)
-	return clampf((absf(x - valley_center(z)) - half_floor) / slope_width, 0.0, 1.0)
-
-
-# Same idea for the side valley. It only exists on the +x side of where it branches off.
-func _side_slope(x: float, z: float) -> float:
-	if x <= _side_start_x:
-		return 1.0
-	# 0.857 corrects for the valley running at an angle, so its width stays true
-	var distance := absf(z - side_valley_center(x)) * 0.857
-	return clampf((distance - side_floor_width * 0.5) / (slope_width * 0.7), 0.0, 1.0)
-
-
-# How much mountain there is at a spot: 0 everywhere except the last stretch of map,
-# rising to 1 right at the edge. The river runs north-south (along z), so the north
-# and south ranges each have a gorge cut through them for it.
-func _mountains(x: float, z: float) -> float:
-	var half := size / 2.0
-	var east_west := 1.0 - smoothstep(0.0, mountain_width, half - absf(x))
-	var north_south := 1.0 - smoothstep(0.0, mountain_width, half - absf(z))
-	var gorge := smoothstep(gorge_width * 0.5, gorge_width * 0.5 + gorge_wall, absf(x - valley_center(z)))
-	return maxf(east_west, north_south * gorge)
-
-
-# How high the ground is at any spot on the map
+## How high the ground is at any spot on the map, blending smoothly between grid points
 func get_height(x: float, z: float) -> float:
-	var t := _main_slope(x, z)
-	var height := smoothstep(0.0, 1.0, t) * hill_height
-
-	# The side valley: wherever it cuts lower than the main valley's hills, it wins
-	var side_t := _side_slope(x, z)
-	if side_t < 1.0:
-		var floor_height := clampf((x - _side_start_x) * side_rise, 0.0, hill_height * 0.7)
-		var side_height := floor_height + smoothstep(0.0, 1.0, side_t) * (hill_height - floor_height)
-		if side_height < height:
-			height = side_height
-			t = side_t
-
-	# The mountains around the edge, with extra-big lumps so they look rugged
-	var mountains := _mountains(x, z)
-	height += mountains * mountain_height
-	height += noise.get_noise_2d(x * 2.0, z * 2.0) * mountains * mountain_height * 0.15
-	t = maxf(t, mountains)
-
-	# The riverbed: 1 on the flat bed, easing to 0 at the top of the banks
-	var distance_from_center := absf(x - valley_center(z))
-	var river := 1.0 - smoothstep(river_width * 0.5, river_width * 0.5 + bank_width, distance_from_center)
-	height -= river * river_depth
-	# Lumps: small on the valley floor, bigger up on the hills, none in the riverbed
-	height += noise.get_noise_2d(x, z) * bump_height * (0.3 + t) * (1.0 - river)
-
-	# The lake: a bowl where the river pools, deepest in the middle, with a sloping shore
-	var lake_distance := Vector2(x, z).distance_to(_lake_center)
-	if lake_distance < lake_radius + lake_shore:
-		var bottom := water_level - 0.3 - lake_depth * smoothstep(0.0, 1.0, 1.0 - lake_distance / lake_radius)
-		height = lerpf(bottom, height, smoothstep(lake_radius, lake_radius + lake_shore, lake_distance))
-	return height
+	var gx := clampf((x + _width * 0.5) / _cell_x, 0.0, _points_x - 1.001)
+	var gz := clampf((z + _depth * 0.5) / _cell_z, 0.0, _points_z - 1.001)
+	var xi := int(gx)
+	var zi := int(gz)
+	var i := zi * _points_x + xi
+	var north := lerpf(_heights[i], _heights[i + 1], gx - xi)
+	var south := lerpf(_heights[i + _points_x], _heights[i + _points_x + 1], gx - xi)
+	return lerpf(north, south, gz - zi)
 
 
-# True on the valley floors, lake shore, riverbanks and bare mountain peaks: places trees shouldn't grow
-func is_open_ground(x: float, z: float) -> bool:
-	return _mountains(x, z) > 0.6 \
-		or _main_slope(x, z) < 0.08 \
-		or _side_slope(x, z) < 0.08 \
-		or Vector2(x, z).distance_to(_lake_center) < lake_radius + lake_shore + 3.0
+## How steep the ground is at a spot, in degrees (0 = flat)
+func get_slope(x: float, z: float) -> float:
+	var dx := (get_height(x + 1.0, z) - get_height(x - 1.0, z)) / 2.0
+	var dz := (get_height(x, z + 1.0) - get_height(x, z - 1.0)) / 2.0
+	return rad_to_deg(atan(sqrt(dx * dx + dz * dz)))
+
+
+## The nearest spot to `near` (an x, z position) that's dry and fairly flat
+func find_dry_spot(near: Vector2) -> Vector2:
+	var dry_above := water_height() + 1.0
+	# Search in growing circles, 4 m apart
+	for ring in 300:
+		var radius := ring * 4.0
+		var steps := maxi(1, int(TAU * radius / 4.0))
+		for s in steps:
+			var angle := TAU * s / steps
+			var spot := near + Vector2(cos(angle), sin(angle)) * radius
+			if get_height(spot.x, spot.y) > dry_above and get_slope(spot.x, spot.y) < 15.0:
+				return spot
+	return near
 
 
 func generate() -> void:
-	noise.seed = map_seed
-	noise.frequency = 0.02
-	_lake_center = Vector2(valley_center(lake_z), lake_z)
-	_side_start_x = valley_center(side_valley_z)
-
-	# Clear out the old valley before building a new one
+	# Clear out the old terrain before building a new one
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
 
-	var step := size / resolution
-	var half := size / 2.0
-	# The grid covers the map plus the scenery past the walls
-	var margin_cells := ceili(OUTSIDE_MARGIN / step)
-	var cells := resolution + margin_cells * 2
-	var points := cells + 1
-	var extent := half + margin_cells * step
+	if not _load_heights():
+		return
+	for cz in _chunks_z:
+		for cx in _chunks_x:
+			_build_chunk(cx, cz)
+	_build_skirt()
+	_build_water()
+	_build_walls()
+	_scatter_trees()
 
-	# Work out the height of every point on the grid
-	var heights := PackedFloat32Array()
-	heights.resize(points * points)
-	for zi in points:
-		for xi in points:
-			heights[zi * points + xi] = get_height(-extent + xi * step, -extent + zi * step)
 
-	# Build the visible ground from those heights. Filling in big arrays like this
-	# is much faster than adding one point at a time, which matters on a big map.
+# Reads the heightmap into _heights. Returns false if the image couldn't be loaded.
+func _load_heights() -> bool:
+	var texture := load(heightmap_path) as Texture2D
+	if texture == null:
+		push_error("Valley: couldn't load the heightmap at %s" % heightmap_path)
+		return false
+	var image := texture.get_image()
+	if image.is_compressed():
+		image.decompress()
+
+	# Work out the world's shape, and how many chunks fit across it
+	_width = world_size
+	_depth = world_size * image.get_height() / float(image.get_width())
+	_chunks_x = maxi(1, roundi(_width / chunk_size))
+	_chunks_z = maxi(1, roundi(_depth / chunk_size))
+	_points_x = _chunks_x * chunk_cells + 1
+	_points_z = _chunks_z * chunk_cells + 1
+	_cell_x = _width / (_points_x - 1)
+	_cell_z = _depth / (_points_z - 1)
+
+	# The image only has 256 shades of gray, which makes the ground rise in little steps.
+	# Switching to decimal numbers first means resizing and smoothing can blend between shades.
+	image.convert(Image.FORMAT_RF)
+	image.resize(_points_x, _points_z, Image.INTERPOLATE_CUBIC)
+	var brightness := image.get_data().to_float32_array()
+	for pass_number in 2:
+		brightness = _blur(brightness, _points_x, _points_z, smoothing)
+
+	# Brightness 0 to 1 becomes height above the lowest ground, stretched by height_scale
+	var full_height := (max_elevation - min_elevation) * height_scale
+	_heights.resize(brightness.size())
+	for i in brightness.size():
+		_heights[i] = brightness[i] * full_height
+	return true
+
+
+# Softens a grid of numbers by averaging each one with its neighbors within `radius`.
+# Keeps a running total as it slides along, so it's quick even with a big radius.
+func _blur(values: PackedFloat32Array, width: int, height: int, radius: int) -> PackedFloat32Array:
+	if radius <= 0:
+		return values
+	var across := PackedFloat32Array()
+	across.resize(values.size())
+	var window := 2 * radius + 1
+	# Along each row
+	for z in height:
+		var row := z * width
+		var total := 0.0
+		for k in range(-radius, radius + 1):
+			total += values[row + clampi(k, 0, width - 1)]
+		for x in width:
+			across[row + x] = total / window
+			total += values[row + mini(x + radius + 1, width - 1)] - values[row + maxi(x - radius, 0)]
+	# Then down each column
+	var result := PackedFloat32Array()
+	result.resize(values.size())
+	for x in width:
+		var total := 0.0
+		for k in range(-radius, radius + 1):
+			total += across[clampi(k, 0, height - 1) * width + x]
+		for z in height:
+			result[z * width + x] = total / window
+			total += across[mini(z + radius + 1, height - 1) * width + x] - across[maxi(z - radius, 0) * width + x]
+	return result
+
+
+# Which way the ground faces at a grid point, from how steeply it slopes to its neighbors
+func _normal_at(gx: int, gz: int) -> Vector3:
+	var row := gz * _points_x
+	var west := _heights[row + maxi(gx - 1, 0)]
+	var east := _heights[row + mini(gx + 1, _points_x - 1)]
+	var north := _heights[maxi(gz - 1, 0) * _points_x + gx]
+	var south := _heights[mini(gz + 1, _points_z - 1) * _points_x + gx]
+	return Vector3((west - east) / (2.0 * _cell_x), 1.0, (north - south) / (2.0 * _cell_z)).normalized()
+
+
+# One square piece of terrain: its own visible mesh and its own solid collision.
+# Splitting the world up like this lets Godot skip drawing (and checking collisions with)
+# pieces that are off-screen or far away, so it stays fast as the world grows.
+func _build_chunk(cx: int, cz: int) -> void:
+	var n := chunk_cells + 1
+	var first_x := cx * chunk_cells
+	var first_z := cz * chunk_cells
+	var corner := Vector3(-_width * 0.5 + first_x * _cell_x, 0.0, -_depth * 0.5 + first_z * _cell_z)
+
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var uvs := PackedVector2Array()
-	vertices.resize(points * points)
-	normals.resize(points * points)
-	uvs.resize(points * points)
-	for zi in points:
-		for xi in points:
-			var i := zi * points + xi
-			var x := -extent + xi * step
-			var z := -extent + zi * step
-			vertices[i] = Vector3(x, heights[i], z)
-			uvs[i] = Vector2(x, z) * 0.1
-			# Which way the ground faces, worked out from how steeply it slopes to its neighbors
-			var left: float = heights[i - 1] if xi > 0 else heights[i]
-			var right: float = heights[i + 1] if xi < cells else heights[i]
-			var back: float = heights[i - points] if zi > 0 else heights[i]
-			var front: float = heights[i + points] if zi < cells else heights[i]
-			normals[i] = Vector3(left - right, 2.0 * step, back - front).normalized()
+	var chunk_heights := PackedFloat32Array()
+	vertices.resize(n * n)
+	normals.resize(n * n)
+	uvs.resize(n * n)
+	chunk_heights.resize(n * n)
+	for j in n:
+		for k in n:
+			var i := j * n + k
+			var gx := first_x + k
+			var gz := first_z + j
+			var h := _heights[gz * _points_x + gx]
+			chunk_heights[i] = h
+			vertices[i] = Vector3(k * _cell_x, h, j * _cell_z)
+			uvs[i] = Vector2(corner.x + k * _cell_x, corner.z + j * _cell_z) * 0.1
+			# Normals come from the whole map, so lighting matches across chunk edges
+			normals[i] = _normal_at(gx, gz)
 
 	var indices := PackedInt32Array()
-	indices.resize(cells * cells * 6)
-	var n := 0
-	for zi in cells:
-		for xi in cells:
-			var i := zi * points + xi
-			indices[n] = i
-			indices[n + 1] = i + 1
-			indices[n + 2] = i + points
-			indices[n + 3] = i + 1
-			indices[n + 4] = i + points + 1
-			indices[n + 5] = i + points
-			n += 6
+	indices.resize(chunk_cells * chunk_cells * 6)
+	var m := 0
+	for j in chunk_cells:
+		for k in chunk_cells:
+			var i := j * n + k
+			indices[m] = i
+			indices[m + 1] = i + 1
+			indices[m + 2] = i + n
+			indices[m + 3] = i + 1
+			indices[m + 4] = i + n + 1
+			indices[m + 5] = i + n
+			m += 6
 
-	var ground := MeshInstance3D.new()
-	ground.mesh = _make_mesh(vertices, normals, uvs, indices)
-	ground.material_override = ground_material
-	add_child(ground)
+	var chunk := StaticBody3D.new()
+	chunk.name = "Chunk_%d_%d" % [cx, cz]
+	chunk.position = corner
+	add_child(chunk)
 
-	# A cliff around the outside edge of the scenery, so from outside the map
-	# it looks like a solid block of land instead of a paper-thin sheet
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = _make_mesh(vertices, normals, uvs, indices)
+	mesh.material_override = ground_material
+	chunk.add_child(mesh)
+
+	# A heightmap collision shape is centered on itself, so put it in the middle of the chunk
+	var shape := HeightMapShape3D.new()
+	shape.map_width = n
+	shape.map_depth = n
+	shape.map_data = chunk_heights
+	var collision := CollisionShape3D.new()
+	collision.shape = shape
+	collision.position = Vector3(chunk_cells * _cell_x * 0.5, 0.0, chunk_cells * _cell_z * 0.5)
+	collision.scale = Vector3(_cell_x, 1.0, _cell_z)
+	chunk.add_child(collision)
+
+
+# A cliff hanging down around the outside of the map, so from outside it looks like a
+# solid block of land. (Godot only draws a triangle from its front, so without this the
+# map's edge would look paper-thin from some angles.)
+func _build_skirt() -> void:
+	var bottom := -20.0
+	var vertices := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+	# Each side: first grid point, step to the next one, how many steps, and which way it faces
+	var sides := [
+		[0, 1, _points_x - 1, Vector3.FORWARD],                            # north edge
+		[(_points_z - 1) * _points_x, 1, _points_x - 1, Vector3.BACK],    # south edge
+		[0, _points_x, _points_z - 1, Vector3.LEFT],                       # west edge
+		[_points_x - 1, _points_x, _points_z - 1, Vector3.RIGHT],          # east edge
+	]
+	for side in sides:
+		var start: int = side[0]
+		var stride: int = side[1]
+		var count: int = side[2]
+		var outward: Vector3 = side[3]
+		for k in count:
+			var a := start + k * stride
+			var b := a + stride
+			var top_a := _grid_position(a)
+			var top_b := _grid_position(b)
+			var corners := [top_a, top_b, Vector3(top_b.x, bottom, top_b.z), Vector3(top_a.x, bottom, top_a.z)]
+			var v := vertices.size()
+			for c in corners:
+				vertices.append(c)
+				normals.append(outward)
+				uvs.append(Vector2(c.x + c.z, c.y) * 0.1)
+			# Wind each triangle so its front faces outward
+			var facing: Vector3 = (corners[2] - corners[0]).cross(corners[1] - corners[0])
+			if facing.dot(outward) > 0.0:
+				indices.append_array([v, v + 1, v + 2, v, v + 2, v + 3])
+			else:
+				indices.append_array([v, v + 2, v + 1, v, v + 3, v + 2])
+
 	var skirt := MeshInstance3D.new()
-	skirt.mesh = _make_skirt(heights, points, step, extent)
+	skirt.name = "Skirt"
+	skirt.mesh = _make_mesh(vertices, normals, uvs, indices)
 	skirt.material_override = ground_material
 	add_child(skirt)
 
-	# Build the solid ground you walk on, using the same heights
-	var shape := HeightMapShape3D.new()
-	shape.map_width = points
-	shape.map_depth = points
-	shape.map_data = heights
-	var collision := CollisionShape3D.new()
-	collision.shape = shape
-	collision.scale = Vector3(step, 1.0, step)
-	add_child(collision)
 
-	# Invisible walls just past each edge of the map, far too tall to climb over
+# Where a grid point (counted row by row) sits in the world
+func _grid_position(index: int) -> Vector3:
+	var gx := index % _points_x
+	@warning_ignore("integer_division")
+	var gz := index / _points_x
+	return Vector3(-_width * 0.5 + gx * _cell_x, _heights[index], -_depth * 0.5 + gz * _cell_z)
+
+
+# One flat sheet of water across the whole map. Wherever the ground dips below it,
+# you see water, so rivers, ponds and lakes fill in by themselves.
+func _build_water() -> void:
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(_width, _depth)
+	var water := MeshInstance3D.new()
+	water.name = "Water"
+	water.mesh = plane
+	water.position.y = water_height()
+	water.material_override = water_material if water_material else _default_water()
+	add_child(water)
+
+
+# Invisible walls just past each edge of the map, far too tall to climb over
+func _build_walls() -> void:
+	var highest := 0.0
+	for h in _heights:
+		highest = maxf(highest, h)
+	var wall_height := highest + 200.0
 	for side in [Vector3.RIGHT, Vector3.LEFT, Vector3.FORWARD, Vector3.BACK]:
 		var box := BoxShape3D.new()
 		if side.x != 0.0:
-			box.size = Vector3(2.0, 400.0, size + 4.0)
+			box.size = Vector3(2.0, wall_height, _depth + 4.0)
 		else:
-			box.size = Vector3(size + 4.0, 400.0, 2.0)
+			box.size = Vector3(_width + 4.0, wall_height, 2.0)
 		var wall := CollisionShape3D.new()
 		wall.shape = box
-		wall.position = side * (half + 1.0) + Vector3.UP * 100.0
+		wall.position = Vector3(side.x * (_width * 0.5 + 1.0), wall_height * 0.5 - 50.0, side.z * (_depth * 0.5 + 1.0))
 		add_child(wall)
 
-	# Water: one flat sheet over every bit of riverbed and lake that dips below the
-	# water level, so the river flows into the lake without any seams
-	var water_vertices := PackedVector3Array()
-	var water_normals := PackedVector3Array()
-	var water_uvs := PackedVector2Array()
-	var water_indices := PackedInt32Array()
-	var wet_reach := river_width * 0.5 + bank_width + step
-	for zi in cells:
-		for xi in cells:
-			var i := zi * points + xi
-			var lowest := minf(minf(heights[i], heights[i + 1]), minf(heights[i + points], heights[i + points + 1]))
-			if lowest >= water_level:
-				continue
-			var x := -extent + xi * step
-			var z := -extent + zi * step
-			# Only the river and lake, not every little dip in the valley floor
-			var in_river := absf(x - valley_center(z)) < wet_reach
-			var in_lake := Vector2(x, z).distance_to(_lake_center) < lake_radius + lake_shore
-			if not in_river and not in_lake:
-				continue
-			var v := water_vertices.size()
-			for corner in [Vector2(0, 0), Vector2(step, 0), Vector2(0, step), Vector2(step, step)]:
-				water_vertices.append(Vector3(x + corner.x, water_level, z + corner.y))
-				water_normals.append(Vector3.UP)
-				water_uvs.append(Vector2(x + corner.x, z + corner.y) * 0.1)
-			water_indices.append_array([v, v + 1, v + 2, v + 1, v + 3, v + 2])
 
-	if not water_vertices.is_empty():
-		var water := MeshInstance3D.new()
-		water.mesh = _make_mesh(water_vertices, water_normals, water_uvs, water_indices)
-		water.material_override = water_material if water_material else _default_water()
-		add_child(water)
+# Scatter trees anywhere that's dry and not too steep
+func _scatter_trees() -> void:
+	if not tree_scene:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = map_seed
+	var dry_above := water_height() + 0.5
+	var placed := 0
+	var tries := 0
+	while placed < tree_count and tries < tree_count * 10:
+		tries += 1
+		var x := rng.randf_range(-_width * 0.5 + 5.0, _width * 0.5 - 5.0)
+		var z := rng.randf_range(-_depth * 0.5 + 5.0, _depth * 0.5 - 5.0)
+		var h := get_height(x, z)
+		if h < dry_above or get_slope(x, z) > max_tree_slope:
+			continue
+		var tree := tree_scene.instantiate()
+		tree.position = Vector3(x, h - 0.2, z)
+		tree.rotation.y = rng.randf() * TAU
+		tree.scale = Vector3.ONE * rng.randf_range(0.8, 1.4)
+		add_child(tree)
+		placed += 1
 
-	# Scatter trees on the slopes, keeping the valley floors, riverbanks and lakeshore open
-	if tree_scene:
-		var rng := RandomNumberGenerator.new()
-		rng.seed = map_seed
-		var placed := 0
-		var tries := 0
-		while placed < tree_count and tries < tree_count * 10:
-			tries += 1
-			var x := rng.randf_range(-half + 5.0, half - 5.0)
-			var z := rng.randf_range(-half + 5.0, half - 5.0)
-			if is_open_ground(x, z):
-				continue
-			var tree := tree_scene.instantiate()
-			tree.position = Vector3(x, get_height(x, z) - 0.2, z)
-			tree.rotation.y = rng.randf() * TAU
-			tree.scale = Vector3.ONE * rng.randf_range(0.8, 1.4)
-			add_child(tree)
-			placed += 1
+
+# Puts the player on dry, fairly flat ground as close to the middle of the map as possible
+func _place_player() -> void:
+	var player := get_node_or_null(player_path) as Node3D
+	if player == null:
+		return
+	var spot := find_dry_spot(Vector2.ZERO)
+	# The player's middle is 1 m above their feet; start them a little above the ground
+	player.global_position = Vector3(spot.x, get_height(spot.x, spot.y) + 1.5, spot.y)
 
 
 func _make_mesh(vertices: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array, indices: PackedInt32Array) -> ArrayMesh:
@@ -333,47 +390,7 @@ func _make_mesh(vertices: PackedVector3Array, normals: PackedVector3Array, uvs: 
 	return mesh
 
 
-# Builds the outer cliff: a wall hanging down from every point along the grid's edge
-func _make_skirt(heights: PackedFloat32Array, points: int, step: float, extent: float) -> ArrayMesh:
-	var vertices := PackedVector3Array()
-	var normals := PackedVector3Array()
-	var uvs := PackedVector2Array()
-	var indices := PackedInt32Array()
-	# Each side: where its first point is in the grid, which way to walk along it, and which way it faces
-	var sides := [
-		[0, 1, Vector3.FORWARD],                           # north edge, walking along x
-		[(points - 1) * points, 1, Vector3.BACK],          # south edge, walking along x
-		[0, points, Vector3.LEFT],                         # west edge, walking along z
-		[points - 1, points, Vector3.RIGHT],               # east edge, walking along z
-	]
-	for side in sides:
-		var start: int = side[0]
-		var stride: int = side[1]
-		var outward: Vector3 = side[2]
-		for k in points - 1:
-			var a := start + k * stride
-			var b := a + stride
-			# Turn grid numbers back into positions (dividing by points gives the row)
-			@warning_ignore("integer_division")
-			var top_a := Vector3(-extent + (a % points) * step, heights[a], -extent + (a / points) * step)
-			@warning_ignore("integer_division")
-			var top_b := Vector3(-extent + (b % points) * step, heights[b], -extent + (b / points) * step)
-			var corners := [top_a, top_b, Vector3(top_b.x, SKIRT_BOTTOM, top_b.z), Vector3(top_a.x, SKIRT_BOTTOM, top_a.z)]
-			var v := vertices.size()
-			for corner in corners:
-				vertices.append(corner)
-				normals.append(outward)
-				uvs.append(Vector2(corner.x + corner.z, corner.y) * 0.1)
-			# Godot only draws a triangle from its front, so wind each one to face outward
-			var facing: Vector3 = (corners[2] - corners[0]).cross(corners[1] - corners[0])
-			if facing.dot(outward) > 0.0:
-				indices.append_array([v, v + 1, v + 2, v, v + 2, v + 3])
-			else:
-				indices.append_array([v, v + 2, v + 1, v, v + 3, v + 2])
-	return _make_mesh(vertices, normals, uvs, indices)
-
-
-# Clear blue-green water you can see the riverbed through
+# Clear blue-green water you can see the ground through
 func _default_water() -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = Color(0.2, 0.42, 0.5, 0.7)

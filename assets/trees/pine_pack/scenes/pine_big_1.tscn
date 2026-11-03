@@ -13,59 +13,41 @@
 [ext_resource type="ArrayMesh" path="res://assets/trees/pine_pack/meshes/pine_big_1_billboard_leaves.res" id="11_7bpym"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_ckqbg"]
-height = 0.5
-radius = 0.4
+height = 4.0
+radius = 0.24583301
 
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_rueer"]
-height = 3.0
-radius = 0.4
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_qx1wy"]
-top_radius = 0.38
-bottom_radius = 0.44
-height = 0.5
-radial_segments = 10
-rings = 1
-
-[node name="Pine_big_1" type="StaticBody3D" unique_id=302963058]
+[node name="Pine_big_1" type="StaticBody3D" unique_id=1551296101]
 script = ExtResource("1_2e805")
+tree_height = 16.0
+trunk_radius = 0.2458330109831836
 resource_name = "Wood"
 gathers_left = 4
 
-[node name="StumpCollision" type="CollisionShape3D" parent="." unique_id=1213023069]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+[node name="TrunkCollision" type="CollisionShape3D" parent="." unique_id=668651544]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
 shape = SubResource("CylinderShape3D_ckqbg")
 
-[node name="TrunkCollision" type="CollisionShape3D" parent="." unique_id=798714664]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
-shape = SubResource("CylinderShape3D_rueer")
+[node name="Top" type="Node3D" parent="." unique_id=488025410]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 
-[node name="Stump" type="MeshInstance3D" parent="." unique_id=783175869]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
-material_override = ExtResource("2_eoo17")
-mesh = SubResource("CylinderMesh_qx1wy")
+[node name="Model" type="Node3D" parent="Top" unique_id=1104934306]
+transform = Transform3D(0.9474543, 0, 0, 0, 0.9474543, 0, 0, 0, 0.9474543, 0, -0.3, 0)
 
-[node name="Top" type="Node3D" parent="." unique_id=1775080030]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
-
-[node name="Model" type="Node3D" parent="Top" unique_id=467792440]
-transform = Transform3D(0.9474543, 0, 0, 0, 0.9474543, 0, 0, 0, 0.9474543, 0, -0.5, 0)
-
-[node name="Lod0_Bark" type="MeshInstance3D" parent="Top/Model" unique_id=1943042716]
+[node name="Lod0_Bark" type="MeshInstance3D" parent="Top/Model" unique_id=1151212817]
 transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
 material_override = ExtResource("2_eoo17")
 visibility_range_end = 35.0
 visibility_range_end_margin = 2.0
 mesh = ExtResource("3_y45gg")
 
-[node name="Lod0_Leaves" type="MeshInstance3D" parent="Top/Model" unique_id=2049189821]
+[node name="Lod0_Leaves" type="MeshInstance3D" parent="Top/Model" unique_id=1318155550]
 transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
 material_override = ExtResource("4_c0fvg")
 visibility_range_end = 35.0
 visibility_range_end_margin = 2.0
 mesh = ExtResource("5_m1ja8")
 
-[node name="Lod1_Bark" type="MeshInstance3D" parent="Top/Model" unique_id=391270896]
+[node name="Lod1_Bark" type="MeshInstance3D" parent="Top/Model" unique_id=1146026329]
 transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
 material_override = ExtResource("2_eoo17")
 visibility_range_begin = 35.0
@@ -74,7 +56,7 @@ visibility_range_end = 80.0
 visibility_range_end_margin = 2.0
 mesh = ExtResource("6_ysjmq")
 
-[node name="Lod1_Leaves" type="MeshInstance3D" parent="Top/Model" unique_id=1841149799]
+[node name="Lod1_Leaves" type="MeshInstance3D" parent="Top/Model" unique_id=1567896474]
 transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
 material_override = ExtResource("4_c0fvg")
 visibility_range_begin = 35.0
@@ -83,7 +65,7 @@ visibility_range_end = 80.0
 visibility_range_end_margin = 2.0
 mesh = ExtResource("7_fwlr5")
 
-[node name="Lod2_Bark" type="MeshInstance3D" parent="Top/Model" unique_id=831963420]
+[node name="Lod2_Bark" type="MeshInstance3D" parent="Top/Model" unique_id=1229869177]
 transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
 material_override = ExtResource("2_eoo17")
 visibility_range_begin = 80.0
@@ -92,7 +74,7 @@ visibility_range_end = 180.0
 visibility_range_end_margin = 2.0
 mesh = ExtResource("8_rnoam")
 
-[node name="Lod2_Leaves" type="MeshInstance3D" parent="Top/Model" unique_id=1744896360]
+[node name="Lod2_Leaves" type="MeshInstance3D" parent="Top/Model" unique_id=984632827]
 transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
 material_override = ExtResource("4_c0fvg")
 visibility_range_begin = 80.0
@@ -101,7 +83,7 @@ visibility_range_end = 180.0
 visibility_range_end_margin = 2.0
 mesh = ExtResource("9_q7o6s")
 
-[node name="Billboard_Leaves" type="MeshInstance3D" parent="Top/Model" unique_id=379257420]
+[node name="Billboard_Leaves" type="MeshInstance3D" parent="Top/Model" unique_id=1696779696]
 transform = Transform3D(1, 0, 0, 0, -1.6292067e-07, 1, 0, -1, -1.6292067e-07, 0, 0.5802353, 0)
 material_override = ExtResource("10_x2wlc")
 cast_shadow = 0

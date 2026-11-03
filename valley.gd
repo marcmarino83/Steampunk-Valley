@@ -614,8 +614,9 @@ func _scatter_trees() -> void:
 			var young := not young_trees.is_empty() and (forest_trees.is_empty() or rng.randf() < young_tree_share)
 			var pool: Array[PackedScene] = young_trees if young else forest_trees
 			tree = pool[rng.randi() % pool.size()].instantiate()
-			tree.scale = Vector3.ONE * rng.randf_range(1.0 - tree_size_variation, 1.0 + tree_size_variation)
-			tree.position = Vector3(x, h - 0.05, z)
+			var size := rng.randf_range(1.0 - tree_size_variation, 1.0 + tree_size_variation)
+			tree.scale = Vector3.ONE * size
+			tree.position = Vector3(x, _tree_ground(x, z, tree, size), z)
 		else:
 			tree = tree_scene.instantiate()
 			tree.scale = Vector3.ONE * rng.randf_range(0.8, 1.4)
@@ -625,6 +626,25 @@ func _scatter_trees() -> void:
 		_remember_spot(Vector2(x, z), _taken_spots)
 		_remember_spot(Vector2(x, z), _tree_spots)
 		placed += 1
+
+
+# How high to stand a tree from the pine pack: on the lowest ground around its trunk (so no
+# roots hang in the air on the downhill side of a slope), then sunk a little further so the
+# root flare goes into the earth. Big trees sink about 0.3-0.5 m; small trees and saplings
+# only a few centimeters, so they don't disappear.
+func _tree_ground(x: float, z: float, tree: Node, size: float) -> float:
+	var tall: float = tree.get("tree_height") if tree.get("tree_height") != null else 8.0
+	var trunk: float = tree.get("trunk_radius") if tree.get("trunk_radius") != null else 0.3
+	tall *= size
+	trunk *= size
+	# The root flare spreads out to a few times the trunk's radius
+	var reach := maxf(trunk * 3.0, 0.15)
+	var lowest := get_height(x, z)
+	for k in 8:
+		var p := Vector2(x, z) + Vector2.from_angle(TAU * k / 8.0) * reach
+		lowest = minf(lowest, get_height(p.x, p.y))
+	var sink := clampf(tall * 0.025, 0.03, 0.5)
+	return lowest - sink
 
 
 # Every kind of resource, with where it likes to grow:

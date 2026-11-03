@@ -2,6 +2,10 @@ extends ResourceNode
 
 ## How much wood drops when the tree comes down
 @export var wood_amount := 3
+## The tree's height and trunk radius at its normal size, in meters. The valley uses these
+## to sink it into the ground by the right amount for its size.
+@export var tree_height := 8.0
+@export var trunk_radius := 0.3
 
 @onready var top: Node3D = $Top
 @onready var trunk_collision: CollisionShape3D = $TrunkCollision

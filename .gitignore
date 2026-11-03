@@ -1,3 +1,14 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Paid assets (ToffeeCraft "Tree 3D Pack - MEGA"): the license forbids redistribution,
+# and this repository is public, so these must never be committed or pushed
+/assets/trees/birch/
+/assets/trees/douglasfir/
+/assets/trees/maple/
+/assets/trees/willow/
+/assets/birch/
+/assets/douglasfir/
+/assets/maple/
+/assets/willow/

@@ -56,6 +56,14 @@ extends StaticBody3D
 @export var tree_count := 4000
 ## Trees won't grow on ground steeper than this, in degrees
 @export_range(0.0, 90.0) var max_tree_slope := 42.0
+## A few big trees with places of their own, set among the forest. Their scenes come from a
+## paid model pack that isn't in the repository, so any that are missing are just left out.
+## Tall Douglas firs (about 28 m) on the hilltops, standing out as landmarks:
+@export_file("*.tscn") var landmark_fir_scene := "res://assets/trees/douglasfir/scenes/douglasfir_1.tscn"
+@export var landmark_fir_count := 8
+## Willows (about 12 m) at the water's edge:
+@export_file("*.tscn") var willow_scene := "res://assets/trees/willow/scenes/willow.tscn"
+@export var willow_count := 10
 ## Change this for a different layout of trees and resources
 @export var map_seed := 1
 
@@ -349,6 +357,7 @@ func generate() -> void:
 	# Clear zones are looked up once here, since every tree, rock and plant checks them
 	_clear_zones = get_tree().get_nodes_in_group("clear_zones")
 	_scatter_trees()
+	_scatter_feature_trees()
 	_scatter_resources()
 	_bury_deposits()
 
@@ -626,6 +635,80 @@ func _scatter_trees() -> void:
 		_remember_spot(Vector2(x, z), _taken_spots)
 		_remember_spot(Vector2(x, z), _tree_spots)
 		placed += 1
+
+
+# The few special trees, placed after the forest so its layout stays the same: tall Douglas
+# firs on the hilltops, where they stand out, and willows right at the water's edge
+func _scatter_feature_trees() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = map_seed + 101
+	var water := water_height()
+	var fir := _optional_scene(landmark_fir_scene)
+	if fir and landmark_fir_count > 0:
+		# Try spots all over, scored by how far they rise above the ground 40 m around them,
+		# and a little by how high they are; then take the best, well apart from each other
+		var spots := []
+		for i in 3000:
+			var x := rng.randf_range(-_width * 0.5 + 20.0, _width * 0.5 - 20.0)
+			var z := rng.randf_range(-_depth * 0.5 + 20.0, _depth * 0.5 - 20.0)
+			var h := get_height(x, z)
+			if h < water + 3.0 or not _feature_spot_ok(x, z, 25.0):
+				continue
+			var around := 0.0
+			for k in 8:
+				var p := Vector2(x, z) + Vector2.from_angle(TAU * k / 8.0) * 40.0
+				around += get_height(p.x, p.y)
+			spots.append([h - around / 8.0 + (h - water) * 0.1, Vector2(x, z)])
+		spots.sort_custom(func(a, b): return a[0] > b[0])
+		var placed: Array[Vector2] = []
+		for s in spots:
+			if placed.size() >= landmark_fir_count:
+				break
+			var spot: Vector2 = s[1]
+			if placed.any(func(other): return other.distance_to(spot) < 150.0) or _distance_to_nearest(spot, _tree_spots, 3.0) < 3.0:
+				continue
+			_plant_tree(fir, spot, rng)
+			placed.append(spot)
+	var willow := _optional_scene(willow_scene)
+	if willow and willow_count > 0:
+		var placed: Array[Vector2] = []
+		var tries := 0
+		while placed.size() < willow_count and tries < 20000:
+			tries += 1
+			var spot := Vector2(rng.randf_range(-_width * 0.5 + 10.0, _width * 0.5 - 10.0), rng.randf_range(-_depth * 0.5 + 10.0, _depth * 0.5 - 10.0))
+			# Dry ground only just above the water, with the water a few meters off
+			var h := get_height(spot.x, spot.y)
+			if h < water + 0.3 or h > water + 1.8 or not _feature_spot_ok(spot.x, spot.y, 20.0) or not _water_nearby(spot.x, spot.y, 5.0):
+				continue
+			if placed.any(func(other): return other.distance_to(spot) < 30.0) or _distance_to_nearest(spot, _tree_spots, 2.5) < 2.5:
+				continue
+			_plant_tree(willow, spot, rng)
+			placed.append(spot)
+
+
+# The scene at this path, or null if there isn't one (like a paid model left out of the repository)
+func _optional_scene(path: String) -> PackedScene:
+	if path.is_empty() or not ResourceLoader.exists(path):
+		return null
+	return load(path) as PackedScene
+
+
+# True if a special tree may grow here: gentle enough ground, clear of the wreck, the trails
+# and any Clear Zone
+func _feature_spot_ok(x: float, z: float, max_slope: float) -> bool:
+	return get_slope(x, z) <= max_slope and not is_near_crash_site(x, z) and not is_on_trail(x, z, 3.0) and not is_cleared(x, z, "trees")
+
+
+# Stands one tree at this spot, sized and turned at random like the rest of the forest
+func _plant_tree(scene: PackedScene, spot: Vector2, rng: RandomNumberGenerator) -> void:
+	var tree: Node3D = scene.instantiate()
+	var size := rng.randf_range(1.0 - tree_size_variation, 1.0 + tree_size_variation)
+	tree.scale = Vector3.ONE * size
+	tree.position = Vector3(spot.x, _tree_ground(spot.x, spot.y, tree, size), spot.y)
+	tree.rotation.y = rng.randf() * TAU
+	add_child(tree)
+	_remember_spot(spot, _taken_spots)
+	_remember_spot(spot, _tree_spots)
 
 
 # How high to stand a tree from the pine pack: on the lowest ground around its trunk (so no

@@ -214,6 +214,8 @@ const ERASE_SQUARE := 8.0
 var _erased := {}
 # Objects placed by hand with the Object Painter, so the scattering leaves room around them
 var _placed_spots := {}
+# Big placed objects that keep scattered things away: x, z and how far (meters)
+var _placed_clears: Array[Vector3] = []
 var _points_x := 0
 var _points_z := 0
 var _chunks_x := 0
@@ -1918,6 +1920,7 @@ func restore_paint(snapshot: Array) -> void:
 func _gather_painted_objects() -> void:
 	_erased.clear()
 	_placed_spots.clear()
+	_placed_clears.clear()
 	for holder in get_tree().get_nodes_in_group("object_erasers"):
 		for mark: Vector3 in holder.get("erased"):
 			_remember_erasure(mark)
@@ -1927,6 +1930,11 @@ func _gather_painted_objects() -> void:
 			var spot := Vector2(thing.global_position.x, thing.global_position.z)
 			_remember_spot(spot, _placed_spots)
 			_remember_spot(spot, _taken_spots)
+			# Big objects keep the forest out from around them, so nothing grows through them
+			var clear := float(thing.get_meta("placed_clear", 0.0))
+			if clear > 0.0:
+				_remember_erasure(Vector3(spot.x, spot.y, clear))
+				_placed_clears.append(Vector3(spot.x, spot.y, clear))
 
 
 func _remember_erasure(mark: Vector3) -> void:
@@ -1944,6 +1952,15 @@ func _remember_erasure(mark: Vector3) -> void:
 ## rock or resource is scattered there
 func is_erased(x: float, z: float) -> bool:
 	for mark: Vector3 in _erased.get(Vector2i(floori(x / ERASE_SQUARE), floori(z / ERASE_SQUARE)), []):
+		if Vector2(x, z).distance_to(Vector2(mark.x, mark.y)) < mark.z:
+			return true
+	return false
+
+
+## True if this spot is under a big placed object (a rock outcrop or a landmark), where even
+## grass and ferns don't grow
+func is_under_placed(x: float, z: float) -> bool:
+	for mark: Vector3 in _placed_clears:
 		if Vector2(x, z).distance_to(Vector2(mark.x, mark.y)) < mark.z:
 			return true
 	return false

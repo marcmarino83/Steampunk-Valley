@@ -463,7 +463,7 @@ func _build_object_panel() -> Control:
 	box.visible = false
 	_categories = TabBar.new()
 	_categories.clip_tabs = false
-	for c in ["Trees", "Rocks", "Bushes"]:
+	for c in _painter.CATEGORIES:
 		_categories.add_tab(c)
 	_categories.tab_changed.connect(func(tab):
 		_painter.category = _categories.get_tab_title(tab)
@@ -485,7 +485,7 @@ func _build_object_panel() -> Control:
 	box.add_child(_slider_row("Density (per 100 m²)", 0.1, 30.0, 0.1, _painter.density, func(v): _painter.density = v))
 	var rescan := Button.new()
 	rescan.text = "Rescan assets/"
-	rescan.tooltip_text = "Look for new scenes in assets/trees, assets/rocks and assets/bushes"
+	rescan.tooltip_text = "Look for new scenes in assets/trees, assets/rocks, assets/bushes and assets/landmarks"
 	rescan.pressed.connect(func():
 		_painter.scan_palette()
 		_fill_palette())

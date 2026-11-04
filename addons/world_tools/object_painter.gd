@@ -8,13 +8,21 @@ extends RefCounted
 ##   drag an object    move a placed one along the ground (hold Shift for fine moves)
 ##
 ## The palette is built from the scenes in assets/: anything under a folder named trees,
-## rocks or bushes shows up in that category (trees must be .tscn scenes, so they have the
-## choppable tree script; rocks and bushes can be plain models too).
+## rocks, bushes or landmarks shows up in that category (trees must be .tscn scenes, so they
+## have the choppable tree script; the rest can be plain models too, and a model with a scene
+## of the same name beside it is listed once, as the scene).
 ## Each kind is set down by its own rules: trees stand upright with their roots sunk in;
 ## rocks tilt to the slope, sink 20-40% into the ground and vary in size and turn; small
-## stones come in clusters; bushes lean a little with the slope.
+## stones come in clusters; bushes lean a little with the slope; landmarks go down one at a
+## time, by clicking, standing upright on the ground (turn them with the rotate tool).
+## A scene can set its own rules in its root node's metadata:
+##   placement_upright  true: stands straight up, whatever the slope
+##   placement_sink     Vector2: how far it sinks, as a share of its height (lowest, highest)
+##   placement_size     Vector2: its random size range (smallest, largest)
+##   placement_clear    how far around it (meters, at size 1) the valley's scattered trees,
+##                      rocks, resources and plants keep away
 
-const CATEGORIES := ["Trees", "Rocks", "Bushes"]
+const CATEGORIES := ["Trees", "Rocks", "Bushes", "Landmarks"]
 const MODEL_TYPES := ["glb", "gltf", "fbx", "obj", "blend"]
 ## How close (on the ground, in meters, beyond its own size) the mouse must be to grab a
 ## placed object
@@ -99,12 +107,21 @@ func _scan_folder(folder: String, found_category: String, ignored: Array) -> voi
 		# bushes can be plain models as well
 		if ext != "tscn" and not (found_category != "Trees" and ext in MODEL_TYPES):
 			continue
+		if ext != "tscn" and dir.file_exists(file.get_basename() + ".tscn"):
+			continue
 		var path := folder.path_join(file)
 		var local_only := false
 		for prefix in ignored:
 			if path.begins_with(prefix):
 				local_only = true
-		palette[found_category].append({"path": path, "name": file.get_basename().replace("_", " ").capitalize(), "local_only": local_only})
+		palette[found_category].append({"path": path, "name": _label(file), "local_only": local_only})
+
+
+# A file's name for the palette, without the generator's prefix and date stamp
+func _label(file: String) -> String:
+	var dated := RegEx.create_from_string("_\\d{8}_texture$")
+	var name := dated.sub(file.get_basename().trim_prefix("Meshy_AI_"), "")
+	return name.replace("_", " ").capitalize()
 
 
 # Folders the project's .gitignore keeps out of git (like paid model packs): objects from
@@ -197,6 +214,9 @@ func _continue_stroke(valley) -> void:
 			_erase_at(valley, spot)
 			_last_dab = spot
 		return
+	# Landmarks go down one at a time: a drag doesn't paint more of them
+	if category == "Landmarks":
+		return
 	# A drag only starts painting once the mouse has really moved, so a click stays one object
 	if not _moved_far and spot.distance_to(_press_at) < maxf(radius * 0.25, 0.5):
 		return
@@ -230,6 +250,7 @@ func finish_stroke(valley) -> void:
 					undo_redo.add_undo_method(valley, "refresh_forest_floor")
 					undo_redo.commit_action(false)
 				valley.refresh_forest_floor()
+				_rebuild_if_clearing(valley, _placed_in_stroke)
 		"erase":
 			var holder := _objects_node(false)
 			if holder and (PackedVector3Array(holder.get("erased")).size() != _erased_before.size() or not _removed_in_stroke.is_empty()):
@@ -254,6 +275,10 @@ func finish_stroke(valley) -> void:
 					for entry in _removed_in_stroke:
 						entry[0].queue_free()
 				valley.refresh_forest_floor()
+				var removed: Array[Node3D] = []
+				for entry in _removed_in_stroke:
+					removed.append(entry[0])
+				_rebuild_if_clearing(valley, removed)
 		"move":
 			if _moving and is_instance_valid(_moving):
 				# (no undo history when the painter is driven by a test, outside the editor)
@@ -265,10 +290,21 @@ func finish_stroke(valley) -> void:
 					undo_redo.add_undo_method(valley, "refresh_forest_floor")
 					undo_redo.commit_action(false)
 				valley.refresh_forest_floor()
+				var moved: Array[Node3D] = [_moving]
+				_rebuild_if_clearing(valley, moved)
 	_stroke = ""
 	_moving = null
 	_placed_in_stroke.clear()
 	_removed_in_stroke.clear()
+
+
+# Big objects keep the valley's scattered trees and rocks out from around them, so when one has
+# been placed, moved or taken away (and the mouse let go), the valley is rebuilt to match
+func _rebuild_if_clearing(valley, nodes: Array[Node3D]) -> void:
+	for node in nodes:
+		if is_instance_valid(node) and float(node.get_meta("placed_clear", 0.0)) > 0.0:
+			valley.request_rebuild()
+			return
 
 
 ## Right-click or Esc mid-stroke: put everything back as it was
@@ -318,6 +354,8 @@ func _place_one(valley, spot: Vector2, exact: bool) -> void:
 	var footprint: float = size_info["radius"]
 	if not exact and _too_close(spot, footprint):
 		return
+	if kind == "Landmarks" and not exact:
+		return
 	var stones: bool = kind == "Rocks" and (path.get_file().to_lower().contains("stone") or path.get_file().to_lower().contains("pebble") or size_info["height"] < 0.5)
 	if stones:
 		# Small stones come in a cluster: a few more scattered close around the first
@@ -335,6 +373,8 @@ func _place_one(valley, spot: Vector2, exact: bool) -> void:
 			size = _rng.randf_range(0.6, 1.5)
 		"Bushes":
 			size = _rng.randf_range(0.8, 1.25)
+	if size_info["size_range"] != Vector2.ZERO:
+		size = _rng.randf_range(size_info["size_range"].x, size_info["size_range"].y)
 	_set_down(valley, scene, path, kind, spot, size, size_info)
 
 
@@ -345,8 +385,10 @@ func _set_down(valley, scene: PackedScene, path: String, kind: String, spot: Vec
 	var node := scene.instantiate() as Node3D
 	if node == null:
 		return
-	var yaw := _rng.randf() * TAU
+	var yaw := 0.0 if kind == "Landmarks" else _rng.randf() * TAU
 	node.set_meta("placed_category", kind)
+	node.set_meta("placed_upright", size_info["upright"])
+	node.set_meta("placed_clear", size_info["clear"] * size)
 	node.set_meta("placed_size", size)
 	node.set_meta("placed_yaw", yaw)
 	node.set_meta("placed_footprint", size_info["radius"] * size)
@@ -358,6 +400,8 @@ func _set_down(valley, scene: PackedScene, path: String, kind: String, spot: Vec
 			sink = size_info["height"] * size * _rng.randf_range(0.2, 0.4)
 		"Bushes":
 			sink = size_info["height"] * size * 0.05
+	if size_info["sink"] != Vector2.ZERO:
+		sink = size_info["height"] * size * _rng.randf_range(size_info["sink"].x, size_info["sink"].y)
 	node.set_meta("placed_sink", sink)
 	holder.add_child(node, true)
 	node.owner = _root()
@@ -382,6 +426,20 @@ func _settle(valley, node: Node3D, spot: Vector3) -> void:
 		"Trees":
 			# Upright, roots sunk in like the scattered trees
 			height = valley.tree_ground_height(spot.x, spot.z, node, size)
+		"Landmarks":
+			# Upright at the average height of the ground it covers, keeping whatever way it
+			# has been turned
+			turn = node.basis.orthonormalized()
+			height = ground
+			for h: float in _ring_heights(valley, spot, float(node.get_meta("placed_clear", 0.0)) * 0.75):
+				height += h
+			height /= 9.0
+		_ when node.get_meta("placed_upright", false):
+			# Upright on the lowest ground under it (so its downhill side never floats), sunk in
+			var lowest := ground
+			for h: float in _ring_heights(valley, spot, float(node.get_meta("placed_clear", 0.0)) * 0.7):
+				lowest = minf(lowest, h)
+			height = lowest - float(node.get_meta("placed_sink", 0.0))
 		"Rocks":
 			# Settled flat against the slope
 			turn = Basis(Quaternion(Vector3.UP, valley.get_normal(spot.x, spot.z))) * turn
@@ -391,6 +449,15 @@ func _settle(valley, node: Node3D, spot: Vector3) -> void:
 			height = ground - float(node.get_meta("placed_sink", 0.0))
 	node.global_transform = Transform3D(turn.scaled(Vector3.ONE * size), Vector3(spot.x, height, spot.z))
 	node.set_meta("ground_offset", height - ground)
+
+
+# The ground's height at eight points around a spot
+func _ring_heights(valley, spot: Vector3, reach: float) -> Array:
+	var heights := []
+	for k in 8:
+		var p := Vector2(spot.x, spot.z) + Vector2.from_angle(TAU * k / 8.0) * reach
+		heights.append(valley.get_height(p.x, p.y))
+	return heights
 
 
 func _too_close(spot: Vector2, footprint: float) -> bool:
@@ -405,10 +472,14 @@ func _too_close(spot: Vector2, footprint: float) -> bool:
 func _size_of(path: String) -> Dictionary:
 	if _sizes.has(path):
 		return _sizes[path]
-	var info := {"height": 1.0, "radius": 0.5}
+	var info := {"height": 1.0, "radius": 0.5, "upright": false, "sink": Vector2.ZERO, "size_range": Vector2.ZERO, "clear": 0.0}
 	var scene := load(path) as PackedScene
 	if scene:
 		var node := scene.instantiate()
+		info["upright"] = node.get_meta("placement_upright", false)
+		info["sink"] = node.get_meta("placement_sink", Vector2.ZERO)
+		info["size_range"] = node.get_meta("placement_size", Vector2.ZERO)
+		info["clear"] = node.get_meta("placement_clear", 0.0)
 		var box := AABB()
 		var first := true
 		for mi in node.find_children("*", "MeshInstance3D", true, false):
@@ -430,7 +501,7 @@ func _size_of(path: String) -> Dictionary:
 		if not first:
 			info["height"] = box.size.y
 			# Trees take up the room of their trunk and a little more, not their whole crown
-			info["radius"] = clampf(maxf(box.size.x, box.size.z) * (0.12 if _category_of(path) == "Trees" else 0.45), 0.15, 4.0)
+			info["radius"] = clampf(maxf(box.size.x, box.size.z) * (0.12 if _category_of(path) == "Trees" else 0.45), 0.15, 40.0 if info["upright"] else 4.0)
 	_sizes[path] = info
 	return info
 

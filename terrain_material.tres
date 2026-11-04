@@ -1,4 +1,4 @@
-[gd_resource type="ShaderMaterial" format=3 uid="uid://bm46i82rjv7ap"]
+[gd_resource type="ShaderMaterial" format=4 uid="uid://bm46i82rjv7ap"]
 
 [ext_resource type="Shader" uid="uid://ii1qdvoc6vmk" path="res://terrain.gdshader" id="1_shader"]
 
@@ -20,6 +20,26 @@ shader_parameter/grass_dry = Color(0.4, 0.36, 0.19, 1)
 shader_parameter/dirt_color = Color(0.28, 0.24, 0.17, 1)
 shader_parameter/normal_strength = 1.0
 shader_parameter/height_blend_depth = 0.2
+shader_parameter/water_height = 27.3
+shader_parameter/shore_width = 1.5
+shader_parameter/mud_center = Vector2(0, 0)
+shader_parameter/mud_radius = 0.0
+shader_parameter/scorch_center = Vector2(0, 0)
+shader_parameter/scorch_radius = 0.0
+shader_parameter/slope_view = false
+shader_parameter/walk_limit_degrees = 45.0
+shader_parameter/ground_map_info = Vector4(0, 0, 1, 1)
+shader_parameter/paint_channel = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/paint_info = Vector4(0, 0, 1, 0)
+shader_parameter/set_scale = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/set_tint = PackedVector4Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/set_has_ao = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/forest_set = -1
+shader_parameter/gravel_set = -1
+shader_parameter/rock_set = -1
+shader_parameter/mossy_rock_set = -1
+shader_parameter/cliff_rock_set = -1
+shader_parameter/scree_set = -1
 shader_parameter/rock_begin_degrees = 30.0
 shader_parameter/rock_full_degrees = 52.0
 shader_parameter/rock_edge_noise = 12.0
@@ -28,7 +48,3 @@ shader_parameter/moss_facing = Vector2(0, -1)
 shader_parameter/rock_variation = 0.7
 shader_parameter/scree_below_rise = 0.7
 shader_parameter/scree_gully_depth = 0.8
-shader_parameter/water_height = 27.3
-shader_parameter/shore_width = 1.5
-shader_parameter/slope_view = false
-shader_parameter/walk_limit_degrees = 45.0

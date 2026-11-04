@@ -73,7 +73,7 @@ ground_material = ExtResource("8_terrain")
 tree_scene = ExtResource("6_pkg7o")
 
 [node name="CrashSite" parent="." unique_id=1327350621 instance=ExtResource("9_crash")]
-transform = Transform3D(0.8660254, 0, 0.5, 0, 1, 0, -0.5, 0, 0.8660254, 5.881901, 31.363737, 256.14096)
+transform = Transform3D(0.8660254, 0, 0.5, 0, 1, 0, -0.5, 0, 0.8660254, 5.881901, 31.656088, 256.14096)
 
 [node name="TerrainEdits" type="Node3D" parent="." unique_id=278350606]
 

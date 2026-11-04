@@ -1,0 +1,26 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://assets/bushes/fern_material.tres" id="1_vc42k"]
+[ext_resource type="ArrayMesh" path="res://assets/bushes/fern_mesh.res" id="2_u3x1b"]
+
+[node name="FernClump" type="Node3D" unique_id=942152154]
+
+[node name="Fern1" type="MeshInstance3D" parent="." unique_id=1169774192]
+transform = Transform3D(-0.7010183, 0, -0.7721942, 0, 1.0429336, 0, 0.7721942, 0, -0.7010183, 0, 0, 0)
+material_override = ExtResource("1_vc42k")
+mesh = ExtResource("2_u3x1b")
+
+[node name="Fern2" type="MeshInstance3D" parent="." unique_id=2143735208]
+transform = Transform3D(0.8878207, 0, -0.6308002, 0, 1.089098, 0, 0.6308002, 0, 0.8878207, -0.45137244, 0, 0.49417362)
+material_override = ExtResource("1_vc42k")
+mesh = ExtResource("2_u3x1b")
+
+[node name="Fern3" type="MeshInstance3D" parent="." unique_id=514335656]
+transform = Transform3D(1.185569, 0, 0.3912945, 0, 1.2484732, 0, -0.3912945, 0, 1.185569, -0.48719025, 0, -0.38933957)
+material_override = ExtResource("1_vc42k")
+mesh = ExtResource("2_u3x1b")
+
+[node name="Fern4" type="MeshInstance3D" parent="." unique_id=489943512]
+transform = Transform3D(0.88481015, 0, 0.82116085, 0, 1.207143, 0, -0.82116085, 0, 0.88481015, 0.589944, 0, 0.08872322)
+material_override = ExtResource("1_vc42k")
+mesh = ExtResource("2_u3x1b")

@@ -133,6 +133,39 @@ The world grows one region at a time: each region is its own open map, and airsh
 
 Separate maps keep each region fast to load and build; seamless travel between regions can come later if wanted.
 
+## World tools
+
+The valley is built by a script from a real-world heightmap, then shaped and dressed by hand with editor tools. Everything made by hand is saved in `world.tscn` (or, for ground paint, in its own file), so a rebuild always gives the same result. Nothing rebuilds while the mouse is held down: the ground updates once, when you let go.
+
+**How a rebuild fits together, in order**
+
+1. Heights come from the heightmap, smoothed.
+2. Terrain modifiers reshape the ground, in scene order (so a Flatten placed before a trail is in place when the trail runs into it).
+3. Trails cut their walkable surface into the ground, and note where their gravel and edge grass go.
+4. The crash site and anything in the `snap_to_ground` group (including every object placed with the Object Painter) are set down on the finished ground.
+5. Trees, resources and boulders are scattered. They keep off trails, the crash site, Clear Zones, spots rubbed out with the Object Painter's eraser, and the room around hand-placed objects.
+6. Grass and ferns grow near the camera, with tufts along trail edges.
+7. The forest floor is worked out from where all the trees stand, and the ground material blends everything: automatic coloring first, then trails, then Texture Brush paint on top.
+
+**World Tools panel** (a tab beside the Inspector; Project > Tools > Show World Tools brings it back)
+
+- *Add:* buttons that drop a Lower, Raise, Flatten, Smooth or Squash modifier, a Path (trail) or a Clear Zone at the middle of the 3D view. Each goes under `TerrainEdits` in the world scene, in its own group.
+- *Paint:* the Object Painter and Texture Brush toggles, each with its own settings below.
+- *View:* Show Slope View (green = walkable, yellow = near the limit, red = too steep), Show Modifier Markers, and Rebuild Terrain.
+- *In the world:* a list of every modifier, trail and clear zone. Click one to select it and fly the view to it; the bin icon deletes it.
+
+**Terrain modifiers** reshape the ground inside a circle: *Radius*, *Strength* and *Falloff* (how soft the edge is), plus each mode's own settings. Lower and Raise move the ground by *Height*; Flatten levels it (to the marker, or with *Level to Ground* to the average of what's there); Smooth evens out bumps; Squash shrinks hills toward a base level (*Amount*, *Auto Base*). Select one to see its rings on the ground.
+
+**Trails** (TerrainPath) carve a walkable path along a curve, never steeper than *Max Slope*, with *Width*, *Edge Blend* (how far the sides fade into the hillside), *Smoothness* and *Cross Slope* (flat across, or tilting with the hill). The surface is gravel (*Dirt Texture* on), fading out over *Texture Blend Width* with an edge as ragged as *Edge Noise*; *Edge Grass* grows tufts along the edges and a few patches on the trail. *Clear Objects* and *Clear Margin* keep trees, rocks and plants off it. With a trail selected (Terrain Path Tools): drag a point to move it, drag the trail to bend it, Ctrl + click to add a point at the end (Ctrl + Shift + click at the start), Alt + click a point to delete it, Shift for fine moves, right-click to cancel.
+
+**Clear Zones** keep a circle clear of scattered trees, resources, boulders and (optionally) plants, without changing the ground.
+
+**Object Painter** places trees, rocks and bushes. Its palette is built from the scenes in `assets/`: anything under a folder named `trees`, `rocks` or `bushes` appears in that category (trees must be `.tscn` scenes with the choppable tree script; rocks and bushes can be plain models), so new assets show up without code changes. Pick one, or Ctrl + click several to paint a mix. Click to place one exactly; drag to paint many over *Brush Radius* at about *Density* per 100 square meters; Alt + click or drag to erase, which also rubs out the valley's own scattered trees, rocks and resources so they don't come back on rebuild. Drag a placed object to move it along the ground (Shift for fine moves). Each kind follows its own rules: trees stand upright with their roots sunk in and stay choppable; rocks tilt to the slope, sink 20 to 40% into the ground and vary in size and turn; small stones come in clusters; bushes lean a little with the slope. Placed objects live under `TerrainEdits/Objects` and stay snapped to the ground through rebuilds. Objects from folders kept out of git (paid packs) are marked *local*.
+
+**Texture Brush** paints ground materials over the automatic coloring: grass, dirt, forest floor, gravel path or rock, with *Brush Radius*, *Strength* and *Falloff*. Alt erases back to the automatic coloring. Materials blend by height using their Displacement maps: stones show through first, and grass fills the low spots. The painting is saved to `terrain_paint.res` after every stroke and survives rebuilds; each stroke is one Ctrl+Z step.
+
+**Ground materials** (`terrain.gdshader`): the automatic coloring is grass and dirt patches on gentle ground, mossy forest floor under trees, wet mud at the shore, churned mud and puddles at the crash site, and rock on steep slopes (projected from three sides so cliffs don't stretch). The textured materials (forest floor, gravel path, rock cliff, from ambientCG) repeat every 2.5 to 4 m, with a second, larger copy blended in to hide the repeats.
+
 ## Current build status
 
 The first-era survival loop is playable: walk, gather, chop, eat, build a fire, and survive the night.

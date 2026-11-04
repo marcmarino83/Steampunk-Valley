@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://assets/rocks/rock_material.tres" id="1_frbwr"]
+[ext_resource type="ArrayMesh" path="res://assets/rocks/stone_small_3_mesh.res" id="2_4wv1l"]
+
+[node name="StoneSmall3" type="Node3D" unique_id=2065262637]
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1418956488]
+material_override = ExtResource("1_frbwr")
+mesh = ExtResource("2_4wv1l")

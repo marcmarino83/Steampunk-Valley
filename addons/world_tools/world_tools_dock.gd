@@ -15,10 +15,35 @@ const MODES := ["Lower", "Raise", "Flatten", "Smooth", "Squash"]
 const FLATTEN := 2
 
 ## Where each kind lives in the world scene, under TerrainEdits. Modifiers come before paths,
-## so a flattened area is in place before a trail runs into it.
-const GROUPS := ["Modifiers", "Paths", "ClearZones", "Trees"]
+## so a flattened area is in place before a trail runs into it. (Objects, with the Object
+## Painter's trees, rocks and bushes, is made the first time something is placed.)
+const GROUPS := ["Modifiers", "Paths", "ClearZones"]
+const OBJECT_PAINTER := "res://addons/world_tools/object_painter.gd"
+const TEXTURE_BRUSH := "res://addons/world_tools/texture_brush.gd"
+const OBJECTS := "objects"
+const TEXTURE := "texture"
 
-var undo_redo: EditorUndoRedoManager
+var undo_redo: EditorUndoRedoManager:
+	set(value):
+		undo_redo = value
+		if _painter:
+			_painter.undo_redo = value
+		if _brush:
+			_brush.undo_redo = value
+## Set by the plugin: redraws the 3D view's overlay (the brush circle)
+var redraw_overlay := func(): pass
+
+# The painting tools, and which one is switched on ("" = neither)
+var _painter: RefCounted
+var _brush: RefCounted
+var _active_tool := ""
+var _object_toggle: Button
+var _texture_toggle: Button
+var _object_panel: Control
+var _texture_panel: Control
+var _categories: TabBar
+var _palette_list: ItemList
+var _material_list: ItemList
 
 var _list: Tree
 var _slope_view: CheckBox
@@ -32,6 +57,10 @@ var _refresh_wait := 0.0
 func _init() -> void:
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_theme_constant_override("separation", 6)
+	_painter = load(OBJECT_PAINTER).new()
+	_painter.redraw = func(): redraw_overlay.call()
+	_brush = load(TEXTURE_BRUSH).new()
+	_brush.redraw = func(): redraw_overlay.call()
 
 	_add_heading("Add")
 	var grid := GridContainer.new()
@@ -42,10 +71,19 @@ func _init() -> void:
 		_add_button(grid, label, "Add a %s terrain modifier at the middle of the 3D view" % label, _add_modifier.bind(mode))
 	_add_button(grid, "Path", "Add a trail at the middle of the 3D view", _add_path)
 	_add_button(grid, "Clear Zone", "Add a circle that keeps trees, resources and boulders out", _add_zone)
-	var brush := _add_button(grid, "Tree Brush", "", func(): pass)
-	_buttons.erase(brush)
-	brush.disabled = true
-	brush.tooltip_text = "Not built yet: the tree brush is still to come"
+
+	_add_heading("Paint")
+	var tools := GridContainer.new()
+	tools.columns = 2
+	add_child(tools)
+	_object_toggle = _add_button(tools, "Object Painter", "Place and paint trees, rocks and bushes in the 3D view", _toggle_tool.bind(OBJECTS))
+	_object_toggle.toggle_mode = true
+	_texture_toggle = _add_button(tools, "Texture Brush", "Paint grass, dirt, forest floor, gravel or rock onto the ground", _toggle_tool.bind(TEXTURE))
+	_texture_toggle.toggle_mode = true
+	_object_panel = _build_object_panel()
+	add_child(_object_panel)
+	_texture_panel = _build_texture_panel()
+	add_child(_texture_panel)
 
 	_add_heading("View")
 	_slope_view = CheckBox.new()
@@ -87,6 +125,11 @@ func _ready() -> void:
 	get_tree().node_added.connect(func(_n): _list_dirty = true)
 	get_tree().node_removed.connect(func(_n): _list_dirty = true)
 	EditorInterface.get_selection().selection_changed.connect(func(): _list_dirty = true)
+	# New scenes dropped into assets/ show up in the palette by themselves
+	EditorInterface.get_resource_filesystem().filesystem_changed.connect(func():
+		if _active_tool == OBJECTS:
+			_painter.scan_palette()
+			_fill_palette())
 
 
 func _process(delta: float) -> void:
@@ -100,6 +143,8 @@ func _process(delta: float) -> void:
 	if valley == null:
 		_status.text = "Open the world scene (world.tscn) to use these tools."
 		_list.clear()
+		if _active_tool != "":
+			_toggle_tool(_active_tool)
 		return
 	if _status.text.begins_with("Open the world scene"):
 		_status.text = ""
@@ -353,6 +398,199 @@ func _focus_view() -> void:
 		key.physical_keycode = KEY_F
 		key.pressed = pressed
 		Input.parse_input_event(key)
+
+
+# ---- Painting: the Object Painter and the Texture Brush ----
+
+## Called by the plugin for every input event in the 3D view. True means a tool used it.
+func forward_input(camera: Camera3D, event: InputEvent) -> bool:
+	var tool := _tool()
+	if tool == null:
+		return false
+	var used: bool = tool.handle_input(camera, event, _valley())
+	if used and tool == _painter and _painter.status != "":
+		_status.text = _painter.status
+	return used
+
+
+## Called by the plugin to draw over the 3D view: the brush circle and the controls hint
+func draw_overlay(overlay: Control) -> void:
+	var tool := _tool()
+	var camera := EditorInterface.get_editor_viewport_3d(0).get_camera_3d()
+	if tool and camera:
+		tool.draw(overlay, camera, _valley())
+
+
+func _tool() -> RefCounted:
+	match _active_tool:
+		OBJECTS:
+			return _painter
+		TEXTURE:
+			return _brush
+	return null
+
+
+# Switches a painting tool on (and the other off), or off again if it was already on
+func _toggle_tool(which: String) -> void:
+	var valley = _valley()
+	var tool := _tool()
+	if tool and valley:
+		tool.finish_stroke(valley)
+	_active_tool = "" if _active_tool == which else which
+	if _active_tool == OBJECTS and _painter:
+		_painter.scan_palette()
+		_fill_palette()
+	_object_toggle.set_pressed_no_signal(_active_tool == OBJECTS)
+	_texture_toggle.set_pressed_no_signal(_active_tool == TEXTURE)
+	_object_panel.visible = _active_tool == OBJECTS
+	_texture_panel.visible = _active_tool == TEXTURE
+	if _active_tool != "":
+		EditorInterface.set_main_screen_editor("3D")
+	redraw_overlay.call()
+
+
+func _build_object_panel() -> Control:
+	var box := VBoxContainer.new()
+	box.visible = false
+	_categories = TabBar.new()
+	_categories.clip_tabs = false
+	for c in ["Trees", "Rocks", "Bushes"]:
+		_categories.add_tab(c)
+	_categories.tab_changed.connect(func(tab):
+		_painter.category = _categories.get_tab_title(tab)
+		_painter.selected.clear()
+		_fill_palette())
+	box.add_child(_categories)
+	_palette_list = ItemList.new()
+	_palette_list.select_mode = ItemList.SELECT_MULTI
+	_palette_list.icon_mode = ItemList.ICON_MODE_TOP
+	_palette_list.fixed_icon_size = Vector2i(64, 64)
+	_palette_list.max_columns = 0
+	_palette_list.same_column_width = true
+	_palette_list.custom_minimum_size = Vector2(0, 190)
+	_palette_list.tooltip_text = "Pick one, or Ctrl+click several to paint a mix"
+	_palette_list.multi_selected.connect(func(_i, _on): _read_palette_picks())
+	_palette_list.item_selected.connect(func(_i): _read_palette_picks())
+	box.add_child(_palette_list)
+	box.add_child(_slider_row("Brush Radius (m)", 0.5, 40.0, 0.5, _painter.radius, func(v): _painter.radius = v))
+	box.add_child(_slider_row("Density (per 100 m²)", 0.1, 30.0, 0.1, _painter.density, func(v): _painter.density = v))
+	var rescan := Button.new()
+	rescan.text = "Rescan assets/"
+	rescan.tooltip_text = "Look for new scenes in assets/trees, assets/rocks and assets/bushes"
+	rescan.pressed.connect(func():
+		_painter.scan_palette()
+		_fill_palette())
+	box.add_child(rescan)
+	box.add_child(_help("Click: place one. Drag: paint many. Alt: erase (scattered ones too). Drag a placed object to move it; hold Shift for fine moves."))
+	return box
+
+
+func _build_texture_panel() -> Control:
+	var box := VBoxContainer.new()
+	box.visible = false
+	_material_list = ItemList.new()
+	_material_list.icon_mode = ItemList.ICON_MODE_TOP
+	_material_list.fixed_icon_size = Vector2i(56, 56)
+	_material_list.max_columns = 0
+	_material_list.same_column_width = true
+	_material_list.custom_minimum_size = Vector2(0, 100)
+	var swatches := {
+		"Grass": Color(0.22, 0.29, 0.1), "Dirt": Color(0.28, 0.24, 0.17),
+		"Forest Floor": "res://assets/textures/forest_floor/Ground037_2K-JPG_Color.jpg",
+		"Gravel Path": "res://assets/textures/gravel_path/Ground108_2K-JPG_Color.jpg",
+		"Rock": "res://assets/textures/rock_cliff/Rock051_2K-JPG_Color.jpg",
+	}
+	for name in swatches:
+		var look = swatches[name]
+		var icon: Texture2D
+		if look is Color:
+			var image := Image.create_empty(56, 56, false, Image.FORMAT_RGB8)
+			image.fill(look)
+			icon = ImageTexture.create_from_image(image)
+		elif ResourceLoader.exists(look):
+			icon = load(look)
+		_material_list.add_item(name, icon)
+	_material_list.select(0)
+	_material_list.item_selected.connect(func(i): _brush.material = i)
+	box.add_child(_material_list)
+	box.add_child(_slider_row("Brush Radius (m)", 0.5, 40.0, 0.5, _brush.radius, func(v): _brush.radius = v))
+	box.add_child(_slider_row("Strength", 0.02, 1.0, 0.01, _brush.strength, func(v): _brush.strength = v))
+	box.add_child(_slider_row("Falloff", 0.0, 1.0, 0.01, _brush.falloff, func(v): _brush.falloff = v))
+	box.add_child(_help("Click or drag to paint. Alt erases back to the automatic coloring. Saved after every stroke."))
+	return box
+
+
+# Shows the current category's scenes, with pictures of them as they load
+func _fill_palette() -> void:
+	_palette_list.clear()
+	var entries: Array = _painter.palette.get(_painter.category, [])
+	var previewer := EditorInterface.get_resource_previewer()
+	for i in entries.size():
+		var entry: Dictionary = entries[i]
+		var label: String = entry["name"] + ("  (local)" if entry["local_only"] else "")
+		var index := _palette_list.add_item(label)
+		_palette_list.set_item_metadata(index, entry["path"])
+		_palette_list.set_item_tooltip(index, entry["path"] + ("\nLocal only: this folder is kept out of git" if entry["local_only"] else ""))
+		if entry["path"] in _painter.selected:
+			_palette_list.select(index, false)
+		previewer.queue_resource_preview(entry["path"], self, "_on_preview", index)
+	if entries.is_empty():
+		_status.text = "Nothing in %s yet: put scenes in assets/%s/." % [_painter.category, _painter.category.to_lower()]
+
+
+func _on_preview(path: String, preview: Texture2D, _thumbnail: Texture2D, index: int) -> void:
+	if preview and index < _palette_list.item_count and _palette_list.get_item_metadata(index) == path:
+		_palette_list.set_item_icon(index, preview)
+
+
+func _read_palette_picks() -> void:
+	var picks: Array[String] = []
+	for i in _palette_list.get_selected_items():
+		picks.append(_palette_list.get_item_metadata(i))
+	_painter.selected = picks
+	_status.text = ""
+
+
+# A labelled slider with its number beside it
+func _slider_row(label: String, low: float, high: float, step: float, value: float, changed: Callable) -> Control:
+	var row := VBoxContainer.new()
+	var title := Label.new()
+	title.text = label
+	row.add_child(title)
+	var line := HBoxContainer.new()
+	var slider := HSlider.new()
+	slider.min_value = low
+	slider.max_value = high
+	slider.step = step
+	slider.value = value
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var number := SpinBox.new()
+	number.min_value = low
+	number.max_value = high
+	number.step = step
+	number.value = value
+	number.custom_minimum_size.x = 80
+	slider.value_changed.connect(func(v):
+		number.set_value_no_signal(v)
+		changed.call(v)
+		redraw_overlay.call())
+	number.value_changed.connect(func(v):
+		slider.set_value_no_signal(v)
+		changed.call(v)
+		redraw_overlay.call())
+	line.add_child(slider)
+	line.add_child(number)
+	row.add_child(line)
+	return row
+
+
+func _help(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75))
+	label.add_theme_font_size_override("font_size", 12)
+	return label
 
 
 # ---- Helpers ----

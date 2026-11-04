@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://assets/bushes/shrub_material.tres" id="1_l7q4x"]
+[ext_resource type="ArrayMesh" path="res://assets/bushes/shrub_wide_mesh.res" id="2_oacqf"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_ne065"]
+height = 0.9
+radius = 0.64
+
+[node name="ShrubWide" type="StaticBody3D" unique_id=300305232]
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=71152131]
+material_override = ExtResource("1_l7q4x")
+mesh = ExtResource("2_oacqf")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1080448056]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+shape = SubResource("CylinderShape3D_ne065")

@@ -56,11 +56,27 @@ extends Node3D
 	set(value):
 		cross_slope = value
 		_changed()
-## Paint the trail with worn dirt that frays into the grass at its edges. Untick for a
+## Surface the trail with gravel that frays into the ground at its edges. Untick for a
 ## trail that stays grassy.
 @export var dirt_texture := true:
 	set(value):
 		dirt_texture = value
+		_changed()
+## How far the gravel fades out into the ground past each edge of the walkable width, in
+## meters. Stones show through first and the ground fills in between them.
+@export_range(0.0, 10.0, 0.1) var texture_blend_width := 2.0:
+	set(value):
+		texture_blend_width = value
+		_changed()
+## How ragged the gravel's border is: 0 = a smooth, even fade, 1 = a broken, patchy edge
+@export_range(0.0, 1.0, 0.01) var edge_noise := 0.5:
+	set(value):
+		edge_noise = value
+		_changed()
+## Grass grows in tufts along the trail's edges, and in a few patches on the trail itself
+@export var edge_grass := true:
+	set(value):
+		edge_grass = value
 		_changed()
 
 ## Keep trees, resources, boulders and ferns off the trail: its width, plus Clear Margin on

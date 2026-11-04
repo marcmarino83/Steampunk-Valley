@@ -90,15 +90,35 @@ func _grow_patch(chunk: Vector2i) -> Node3D:
 		if h < dry_above or valley.get_normal(x, z).y < 0.72 or valley.is_near_crash_site(x, z, 0.5):
 			continue
 		# Leave a little clear ground around trees and resources, so things you can gather stand out
-		if valley.is_spot_taken(x, z, 1.2) or valley.trail_amount(x, z) > 0.35 or valley.is_cleared(x, z, "plants"):
+		if valley.is_spot_taken(x, z, 1.2) or valley.is_cleared(x, z, "plants"):
 			continue
+		var patchiness: float = _patch_noise.get_noise_2d(x, z)
+		# Off trails, except where a trail has Edge Grass: tufts along its frayed edges, and
+		# here and there a patch on the trail itself
+		var worn: float = valley.trail_amount(x, z)
+		var tuft := false
+		if worn > 0.35:
+			if not valley.trail_edge_grass(x, z):
+				continue
+			if worn < 0.75:
+				tuft = rng.randf() < 0.7
+			else:
+				tuft = patchiness > 0.35 and rng.randf() < 0.25
+			if not tuft:
+				continue
 		# Thick in some places, thin in others
-		if rng.randf() > smoothstep(-0.8, 0.1, _patch_noise.get_noise_2d(x, z)):
+		elif rng.randf() > smoothstep(-0.8, 0.1, patchiness):
 			continue
-		var size := rng.randf_range(0.6, 1.3)
+		var size := rng.randf_range(0.8, 1.4) if tuft else rng.randf_range(0.6, 1.3)
 		grass_spots.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * size), Vector3(x, h - 0.05, z)))
 		var shade := rng.randf_range(0.8, 1.15)
 		grass_tints.append(Color(shade * rng.randf_range(0.95, 1.1), shade, shade * 0.85))
+		# Edge tufts grow thick: a second clump right beside the first
+		if tuft and worn < 0.75:
+			var near := Vector3(x + rng.randf_range(-0.3, 0.3), 0.0, z + rng.randf_range(-0.3, 0.3))
+			near.y = valley.get_height(near.x, near.z) - 0.05
+			grass_spots.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * size * 0.8), near))
+			grass_tints.append(Color(shade, shade * 1.05, shade * 0.8))
 
 	var fern_spots: Array[Transform3D] = []
 	var fern_tints: Array[Color] = []
@@ -134,7 +154,7 @@ func build_rocks(material: Material) -> void:
 		var z := bounds.position.y + rng.randf() * bounds.size.y
 		var steepness: float = 1.0 - valley.get_normal(x, z).y
 		# A few anywhere, lots where it's steep
-		if rng.randf() > 0.03 + smoothstep(0.1, 0.35, steepness) * 0.9 or valley.is_near_crash_site(x, z) or valley.is_on_trail(x, z, 1.0) or valley.is_cleared(x, z, "rocks"):
+		if rng.randf() > 0.03 + smoothstep(0.1, 0.35, steepness) * 0.9 or valley.is_near_crash_site(x, z) or valley.is_on_trail(x, z, 1.0) or valley.is_cleared(x, z, "rocks") or valley.is_erased(x, z):
 			continue
 		# Lots of small rocks, a few big ones
 		var size := pow(rng.randf(), 1.6) * 4.0 + 0.5

@@ -1,0 +1,18 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/textures/rock_cliff/Rock051_2K-JPG_Color.jpg" id="1_6md4y"]
+[ext_resource type="Texture2D" path="res://assets/textures/rock_cliff/Rock051_2K-JPG_AmbientOcclusion.jpg" id="2_peole"]
+[ext_resource type="Texture2D" path="res://assets/textures/rock_cliff/Rock051_2K-JPG_NormalGL.jpg" id="3_2o7u8"]
+[ext_resource type="Texture2D" path="res://assets/textures/rock_cliff/Rock051_2K-JPG_Roughness.jpg" id="4_0rfe4"]
+
+[resource]
+albedo_color = Color(0.78, 0.76, 0.72, 1)
+albedo_texture = ExtResource("1_6md4y")
+roughness_texture = ExtResource("4_0rfe4")
+normal_enabled = true
+normal_texture = ExtResource("3_2o7u8")
+ao_enabled = true
+ao_texture = ExtResource("2_peole")
+uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_triplanar = true
+uv1_world_triplanar = true

@@ -105,6 +105,13 @@ extends StaticBody3D
 @export var coal_seam_scene: PackedScene = preload("res://coal_seam.tscn")
 @export var coal_seam_count := 80
 
+@export_group("Ground paint")
+## Where the Texture Brush's painting is kept. It's made the first time you paint, saved
+## each time you finish a stroke, and survives every rebuild.
+@export_file("*.res") var ground_paint_path := "res://terrain_paint.res"
+## How many meters each painted pixel covers (smaller = finer painting, bigger file)
+const PAINT_TEXEL := 1.0
+
 @export_group("")
 ## The player, who starts beside the crash site (or on dry ground near the middle, if there isn't one)
 @export var player_path: NodePath = ^"../Player"
@@ -147,8 +154,31 @@ var _trail_cover := PackedByteArray()
 var _clear_zones: Array = []
 # For each trail (by instance id), the ground just before it shaped it
 var _trail_ground := {}
-var _trail_image: Image
-var _trail_texture: ImageTexture
+# How ragged the trail's edge is at each grid point (its Edge Noise, 0-255), and where its
+# Edge Grass is on (1), so grass grows in tufts along the edges and a few patches on it
+var _trail_noise := PackedByteArray()
+var _trail_grass := PackedByteArray()
+# How much forest floor covers each grid point (0-255), from the trees standing near it
+var _forest_floor := PackedByteArray()
+# The ground's paint, as one picture handed to the ground material: trail wear, trail edge
+# noise and forest floor, in red, green and blue (see terrain.gdshader)
+var _ground_image: Image
+var _ground_texture: ImageTexture
+# The ground material the terrain is actually drawn with: a copy of Ground Material, so the
+# pictures the valley makes for it (which change on every rebuild) are never saved into
+# terrain_material.tres
+var _ground: Material
+# What's been painted with the Texture Brush (loaded from Ground Paint Path), and the
+# pictures made from it for the ground material
+var _paint: Resource
+var _paint_texture_a: ImageTexture
+var _paint_texture_b: ImageTexture
+# Spots where objects were rubbed out with the Object Painter (so scattered trees, rocks and
+# resources don't come back there), sorted into squares of the map: each is (x, z, radius)
+const ERASE_SQUARE := 8.0
+var _erased := {}
+# Objects placed by hand with the Object Painter, so the scattering leaves room around them
+var _placed_spots := {}
 var _points_x := 0
 var _points_z := 0
 var _chunks_x := 0
@@ -320,15 +350,16 @@ func generate() -> void:
 
 	if not _load_heights():
 		return
+	_ground = ground_material.duplicate() if ground_material else null
 	_base_heights = _heights.duplicate()
-	_trail_mask.resize(_heights.size())
-	_trail_mask.fill(0)
-	_trail_cover.resize(_heights.size())
+	for layer in [_trail_mask, _trail_cover, _trail_noise, _trail_grass, _forest_floor]:
+		layer.resize(_heights.size())
+		layer.fill(0)
 	_trail_ground.clear()
-	_trail_cover.fill(0)
 	# Reshape the ground with any terrain modifiers, before anything is built on it
 	_apply_modifiers()
-	_update_trail_texture()
+	_update_ground_texture()
+	_load_paint()
 	# Set the crash site and other hand-placed things down on the final ground, and note
 	# where the wreck is so trees and boulders can keep clear of it
 	_place_crash_site()
@@ -336,12 +367,12 @@ func generate() -> void:
 	# Let the ground's paint know where the water is, for the muddy shoreline,
 	# and where the ship came down, for the churned mud and puddles
 	_update_slope_view()
-	if ground_material is ShaderMaterial:
-		ground_material.set_shader_parameter("water_height", water_height())
-		ground_material.set_shader_parameter("mud_center", _crash_center)
-		ground_material.set_shader_parameter("mud_radius", _crash_radius * 0.75)
-		ground_material.set_shader_parameter("scorch_center", _scorch_center)
-		ground_material.set_shader_parameter("scorch_radius", 8.5 if _crash_radius > 0.0 else 0.0)
+	if _ground is ShaderMaterial:
+		_ground.set_shader_parameter("water_height", water_height())
+		_ground.set_shader_parameter("mud_center", _crash_center)
+		_ground.set_shader_parameter("mud_radius", _crash_radius * 0.75)
+		_ground.set_shader_parameter("scorch_center", _scorch_center)
+		_ground.set_shader_parameter("scorch_radius", 8.5 if _crash_radius > 0.0 else 0.0)
 	for cz in _chunks_z:
 		for cx in _chunks_x:
 			_build_chunk(cx, cz)
@@ -356,6 +387,8 @@ func generate() -> void:
 	_deposit_spots.clear()
 	# Clear zones are looked up once here, since every tree, rock and plant checks them
 	_clear_zones = get_tree().get_nodes_in_group("clear_zones")
+	# So is where objects were rubbed out or placed by hand with the Object Painter
+	_gather_painted_objects()
 	_scatter_trees()
 	_scatter_feature_trees()
 	_scatter_resources()
@@ -366,7 +399,9 @@ func generate() -> void:
 	foliage.name = "Foliage"
 	foliage.valley = self
 	add_child(foliage)
-	foliage.build_rocks(ground_material)
+	foliage.build_rocks(_ground)
+	# Mossy forest floor under all the trees, scattered and placed alike
+	refresh_forest_floor()
 	_refresh_marker_rings(map_rect())
 
 
@@ -496,7 +531,7 @@ func _build_chunk(cx: int, cz: int) -> void:
 
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = _make_mesh(vertices, normals, uvs, indices)
-	mesh.material_override = ground_material
+	mesh.material_override = _ground
 	chunk.add_child(mesh)
 
 	# A heightmap collision shape is centered on itself, so put it in the middle of the chunk
@@ -553,7 +588,7 @@ func _build_skirt() -> void:
 	var skirt := MeshInstance3D.new()
 	skirt.name = "Skirt"
 	skirt.mesh = _make_mesh(vertices, normals, uvs, indices)
-	skirt.material_override = ground_material
+	skirt.material_override = _ground
 	add_child(skirt)
 
 
@@ -615,7 +650,7 @@ func _scatter_trees() -> void:
 		if rng.randf() > smoothstep(-0.15, 0.35, _forest.get_noise_2d(x, z)) + 0.03:
 			continue
 		var h := get_height(x, z)
-		if h < dry_above or get_slope(x, z) > max_tree_slope or is_near_crash_site(x, z) or is_on_trail(x, z, 2.0) or is_cleared(x, z, "trees"):
+		if h < dry_above or get_slope(x, z) > max_tree_slope or is_near_crash_site(x, z) or is_on_trail(x, z, 2.0) or is_cleared(x, z, "trees") or is_erased(x, z) or is_near_placed(x, z, 3.0):
 			continue
 		var tree: Node3D
 		if using_pack:
@@ -696,7 +731,7 @@ func _optional_scene(path: String) -> PackedScene:
 # True if a special tree may grow here: gentle enough ground, clear of the wreck, the trails
 # and any Clear Zone
 func _feature_spot_ok(x: float, z: float, max_slope: float) -> bool:
-	return get_slope(x, z) <= max_slope and not is_near_crash_site(x, z) and not is_on_trail(x, z, 3.0) and not is_cleared(x, z, "trees")
+	return get_slope(x, z) <= max_slope and not is_near_crash_site(x, z) and not is_on_trail(x, z, 3.0) and not is_cleared(x, z, "trees") and not is_erased(x, z) and not is_near_placed(x, z, 4.0)
 
 
 # Stands one tree at this spot, sized and turned at random like the rest of the forest
@@ -780,7 +815,7 @@ func _scatter_resources() -> void:
 			var x := rng.randf_range(-_width * 0.5 + 6.0, _width * 0.5 - 6.0)
 			var z := rng.randf_range(-_depth * 0.5 + 6.0, _depth * 0.5 - 6.0)
 			var spot := Vector2(x, z)
-			if (_crash_radius > 0.0 and spot.distance_to(_crash_center) < crash_site_gap) or is_on_trail(x, z, 1.0) or is_cleared(x, z, "resources"):
+			if (_crash_radius > 0.0 and spot.distance_to(_crash_center) < crash_site_gap) or is_on_trail(x, z, 1.0) or is_cleared(x, z, "resources") or is_erased(x, z):
 				continue
 			var h := get_height(x, z)
 			# Never underwater (herbs check how close to the water they are themselves)
@@ -1170,8 +1205,10 @@ func _trail_shape(path, patch: Rect2i, ground: PackedFloat32Array, joined: Packe
 	# Kept clear of trees and the like: the width plus Clear Margin, and never less than the
 	# worn dirt, so nothing ever stands on the trail's surface
 	var clear_reach: float = half + path.clear_margin
+	# The gravel surface covers the walkable width and fades out over Texture Blend Width
+	var blend_width: float = path.texture_blend_width
 	if path.dirt_texture:
-		clear_reach = maxf(clear_reach, half + minf(path.edge_blend * 0.4, 2.0))
+		clear_reach = maxf(clear_reach, half + minf(blend_width, 2.0))
 	var outer := maxf(reach, clear_reach)
 
 	# 1. How high the ground is along the trail, and how far along each point is
@@ -1225,8 +1262,10 @@ func _trail_shape(path, patch: Rect2i, ground: PackedFloat32Array, joined: Packe
 	# Cross Slope decides how level it is side to side: at 1 it's flat across (cut into the
 	# uphill side, built up on the downhill side); at 0 it keeps the hillside's own tilt.
 	var keep_tilt: float = 1.0 - path.cross_slope
-	# Worn dirt covers the walkable part and frays out a little way into the edges
-	var dirt_reach: float = half + minf(path.edge_blend * 0.4, 2.0)
+	# The trail's surface covers the walkable part and fades out over Texture Blend Width,
+	# with an edge as ragged as its Edge Noise (worked out in the ground material)
+	var dirt_reach: float = half + blend_width
+	var noise := int(clampf(path.edge_noise, 0.0, 1.0) * 255.0)
 	var surfaces := PackedFloat32Array()
 	var weights := PackedFloat32Array()
 	surfaces.resize(size.x * size.y)
@@ -1245,8 +1284,12 @@ func _trail_shape(path, patch: Rect2i, ground: PackedFloat32Array, joined: Packe
 			weights[j] = 1.0 if closest[j] <= half else 1.0 - smoothstep(half, reach, closest[j])
 			surfaces[j] = level[j] + (ground[i] - center_ground[j]) * keep_tilt
 			if path.dirt_texture and closest[j] < dirt_reach:
-				var worn := 1.0 - smoothstep(half * 0.6, dirt_reach, closest[j])
+				var worn := 1.0 - smoothstep(half - blend_width * 0.3, dirt_reach, closest[j])
 				_trail_mask[i] = maxi(_trail_mask[i], int(worn * 255.0))
+				_trail_noise[i] = maxi(_trail_noise[i], noise)
+			# Grass tufts along the edges (and a few patches on the trail), if it wants them
+			if path.edge_grass and closest[j] < dirt_reach + 1.0:
+				_trail_grass[i] = 1
 	return {"cells": cells, "surface": surfaces, "weight": weights}
 
 
@@ -1302,8 +1345,10 @@ func _rebuild_area(area: Rect2) -> void:
 			_heights[i] = _base_heights[i]
 			_trail_mask[i] = 0
 			_trail_cover[i] = 0
+			_trail_noise[i] = 0
+			_trail_grass[i] = 0
 	_apply_modifiers(patch)
-	_update_trail_texture()
+	_update_ground_texture()
 
 	# Rebuild every chunk the patch overlaps
 	var first := chunk_at(area.position.x, area.position.y) - Vector2i.ONE
@@ -1350,6 +1395,8 @@ func _rebuild_area(area: Rect2) -> void:
 
 	_place_crash_site()
 	_snap_hand_placed()
+	# Trees a trail cleared away take their forest floor with them
+	refresh_forest_floor()
 	_refresh_marker_rings(area)
 
 
@@ -1377,33 +1424,57 @@ func is_on_trail(x: float, z: float, margin := 0.0) -> bool:
 	return false
 
 
-## How worn by trails the ground is at a spot: 0 = untouched grass, 1 = bare trail dirt
+## How worn by trails the ground is at a spot: 0 = untouched grass, 1 = bare trail.
+## Blended between the grid points around it, so it fades smoothly across a trail's edge.
 func trail_amount(x: float, z: float) -> float:
-	if _trail_mask.is_empty():
-		return 0.0
+	return _sample_layer(_trail_mask, x, z)
+
+
+## True if the trail here has Edge Grass on: grass grows in tufts along its edges, and in a
+## few patches on the trail itself
+func trail_edge_grass(x: float, z: float) -> bool:
+	if _trail_grass.is_empty():
+		return false
 	var gx := clampi(roundi((x + _width * 0.5) / _cell_x), 0, _points_x - 1)
 	var gz := clampi(roundi((z + _depth * 0.5) / _cell_z), 0, _points_z - 1)
-	return _trail_mask[gz * _points_x + gx] / 255.0
+	return _trail_grass[gz * _points_x + gx] > 0
 
 
-# Hands the trail map to the ground's paint: one pixel per grid point
-func _update_trail_texture() -> void:
-	if not ground_material is ShaderMaterial or _trail_mask.size() != _points_x * _points_z:
+# One of the byte-per-grid-point layers at a spot (0 to 1), blended between grid points
+func _sample_layer(layer: PackedByteArray, x: float, z: float) -> float:
+	if layer.size() != _points_x * _points_z or layer.is_empty():
+		return 0.0
+	var fx := clampf((x + _width * 0.5) / _cell_x, 0.0, _points_x - 1.001)
+	var fz := clampf((z + _depth * 0.5) / _cell_z, 0.0, _points_z - 1.001)
+	var gx := int(fx)
+	var gz := int(fz)
+	var tx := fx - gx
+	var tz := fz - gz
+	var i := gz * _points_x + gx
+	var top := lerpf(layer[i], layer[i + 1], tx)
+	var bottom := lerpf(layer[i + _points_x], layer[i + _points_x + 1], tx)
+	return lerpf(top, bottom, tz) / 255.0
+
+
+# Hands the ground's maps to its material: trail wear, how ragged each trail's edge is, and
+# forest floor, one pixel per grid point each
+func _update_ground_texture() -> void:
+	if not _ground is ShaderMaterial or _trail_mask.size() != _points_x * _points_z:
 		return
-	if _trail_image == null or _trail_image.get_width() != _points_x or _trail_image.get_height() != _points_z:
-		_trail_image = Image.create_from_data(_points_x, _points_z, false, Image.FORMAT_R8, _trail_mask)
-		_trail_texture = ImageTexture.create_from_image(_trail_image)
-	else:
-		_trail_image.set_data(_points_x, _points_z, false, Image.FORMAT_R8, _trail_mask)
-		_trail_texture.update(_trail_image)
-	ground_material.set_shader_parameter("trail_mask", _trail_texture)
-	ground_material.set_shader_parameter("trail_map", Vector4(-_width * 0.5, -_depth * 0.5, _cell_x, _cell_z))
+	for layer in [["ground_map", _trail_mask], ["edge_map", _trail_noise], ["forest_map", _forest_floor]]:
+		var image := Image.create_from_data(_points_x, _points_z, false, Image.FORMAT_R8, layer[1])
+		var texture := _ground.get_shader_parameter(layer[0]) as ImageTexture
+		if texture and texture.get_width() == _points_x and texture.get_height() == _points_z:
+			texture.update(image)
+		else:
+			_ground.set_shader_parameter(layer[0], ImageTexture.create_from_image(image))
+	_ground.set_shader_parameter("ground_map_info", Vector4(-_width * 0.5, -_depth * 0.5, _cell_x, _cell_z))
 
 
 # Switches the ground's slope tint on or off. It uses the player's own climbing limit, and
 # is always off once the game is running.
 func _update_slope_view() -> void:
-	if not ground_material is ShaderMaterial:
+	if not _ground is ShaderMaterial:
 		return
 	var limit := 45.0
 	var player: CharacterBody3D = null
@@ -1411,8 +1482,251 @@ func _update_slope_view() -> void:
 		player = get_node_or_null(player_path) as CharacterBody3D
 	if player:
 		limit = rad_to_deg(player.floor_max_angle)
-	ground_material.set_shader_parameter("walk_limit_degrees", limit)
-	ground_material.set_shader_parameter("slope_view", show_slope_view and Engine.is_editor_hint())
+	_ground.set_shader_parameter("walk_limit_degrees", limit)
+	_ground.set_shader_parameter("slope_view", show_slope_view and Engine.is_editor_hint())
+
+
+# ---- Forest floor ----
+
+## Works out where the forest floor covers the ground, from every tree standing (scattered
+## or placed by hand): a soft patch under each one, about as wide as its crown, adding up
+## where trees stand together, so the woods are carpeted and a lone tree only has a little
+func refresh_forest_floor() -> void:
+	if _forest_floor.size() != _points_x * _points_z:
+		return
+	_forest_floor.fill(0)
+	var trees: Array = []
+	for child in get_children():
+		if child.get("resource_name") == "Wood" and not child.is_queued_for_deletion():
+			trees.append(child)
+	for placed in get_tree().get_nodes_in_group("placed_objects"):
+		if placed.get("resource_name") == "Wood":
+			trees.append(placed)
+	for tree: Node3D in trees:
+		var tall: float = tree.get("tree_height") if tree.get("tree_height") != null else 8.0
+		var reach := clampf(tall * tree.scale.x * 0.3, 2.5, 8.0)
+		var at := Vector2(tree.global_position.x, tree.global_position.z)
+		var cells := _grid_patch(Rect2(at, Vector2.ZERO).grow(reach))
+		for gz in range(cells.position.y, cells.end.y):
+			for gx in range(cells.position.x, cells.end.x):
+				var spot := Vector2(-_width * 0.5 + gx * _cell_x, -_depth * 0.5 + gz * _cell_z)
+				var d := spot.distance_to(at)
+				if d < reach:
+					var i := gz * _points_x + gx
+					_forest_floor[i] = mini(_forest_floor[i] + int((1.0 - d / reach) * 140.0) + 15, 255)
+	_update_ground_texture()
+
+
+# ---- The Texture Brush's painting ----
+
+## The materials the Texture Brush can paint, in the order the ground material keeps them
+const PAINT_MATERIALS := ["Grass", "Dirt", "Forest Floor", "Gravel Path", "Rock"]
+const TerrainPaintScript = preload("res://terrain_paint.gd")
+
+
+# Loads what's been painted (if anything) and hands it to the ground material
+func _load_paint() -> void:
+	_paint = null
+	if ground_paint_path != "" and ResourceLoader.exists(ground_paint_path):
+		_paint = ResourceLoader.load(ground_paint_path, "", ResourceLoader.CACHE_MODE_REPLACE)
+	_paint_texture_a = null
+	_paint_texture_b = null
+	_upload_paint()
+
+
+# Makes an empty painting covering the whole map, ready for the first stroke
+func _new_paint() -> void:
+	_paint = TerrainPaintScript.new()
+	var size := Vector2i(ceili(_width / PAINT_TEXEL), ceili(_depth / PAINT_TEXEL))
+	_paint.image_a = Image.create_empty(size.x, size.y, false, Image.FORMAT_RGBA8)
+	_paint.image_b = Image.create_empty(size.x, size.y, false, Image.FORMAT_R8)
+	_paint.origin = map_rect().position
+	_paint.texel = PAINT_TEXEL
+
+
+func _upload_paint() -> void:
+	if not _ground is ShaderMaterial:
+		return
+	if _paint == null or _paint.image_a == null or _paint.image_b == null:
+		_ground.set_shader_parameter("paint_info", Vector4(0, 0, 1, 0))
+		return
+	if _paint_texture_a and _paint_texture_a.get_size() == Vector2(_paint.image_a.get_size()):
+		_paint_texture_a.update(_paint.image_a)
+		_paint_texture_b.update(_paint.image_b)
+	else:
+		_paint_texture_a = ImageTexture.create_from_image(_paint.image_a)
+		_paint_texture_b = ImageTexture.create_from_image(_paint.image_b)
+		_ground.set_shader_parameter("paint_a", _paint_texture_a)
+		_ground.set_shader_parameter("paint_b", _paint_texture_b)
+	_ground.set_shader_parameter("paint_info", Vector4(_paint.origin.x, _paint.origin.y, _paint.texel, 1.0))
+
+
+## Paints one dab of a material (an index into PAINT_MATERIALS) onto the ground, or with
+## `erase` rubs the painting out back to the automatic coloring. `strength` is how much one
+## dab lays on (0-1), and `falloff` how much of the radius fades softly to nothing at the
+## edge (0 = hard edge, 1 = soft all the way from the middle).
+func paint_ground(center: Vector2, radius: float, strength: float, falloff: float, material: int, erase := false) -> void:
+	if _paint == null:
+		if erase:
+			return
+		_new_paint()
+	var a: Image = _paint.image_a
+	var b: Image = _paint.image_b
+	var texel: float = _paint.texel
+	var origin: Vector2 = _paint.origin
+	var first := Vector2i(((center - origin - Vector2.ONE * radius) / texel).floor())
+	var last := Vector2i(((center - origin + Vector2.ONE * radius) / texel).ceil())
+	first = first.clamp(Vector2i.ZERO, a.get_size() - Vector2i.ONE)
+	last = last.clamp(Vector2i.ZERO, a.get_size() - Vector2i.ONE)
+	var soft_from := radius * (1.0 - clampf(falloff, 0.0, 1.0))
+	for y in range(first.y, last.y + 1):
+		for x in range(first.x, last.x + 1):
+			var spot := origin + (Vector2(x, y) + Vector2(0.5, 0.5)) * texel
+			var d := spot.distance_to(center)
+			if d > radius:
+				continue
+			var amount := strength * (1.0 if d <= soft_from else 1.0 - smoothstep(soft_from, radius, d))
+			if amount <= 0.0:
+				continue
+			var ca := a.get_pixel(x, y)
+			var cb := b.get_pixel(x, y)
+			var weights := [ca.r, ca.g, ca.b, ca.a, cb.r]
+			for m in 5:
+				if erase or m != material:
+					weights[m] *= 1.0 - amount
+				else:
+					weights[m] += (1.0 - weights[m]) * amount
+			a.set_pixel(x, y, Color(weights[0], weights[1], weights[2], weights[3]))
+			b.set_pixel(x, y, Color(weights[4], 0, 0))
+	_upload_paint()
+
+
+## Saves the painting to Ground Paint Path (the Texture Brush does this after each stroke)
+func save_paint() -> void:
+	if _paint and ground_paint_path != "":
+		var err := ResourceSaver.save(_paint, ground_paint_path, ResourceSaver.FLAG_COMPRESS)
+		if err != OK:
+			push_error("Valley: couldn't save the ground paint to %s (%s)" % [ground_paint_path, error_string(err)])
+
+
+## A copy of the painting as it is now (for undo), or an empty array if nothing's painted
+func paint_snapshot() -> Array:
+	if _paint == null:
+		return []
+	return [_paint.image_a.duplicate(), _paint.image_b.duplicate()]
+
+
+## Puts back a painting from paint_snapshot() (for undo and redo), and saves it
+func restore_paint(snapshot: Array) -> void:
+	if snapshot.is_empty():
+		_paint = null
+		if ground_paint_path != "" and FileAccess.file_exists(ground_paint_path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(ground_paint_path))
+		_upload_paint()
+		return
+	if _paint == null:
+		_new_paint()
+	_paint.image_a = snapshot[0].duplicate()
+	_paint.image_b = snapshot[1].duplicate()
+	_paint_texture_a = null
+	_upload_paint()
+	save_paint()
+
+
+# ---- Objects placed and rubbed out with the Object Painter ----
+
+# Notes where objects have been placed by hand (so scattering leaves room around them) and
+# where they've been rubbed out (so scattered ones don't come back there)
+func _gather_painted_objects() -> void:
+	_erased.clear()
+	_placed_spots.clear()
+	for holder in get_tree().get_nodes_in_group("object_erasers"):
+		for mark: Vector3 in holder.get("erased"):
+			_remember_erasure(mark)
+	for placed in get_tree().get_nodes_in_group("placed_objects"):
+		var thing := placed as Node3D
+		if thing:
+			var spot := Vector2(thing.global_position.x, thing.global_position.z)
+			_remember_spot(spot, _placed_spots)
+			_remember_spot(spot, _taken_spots)
+
+
+func _remember_erasure(mark: Vector3) -> void:
+	var first := Vector2i(floori((mark.x - mark.z) / ERASE_SQUARE), floori((mark.y - mark.z) / ERASE_SQUARE))
+	var last := Vector2i(floori((mark.x + mark.z) / ERASE_SQUARE), floori((mark.y + mark.z) / ERASE_SQUARE))
+	for sz in range(first.y, last.y + 1):
+		for sx in range(first.x, last.x + 1):
+			var square := Vector2i(sx, sz)
+			if not _erased.has(square):
+				_erased[square] = []
+			_erased[square].append(mark)
+
+
+## True if objects were rubbed out at this spot with the Object Painter's eraser: no tree,
+## rock or resource is scattered there
+func is_erased(x: float, z: float) -> bool:
+	for mark: Vector3 in _erased.get(Vector2i(floori(x / ERASE_SQUARE), floori(z / ERASE_SQUARE)), []):
+		if Vector2(x, z).distance_to(Vector2(mark.x, mark.y)) < mark.z:
+			return true
+	return false
+
+
+## True if something was placed by hand within `radius` of this spot
+func is_near_placed(x: float, z: float, radius: float) -> bool:
+	return _distance_to_nearest(Vector2(x, z), _placed_spots, radius) < radius
+
+
+## Where a ray (like one from the mouse in the 3D view) first meets the ground, or null if
+## it never does (looking at the sky)
+func ground_under_ray(from: Vector3, direction: Vector3):
+	if not has_heights():
+		return null
+	var previous := from
+	for i in 3000:
+		var here := from + direction * 2.0 * i
+		if here.y <= get_height(here.x, here.z):
+			# Narrow it down between the last point above ground and this one
+			var above := previous
+			var below := here
+			for k in 12:
+				var middle := (above + below) * 0.5
+				if middle.y > get_height(middle.x, middle.z):
+					above = middle
+				else:
+					below = middle
+			return Vector3(below.x, get_height(below.x, below.z), below.z)
+		previous = here
+	return null
+
+
+## How high to stand a tree (scaled by `size`) so its roots go into the ground, the same way
+## the scattered trees are set down: on the lowest ground around its trunk, sunk a little
+func tree_ground_height(x: float, z: float, tree: Node, size: float) -> float:
+	return _tree_ground(x, z, tree, size)
+
+
+## Rubs out the scattered trees, rocks and resources within `radius` of a spot (the eraser
+## also records the spot, so they stay gone after a rebuild). Hidden deposits are left alone.
+func erase_scattered(center: Vector2, radius: float) -> int:
+	_remember_erasure(Vector3(center.x, center.y, radius))
+	var removed := 0
+	for child in get_children():
+		var thing := child as Node3D
+		if thing == null or not thing.has_method("gather") or thing.is_in_group("hidden_deposits") or thing.is_queued_for_deletion():
+			continue
+		if Vector2(thing.position.x, thing.position.z).distance_to(center) < radius:
+			thing.queue_free()
+			removed += 1
+	var foliage := get_node_or_null("Foliage")
+	var rocks: MultiMeshInstance3D = foliage.get_node_or_null("Rocks") if foliage else null
+	if rocks:
+		var multimesh := rocks.multimesh
+		for i in multimesh.instance_count:
+			var place := multimesh.get_instance_transform(i)
+			if place.basis.get_scale().x > 0.0 and Vector2(place.origin.x, place.origin.z).distance_to(center) < radius:
+				multimesh.set_instance_transform(i, place.scaled_local(Vector3.ZERO))
+				removed += 1
+	return removed
 
 
 # Redraws the rings of any terrain modifier markers inside this patch of map, so they hug

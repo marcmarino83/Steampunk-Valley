@@ -21,7 +21,11 @@ func _enter_tree() -> void:
 		return
 	_panel = panel_script.new()
 	_panel.set("undo_redo", get_undo_redo())
+	_panel.set("redraw_overlay", update_overlays)
 	_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# The Object Painter and Texture Brush work in the 3D view whatever is selected
+	set_input_event_forwarding_always_enabled()
+	set_force_draw_over_forwarding_enabled()
 
 	_dock = EditorDock.new()
 	_dock.name = "WorldTools"
@@ -46,6 +50,18 @@ func _exit_tree() -> void:
 		_dock.queue_free()
 		_dock = null
 		_panel = null
+
+
+## While the Object Painter or Texture Brush is on, it gets the 3D view's mouse first
+func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
+	if _panel and _panel.has_method("forward_input") and _panel.forward_input(camera, event):
+		return AFTER_GUI_INPUT_STOP
+	return AFTER_GUI_INPUT_PASS
+
+
+func _forward_3d_draw_over_viewport(overlay: Control) -> void:
+	if _panel and _panel.has_method("draw_overlay"):
+		_panel.draw_overlay(overlay)
 
 
 ## Opens the World Tools tab (even if it was closed) and switches to it

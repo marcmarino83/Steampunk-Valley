@@ -110,8 +110,16 @@ extends StaticBody3D
 ## Leave one empty, or name a set that isn't there, and that job is simply skipped.
 ## Mossy forest floor under the trees:
 @export var forest_floor_set := "forest_floor/Ground037"
-## Trail surfaces:
+## Trail surfaces: stony gravel, kicked toward the edges and in patches along the way...
 @export var gravel_set := "gravel_path/Ground108"
+## ...and packed sandy ground with pebbles, worn down the middle
+@export var path_set := "gravel_path/Ground049C"
+## Light, dry soil: worn, sunny slopes and ridges, bare patches in the meadows, and the
+## frayed edges of trails
+@export var light_soil_set := "soil/Ground109"
+## Dark, damp soil: where grass gives way to rock, in hollows and gullies, above the shore,
+## and in patches along trail edges
+@export var dark_soil_set := "soil/Ground048"
 ## Plain rock, between the others on the mountains (shown with its moss muted):
 @export var rock_set := "rock_cliff/Rock051"
 ## Mossy rock, on moderately steep and shaded slopes:
@@ -125,6 +133,9 @@ extends StaticBody3D
 const SET_LOOKS := {
 	"forest_floor/Ground037": [3.0, Color(0.5, 0.52, 0.4)],
 	"gravel_path/Ground108": [2.5, Color(0.92, 0.86, 0.78)],
+	"gravel_path/Ground049C": [3.0, Color(0.86, 0.82, 0.76)],
+	"soil/Ground109": [3.5, Color(0.82, 0.8, 0.72)],
+	"soil/Ground048": [2.5, Color(0.85, 0.8, 0.76)],
 	"rock_cliff/Rock051": [4.0, Color(0.66, 0.64, 0.6)],
 	"rock_cliff/Rock022": [6.0, Color(0.74, 0.72, 0.69)],
 	"rock_cliff/Rocks011": [2.5, Color(0.82, 0.8, 0.76)],
@@ -1627,7 +1638,7 @@ func _apply_texture_sets() -> void:
 	_ground.set_shader_parameter("set_scale", scales)
 	_ground.set_shader_parameter("set_tint", tints)
 	_ground.set_shader_parameter("set_has_ao", has_ao)
-	for job in [["forest_set", forest_floor_set], ["gravel_set", gravel_set], ["rock_set", rock_set],
+	for job in [["forest_set", forest_floor_set], ["gravel_set", gravel_set], ["path_set", path_set], ["light_soil_set", light_soil_set], ["dark_soil_set", dark_soil_set], ["rock_set", rock_set],
 			["mossy_rock_set", mossy_rock_set], ["cliff_rock_set", cliff_rock_set], ["scree_set", scree_set]]:
 		_ground.set_shader_parameter(job[0], _set_index(job[1]))
 

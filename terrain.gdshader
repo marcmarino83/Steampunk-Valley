@@ -1,5 +1,7 @@
-// Paints the ground: grass on gentle slopes, dirt patches, mossy forest floor under the trees,
-// wet mud by the water, gravel trails, and on the mountains a mix of rocks: mossy rock on
+// Paints the ground: grass on gentle slopes, light dry soil on worn ground and bare patches,
+// dark damp soil in hollows and where grass gives way to rock, mossy forest floor under the trees,
+// wet mud by the water, sandy and gravel trails with soil along their edges, and on the
+// mountains a mix of rocks: mossy rock on
 // moderate and shaded slopes, plain rock, sheer cliff rock on the steepest faces, and scree
 // at the foot of steep slopes and down the gullies. Then whatever has been painted on with
 // the Texture Brush. Also used on boulders, which gives them mossy tops.
@@ -39,6 +41,9 @@ uniform int rock_set = -1;
 uniform int mossy_rock_set = -1;
 uniform int cliff_rock_set = -1;
 uniform int scree_set = -1;
+uniform int path_set = -1;
+uniform int light_soil_set = -1;
+uniform int dark_soil_set = -1;
 group_uniforms;
 // How strongly the textures' normal maps tilt the lighting (0 = flat, 1 = as made)
 uniform float normal_strength : hint_range(0.0, 2.0) = 1.0;
@@ -272,13 +277,50 @@ void fragment() {
 
 	// ---- The automatic ground ----
 	Ground g = grass_layer(n, large, medium, small);
+	// (the plain dirt color stands in for the soils if their texture sets aren't there)
 	Ground dirt = dirt_layer(n, small);
-	// Bare dirt patches
+
+	// The shape of the ground around this spot, from the heights 7 m away: how fast it rises
+	// (high at the foot of a steep slope) and how far this spot sits below its surroundings
+	// (in a hollow or gully; below zero on a ridge or knoll)
+	float rise = 0.0;
+	float hollow = 0.0;
+	if (slope > 3.0) {
+		float here = ground_height(world_pos.xz);
+		float around = 0.0;
+		for (int k = 0; k < 8; k++) {
+			float a = float(k) * 0.785398;
+			float h = ground_height(world_pos.xz + vec2(cos(a), sin(a)) * 7.0);
+			rise = max(rise, (h - here) / 7.0);
+			around += h;
+		}
+		hollow = around / 8.0 - here;
+	}
+	// Where rock begins, pushed up and down by a pattern so it breaks up (the soil below it and
+	// the rock itself both follow this)
+	float wobble = ((medium - 0.5) * 1.2 + (between - 0.5) * 0.8 + (small - 0.5) * 0.3) * rock_edge_noise;
+
+	// Light, dry soil: bare patches in the meadows, and worn, exposed slopes and ridges (not the
+	// hollows, which stay damp)
 	float patches = smoothstep(0.60, 0.70, medium * 0.75 + large * 0.25);
-	g = mix_ground(g, dirt, patches);
-	// Fairly steep ground wears down to bare, stony soil
-	float worn = smoothstep(26.0, 42.0, slope + (medium - 0.5) * 12.0);
-	g = mix_ground(g, dirt, worn * 0.7);
+	float worn = smoothstep(22.0, 38.0, slope + (medium - 0.5) * 12.0) * (1.0 - smoothstep(-0.2, 0.6, hollow));
+	float dry = max(patches, worn * 0.85);
+	if (dry > 0.01) {
+		Ground light = light_soil_set >= 0 ? flat_set(light_soil_set, n, large, medium) : dirt;
+		g = mix_ground(g, light, height_mix(g.height, light.height, dry));
+	}
+	// Dark, damp soil: the band where the grass gives way to rock (so rocks rise out of earth,
+	// not straight out of the turf), the hollows and gullies, and the ground just above the
+	// shore. Broken up by a pattern, and height blended, so it comes and goes in patches.
+	float toward_rock = smoothstep(rock_begin_degrees - 7.0, rock_begin_degrees + 2.0, slope + wobble) * (1.0 - smoothstep(rock_begin_degrees + 4.0, rock_begin_degrees + 14.0, slope + wobble));
+	float in_hollow = smoothstep(0.8, 2.2, hollow) * smoothstep(6.0, 16.0, slope);
+	float by_water = smoothstep(water_height, water_height + 0.6, world_pos.y) * (1.0 - smoothstep(water_height + shore_width, water_height + shore_width + 3.0, world_pos.y));
+	float clumps = smoothstep(0.4, 0.6, texture(detail_noise, world_pos.xz * 0.05 + vec2(0.17, 0.61)).r);
+	float damp = clamp(max(max(toward_rock * 0.75, in_hollow * 0.8), by_water * 0.6) * mix(0.35, 1.2, clumps) + (between - 0.5) * 0.4 + (small - 0.5) * 0.2, 0.0, 1.0);
+	if (damp > 0.01) {
+		Ground dark = dark_soil_set >= 0 ? flat_set(dark_soil_set, n, large, medium) : dirt;
+		g = mix_ground(g, dark, height_mix(g.height, dark.height, damp));
+	}
 
 	// Forest floor under the trees, with a ragged edge where the woods give way to grass
 	vec2 map_uv = ((world_pos.xz - ground_map_info.xy) / ground_map_info.zw + 0.5) / vec2(textureSize(ground_map, 0));
@@ -290,20 +332,10 @@ void fragment() {
 	}
 
 	// Scree: broken stone gathered where steep ground gives way to gentler (it rolls down and
-	// stops there), and down the gullies. Worked out from the heights 7 m around.
+	// stops there), and down the gullies
 	if (scree_set >= 0 && slope > 6.0) {
-		float here = ground_height(world_pos.xz);
-		float rise = 0.0;
-		float around = 0.0;
-		for (int k = 0; k < 8; k++) {
-			float a = float(k) * 0.785398;
-			float h = ground_height(world_pos.xz + vec2(cos(a), sin(a)) * 7.0);
-			rise = max(rise, (h - here) / 7.0);
-			around += h;
-		}
-		float gully = around / 8.0 - here;
 		float below_steep = smoothstep(scree_below_rise, scree_below_rise + 0.5, rise) * (1.0 - smoothstep(40.0, 52.0, slope));
-		float in_gully = smoothstep(scree_gully_depth, scree_gully_depth + 1.5, gully) * smoothstep(10.0, 22.0, slope);
+		float in_gully = smoothstep(scree_gully_depth, scree_gully_depth + 1.5, hollow) * smoothstep(10.0, 22.0, slope);
 		float scree_amount = clamp(max(below_steep, in_gully) + (between - 0.5) * 0.6 + (small - 0.5) * 0.2, 0.0, 1.0);
 		scree_amount *= smoothstep(water_height + 0.3, water_height + 1.5, world_pos.y);
 		if (scree_amount > 0.01) {
@@ -339,10 +371,9 @@ void fragment() {
 		puddle *= 1.0 - burnt;
 	}
 
-	// Rock, rising through the grass as the ground steepens. The pattern pushes where it
-	// begins up and down, so it comes through in broken outcrops rather than a band, and
+	// Rock, rising through the soil and grass as the ground steepens. The pattern pushes where
+	// it begins up and down, so it comes through in broken outcrops rather than a band, and
 	// height blending lets the tallest stones show first.
-	float wobble = ((medium - 0.5) * 1.2 + (between - 0.5) * 0.8 + (small - 0.5) * 0.3) * rock_edge_noise;
 	float rockiness = smoothstep(rock_begin_degrees, rock_full_degrees, slope + wobble);
 	if (rockiness > 0.001 && rock_set >= 0) {
 		// Plain rock between the others: the set with its moss muted to bare grey stone
@@ -379,14 +410,34 @@ void fragment() {
 		g = mix_ground(g, rock, height_mix(g.height, rock.height, rockiness));
 	}
 
-	// Trails: gravel, fraying into the ground at its edges (more raggedly if the trail's
-	// Edge Noise is turned up)
-	if (trail > 0.001 && gravel_set >= 0) {
+	// Trails. Their edges fray (more raggedly with the trail's Edge Noise turned up) through a
+	// fringe of trodden soil, light with patches of dark, that height blends into the ground
+	// around, so the trail sits in the ground rather than on it. On the trail itself: packed
+	// sandy ground with pebbles worn down the middle, and stony gravel kicked toward the edges
+	// and lying in patches along the way.
+	if (trail > 0.001) {
 		float ragged = 0.2 + texture(edge_map, map_uv).r * 1.6;
-		float fray = smoothstep(0.2, 0.8, trail + ((medium - 0.5) * 0.6 + (small - 0.5) * 0.35) * ragged);
-		if (fray > 0.001) {
-			Ground gravel = flat_set(gravel_set, n, large, medium);
-			g = mix_ground(g, gravel, height_mix(g.height, gravel.height, fray));
+		float jitter = ((medium - 0.5) * 0.6 + (small - 0.5) * 0.35) * ragged;
+		float fringe = smoothstep(0.03, 0.45, trail + jitter * 0.8);
+		if (fringe > 0.01 && light_soil_set >= 0) {
+			Ground soil = flat_set(light_soil_set, n, large, medium);
+			float darker = smoothstep(0.45, 0.62, between + (large - 0.5) * 0.4);
+			if (darker > 0.01 && dark_soil_set >= 0) {
+				Ground dark = flat_set(dark_soil_set, n, large, medium);
+				soil = mix_ground(soil, dark, height_mix(soil.height, dark.height, darker * 0.7));
+			}
+			g = mix_ground(g, soil, height_mix(g.height, soil.height, fringe));
+		}
+		float fray = smoothstep(0.3, 0.85, trail + jitter);
+		if (fray > 0.001 && (path_set >= 0 || gravel_set >= 0)) {
+			float scattered = texture(detail_noise, world_pos.xz * 0.06 + vec2(0.29, 0.83)).r;
+			float stones = clamp(1.0 - smoothstep(0.7, 0.97, trail) + (smoothstep(0.4, 0.6, scattered) - 0.5) * 1.1, 0.0, 1.0);
+			Ground surface = path_set >= 0 ? flat_set(path_set, n, large, medium) : flat_set(gravel_set, n, large, medium);
+			if (path_set >= 0 && gravel_set >= 0 && stones > 0.01) {
+				Ground gravel = flat_set(gravel_set, n, large, medium);
+				surface = mix_ground(surface, gravel, height_mix(surface.height, gravel.height, stones));
+			}
+			g = mix_ground(g, surface, height_mix(g.height, surface.height, fray));
 		}
 	}
 

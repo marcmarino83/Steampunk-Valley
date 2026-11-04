@@ -247,6 +247,9 @@ var _deposit_spots := {}
 
 const TerrainModifierScript = preload("res://terrain_modifier.gd")
 
+# A modifier left out while working out the ground without it (see heights_without)
+var _skip_modifier: Node = null
+
 # Counts rebuild requests, so a burst of them (like dragging a marker) only rebuilds once
 var _rebuild_ticket := 0
 # The patch of map (x, z) waiting to be rebuilt, gathered from every request in that burst
@@ -1056,7 +1059,7 @@ func _apply_modifiers(patch := Rect2i()) -> void:
 	# ground stays smooth instead of one trail's cut being stacked on top of another's
 	var trails: Array = []
 	for modifier in get_tree().get_nodes_in_group("terrain_modifiers"):
-		if not modifier.is_inside_tree():
+		if not modifier.is_inside_tree() or modifier == _skip_modifier:
 			continue
 		if modifier.has_method("trail_points"):
 			trails.append(modifier)
@@ -1065,6 +1068,34 @@ func _apply_modifiers(patch := Rect2i()) -> void:
 		trails.clear()
 		_apply_modifier(modifier, patch)
 	_apply_trails(trails, patch)
+
+
+## The heights of the whole map as they'd be without one modifier, so a Flatten's target can be
+## compared with the ground it's actually cutting into. Nothing about the terrain changes.
+func heights_without(modifier: Node) -> PackedFloat32Array:
+	var heights := _heights
+	var mask := _trail_mask.duplicate()
+	var cover := _trail_cover.duplicate()
+	var noise := _trail_noise.duplicate()
+	var grass := _trail_grass.duplicate()
+	var trail_ground := _trail_ground.duplicate()
+	_heights = _base_heights.duplicate()
+	_skip_modifier = modifier
+	_apply_modifiers()
+	_skip_modifier = null
+	var result := _heights
+	_heights = heights
+	_trail_mask = mask
+	_trail_cover = cover
+	_trail_noise = noise
+	_trail_grass = grass
+	_trail_ground = trail_ground
+	return result
+
+
+## One spot's height in a set of heights like the ones from heights_without
+func height_in(values: PackedFloat32Array, x: float, z: float) -> float:
+	return _height_in(values, x, z)
 
 
 # Shapes a group of trails at once. Each one works from the same ground (as it was before

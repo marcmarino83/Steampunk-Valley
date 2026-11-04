@@ -9,6 +9,7 @@ extends EditorPlugin
 
 const PANEL_PATH := "res://addons/world_tools/world_tools_dock.gd"
 const MENU_ITEM := "Show World Tools"
+const MODIFIER_SCRIPT := "res://terrain_modifier.gd"
 
 var _dock: EditorDock
 var _panel: Control
@@ -52,7 +53,24 @@ func _exit_tree() -> void:
 		_panel = null
 
 
-## While the Object Painter or Texture Brush is on, it gets the 3D view's mouse first
+# Terrain modifiers in the open scene get their drag handles. (Ones that belong to something
+# else, like the crash site's own flatten, are left alone.)
+func _handles(object: Object) -> bool:
+	return object is Node3D and object.get_script() != null and object.get_script().resource_path == MODIFIER_SCRIPT and object.owner == EditorInterface.get_edited_scene_root()
+
+
+func _edit(object: Object) -> void:
+	if _panel and _panel.has_method("edit_modifier"):
+		_panel.edit_modifier(object as Node3D)
+
+
+func _make_visible(visible: bool) -> void:
+	if not visible:
+		_edit(null)
+
+
+## While the Object Painter or Texture Brush is on, it gets the 3D view's mouse first; otherwise
+## a selected terrain modifier's handles do, before Godot's own move gizmo
 func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 	if _panel and _panel.has_method("forward_input") and _panel.forward_input(camera, event):
 		return AFTER_GUI_INPUT_STOP

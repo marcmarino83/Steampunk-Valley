@@ -1,7 +1,7 @@
 @tool
 extends VBoxContainer
-## The World Tools panel: buttons that add terrain modifiers, trails and clear zones at the
-## middle of the 3D view; a list of everything placed, to select, jump to or delete; and the
+## The World Tools panel: buttons that add terrain modifiers, trails and clear zones where
+## the ground is next clicked; a list of everything placed, to select, jump to or delete; and the
 ## valley's editor views. Everything it adds goes under TerrainEdits in the world scene.
 
 # The scenes the buttons add. They're loaded when a button is pressed, not when this script
@@ -18,6 +18,7 @@ const FLATTEN := 2
 ## so a flattened area is in place before a trail runs into it. (Objects, with the Object
 ## Painter's trees, rocks and bushes, is made the first time something is placed.)
 const GROUPS := ["Modifiers", "Paths", "ClearZones"]
+const MODIFIER_HANDLES := "res://addons/world_tools/modifier_handles.gd"
 const OBJECT_PAINTER := "res://addons/world_tools/object_painter.gd"
 const TEXTURE_BRUSH := "res://addons/world_tools/texture_brush.gd"
 const OBJECTS := "objects"
@@ -30,12 +31,20 @@ var undo_redo: EditorUndoRedoManager:
 			_painter.undo_redo = value
 		if _brush:
 			_brush.undo_redo = value
+		if _handles:
+			_handles.undo_redo = value
 ## Set by the plugin: redraws the 3D view's overlay (the brush circle)
 var redraw_overlay := func(): pass
 
 # The painting tools, and which one is switched on ("" = neither)
 var _painter: RefCounted
 var _brush: RefCounted
+# Dragging a selected terrain modifier's middle, height and radius
+var _handles: RefCounted
+# Something waiting to be placed where the ground is next clicked: [node, group, undo name]
+var _placing: Array = []
+var _placing_cursor = null
+var _eat_release := false
 var _active_tool := ""
 var _object_toggle: Button
 var _texture_toggle: Button
@@ -64,6 +73,8 @@ func _init() -> void:
 	_painter.redraw = func(): redraw_overlay.call()
 	_brush = load(TEXTURE_BRUSH).new()
 	_brush.redraw = func(): redraw_overlay.call()
+	_handles = load(MODIFIER_HANDLES).new()
+	_handles.redraw = func(): redraw_overlay.call()
 
 	_add_heading("Add")
 	var grid := GridContainer.new()
@@ -71,9 +82,9 @@ func _init() -> void:
 	add_child(grid)
 	for mode in MODES.size():
 		var label: String = MODES[mode]
-		_add_button(grid, label, "Add a %s terrain modifier at the middle of the 3D view" % label, _add_modifier.bind(mode))
-	_add_button(grid, "Path", "Add a trail at the middle of the 3D view", _add_path)
-	_add_button(grid, "Clear Zone", "Add a circle that keeps trees, resources and boulders out", _add_zone)
+		_add_button(grid, label, "Add a %s terrain modifier where you next click the ground" % label, _add_modifier.bind(mode))
+	_add_button(grid, "Path", "Add a trail where you next click the ground", _add_path)
+	_add_button(grid, "Clear Zone", "Add a circle that keeps trees, resources and boulders out, where you next click the ground", _add_zone)
 
 	_add_heading("Paint")
 	var tools := GridContainer.new()
@@ -140,6 +151,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_handles.poll(_valley())
 	_refresh_wait -= delta
 	if _refresh_wait > 0.0:
 		return
@@ -176,21 +188,22 @@ func _add_modifier(mode: int) -> void:
 	if mode == FLATTEN:
 		# Level to the ground that's there, so a new Flatten doesn't dig a pit or build a mesa
 		node.level_to_ground = true
-	_place(node, "Modifiers", "Add %s modifier" % label)
+		node.falloff = 0.7
+	_begin_placing(node, "Modifiers", "Add %s modifier" % label)
 
 
 func _add_path() -> void:
 	var node := _make(PATH_SCENE)
 	if node:
 		node.name = "Path"
-		_place(node, "Paths", "Add trail")
+		_begin_placing(node, "Paths", "Add trail")
 
 
 func _add_zone() -> void:
 	var node := _make(ZONE_SCENE)
 	if node:
 		node.name = "ClearZone"
-		_place(node, "ClearZones", "Add clear zone")
+		_begin_placing(node, "ClearZones", "Add clear zone")
 
 
 # Loads a scene and makes one, or says in the panel why it couldn't
@@ -203,15 +216,74 @@ func _make(path: String) -> Node3D:
 	return scene.instantiate() as Node3D
 
 
-# Adds a node under its TerrainEdits group, at the ground in the middle of the 3D view, and
-# selects it. One Ctrl+Z takes it away again.
-func _place(node: Node3D, group: String, action: String) -> void:
+# Waits for a click on the ground to say where a new node goes
+func _begin_placing(node: Node3D, group: String, action: String) -> void:
+	_cancel_placing()
+	var tool := _tool()
+	if tool and _valley():
+		tool.finish_stroke(_valley())
+	if _active_tool != "":
+		_toggle_tool(_active_tool)
+	_placing = [node, group, action]
+	_status.text = "%s: click the ground to place it (Esc to cancel)" % action
+	EditorInterface.set_main_screen_editor("3D")
+	redraw_overlay.call()
+
+
+func _cancel_placing() -> void:
+	if _placing.is_empty():
+		return
+	_placing[0].free()
+	_placing = []
+	_placing_cursor = null
+	_status.text = ""
+	redraw_overlay.call()
+
+
+# Esc cancels placing wherever the keyboard focus happens to be
+func _input(event: InputEvent) -> void:
+	if not _placing.is_empty() and event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		_cancel_placing()
+		get_viewport().set_input_as_handled()
+
+
+func _placing_input(camera: Camera3D, event: InputEvent) -> bool:
+	var valley = _valley()
+	if valley == null or not valley.has_heights():
+		return false
+	if event is InputEventMouse:
+		_placing_cursor = valley.ground_under_ray(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position))
+	if event is InputEventMouseMotion:
+		redraw_overlay.call()
+		return false
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		_cancel_placing()
+		return true
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_RIGHT:
+			_cancel_placing()
+			return true
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if _placing_cursor != null:
+				var waiting := _placing
+				_placing = []
+				_status.text = ""
+				_eat_release = true
+				_place(waiting[0], waiting[1], waiting[2], _placing_cursor)
+				_placing_cursor = null
+				redraw_overlay.call()
+			return true
+	return false
+
+
+# Adds a node under its TerrainEdits group, on the ground at a spot, and selects it. One
+# Ctrl+Z takes it away again.
+func _place(node: Node3D, group: String, action: String, spot: Vector3) -> void:
 	var root := EditorInterface.get_edited_scene_root()
 	var parent := _group_node(group)
 	if root == null or parent == null:
 		node.free()
 		return
-	var spot := _view_center_on_ground()
 	node.position = parent.global_transform.affine_inverse() * spot
 	undo_redo.create_action(action)
 	undo_redo.add_do_method(parent, "add_child", node, true)
@@ -220,37 +292,6 @@ func _place(node: Node3D, group: String, action: String) -> void:
 	undo_redo.add_undo_method(parent, "remove_child", node)
 	undo_redo.commit_action()
 	_select(node, false)
-
-
-# Where the middle of the 3D view is looking at the ground (or a spot in front of the camera)
-func _view_center_on_ground() -> Vector3:
-	var viewport := EditorInterface.get_editor_viewport_3d(0)
-	var camera := viewport.get_camera_3d()
-	var valley = _valley()
-	if camera == null:
-		return Vector3.ZERO
-	var middle := viewport.get_visible_rect().size * 0.5
-	var from := camera.project_ray_origin(middle)
-	var direction := camera.project_ray_normal(middle)
-	if valley and valley.has_heights():
-		var previous := from
-		for i in 3000:
-			var here := from + direction * 2.0 * i
-			if here.y <= valley.get_height(here.x, here.z):
-				var above := previous
-				var below := here
-				for k in 12:
-					var mid := (above + below) * 0.5
-					if mid.y > valley.get_height(mid.x, mid.z):
-						above = mid
-					else:
-						below = mid
-				return Vector3(below.x, valley.get_height(below.x, below.z), below.z)
-			previous = here
-		# Looking at the sky: drop a spot 30 m ahead onto the ground
-		var ahead := from + direction * 30.0
-		return Vector3(ahead.x, valley.get_height(ahead.x, ahead.z), ahead.z)
-	return from + direction * 30.0
 
 
 # ---- Keeping things tidy ----
@@ -347,7 +388,13 @@ func _rebuild_list() -> void:
 			item.set_metadata(0, node)
 			item.add_button(0, delete_icon, 0, false, "Delete")
 			if node in selected:
+				# Only showing what's already selected. Without blocking its signal this counts as
+				# clicking the row, which re-selects the node in the editor: in the middle of a
+				# gizmo drag that throws away where the drag started, and the node jumps to the
+				# world's origin.
+				_list.set_block_signals(true)
 				item.select(0)
+				_list.set_block_signals(false)
 
 
 func _describe(node: Node) -> String:
@@ -411,9 +458,14 @@ func _focus_view() -> void:
 
 ## Called by the plugin for every input event in the 3D view. True means a tool used it.
 func forward_input(camera: Camera3D, event: InputEvent) -> bool:
+	if not _placing.is_empty():
+		return _placing_input(camera, event)
+	if _eat_release and event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_eat_release = false
+		return true
 	var tool := _tool()
 	if tool == null:
-		return false
+		return _handles.handle_input(camera, event, _valley())
 	var used: bool = tool.handle_input(camera, event, _valley())
 	if used and tool.status != "":
 		_status.text = tool.status
@@ -424,8 +476,23 @@ func forward_input(camera: Camera3D, event: InputEvent) -> bool:
 func draw_overlay(overlay: Control) -> void:
 	var tool := _tool()
 	var camera := EditorInterface.get_editor_viewport_3d(0).get_camera_3d()
-	if tool and camera:
+	if camera == null:
+		return
+	if not _placing.is_empty():
+		var painter = load(OBJECT_PAINTER)
+		if _placing_cursor != null and _valley():
+			painter._ring(overlay, camera, _valley(), _placing_cursor, float(_placing[0].get("radius")) if _placing[0].get("radius") != null else 2.0, Color(0.55, 0.95, 0.55), 2.0)
+		painter._hint(overlay, ["%s" % _placing[2], "Click the ground: place it here", "Esc or right-click: cancel"])
+	elif tool:
 		tool.draw(overlay, camera, _valley())
+	else:
+		_handles.draw(overlay, camera, _valley())
+
+
+## Called by the plugin when a terrain modifier is selected (null when none is)
+func edit_modifier(node: Node3D) -> void:
+	_handles.set_target(node)
+	redraw_overlay.call()
 
 
 func _tool() -> RefCounted:
@@ -439,6 +506,7 @@ func _tool() -> RefCounted:
 
 # Switches a painting tool on (and the other off), or off again if it was already on
 func _toggle_tool(which: String) -> void:
+	_cancel_placing()
 	var valley = _valley()
 	var tool := _tool()
 	if tool and valley:

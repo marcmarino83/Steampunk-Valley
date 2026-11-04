@@ -82,6 +82,8 @@ var _last_area := Rect2()
 var _last_spot := Vector3.INF
 var _selected := false
 var _selection_check := 0.0
+# While dragged by its handles, the ground waits for the mouse to be let go
+var _dragging := false
 
 
 func _enter_tree() -> void:
@@ -134,8 +136,22 @@ func _process(delta: float) -> void:
 			_update_visibility()
 
 
+## Starts a drag: until end_drag, moving or resizing this doesn't rebuild the ground
+func begin_drag() -> void:
+	_dragging = true
+
+
+## Ends a drag. With `changed`, the ground is rebuilt once, for where it was and where it is.
+func end_drag(changed: bool) -> void:
+	_dragging = false
+	_last_spot = _spot_that_matters()
+	if changed:
+		_ask_for_rebuild()
+	refresh_rings()
+
+
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_TRANSFORM_CHANGED and Engine.is_editor_hint():
+	if what == NOTIFICATION_TRANSFORM_CHANGED and Engine.is_editor_hint() and not _dragging:
 		var spot := _spot_that_matters()
 		if spot.distance_to(_last_spot) > 0.01:
 			_last_spot = spot
@@ -153,7 +169,8 @@ func _spot_that_matters() -> Vector3:
 
 
 func _changed() -> void:
-	_ask_for_rebuild()
+	if not _dragging:
+		_ask_for_rebuild()
 	refresh_rings()
 
 

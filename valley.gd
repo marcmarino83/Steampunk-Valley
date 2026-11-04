@@ -141,6 +141,11 @@ const SET_LOOKS := {
 	"rock_cliff/Rocks011": [2.5, Color(0.82, 0.8, 0.76)],
 }
 
+@export_group("Ground sculpt")
+## Where the Sculpt Brush's shaping is kept. It's made the first time you sculpt, saved each
+## time you finish a stroke, and survives every rebuild.
+@export_file("*.res") var ground_sculpt_path := "res://terrain_sculpt.res"
+
 @export_group("Ground paint")
 ## Where the Texture Brush's painting is kept. It's made the first time you paint, saved
 ## each time you finish a stroke, and survives every rebuild.
@@ -246,6 +251,19 @@ var _deposit_spots := {}
 
 
 const TerrainModifierScript = preload("res://terrain_modifier.gd")
+
+# How far the Sculpt Brush has moved each grid point (empty until there's any sculpting), and
+# the ground just before that was added, so the brush can work out where the ground is
+# without any trails on it
+var _sculpt_deltas := PackedFloat32Array()
+var _pre_sculpt := PackedFloat32Array()
+# The stroke in progress: the sculpting and the heights as they were before it, and the patch
+# of map (x, z) it has touched. Nothing in progress when the area is empty.
+var _stroke_deltas := PackedFloat32Array()
+var _stroke_heights := PackedFloat32Array()
+var _stroke_area := Rect2()
+var _in_stroke := false
+const TerrainSculptScript = preload("res://terrain_sculpt.gd")
 
 # A modifier left out while working out the ground without it (see heights_without)
 var _skip_modifier: Node = null
@@ -397,6 +415,7 @@ func generate() -> void:
 		layer.resize(_heights.size())
 		layer.fill(0)
 	_trail_ground.clear()
+	_load_sculpt()
 	# Reshape the ground with any terrain modifiers, before anything is built on it
 	_apply_modifiers()
 	_update_ground_texture()
@@ -530,22 +549,53 @@ func _build_chunk(cx: int, cz: int) -> void:
 	var first_x := cx * chunk_cells
 	var first_z := cz * chunk_cells
 	var corner := Vector3(-_width * 0.5 + first_x * _cell_x, 0.0, -_depth * 0.5 + first_z * _cell_z)
+	var chunk_heights := PackedFloat32Array()
+	chunk_heights.resize(n * n)
+	for j in n:
+		for k in n:
+			chunk_heights[j * n + k] = _heights[(first_z + j) * _points_x + first_x + k]
+
+	var chunk := StaticBody3D.new()
+	chunk.name = "Chunk_%d_%d" % [cx, cz]
+	chunk.position = corner
+	add_child(chunk)
+
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = _chunk_mesh(cx, cz)
+	mesh.material_override = _ground
+	chunk.add_child(mesh)
+
+	# A heightmap collision shape is centered on itself, so put it in the middle of the chunk
+	var shape := HeightMapShape3D.new()
+	shape.map_width = n
+	shape.map_depth = n
+	shape.map_data = chunk_heights
+	var collision := CollisionShape3D.new()
+	collision.shape = shape
+	collision.position = Vector3(chunk_cells * _cell_x * 0.5, 0.0, chunk_cells * _cell_z * 0.5)
+	collision.scale = Vector3(_cell_x, 1.0, _cell_z)
+	chunk.add_child(collision)
+
+
+# One chunk's ground, from the heights as they are right now
+func _chunk_mesh(cx: int, cz: int) -> ArrayMesh:
+	var n := chunk_cells + 1
+	var first_x := cx * chunk_cells
+	var first_z := cz * chunk_cells
+	var corner := Vector3(-_width * 0.5 + first_x * _cell_x, 0.0, -_depth * 0.5 + first_z * _cell_z)
 
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var uvs := PackedVector2Array()
-	var chunk_heights := PackedFloat32Array()
 	vertices.resize(n * n)
 	normals.resize(n * n)
 	uvs.resize(n * n)
-	chunk_heights.resize(n * n)
 	for j in n:
 		for k in n:
 			var i := j * n + k
 			var gx := first_x + k
 			var gz := first_z + j
 			var h := _heights[gz * _points_x + gx]
-			chunk_heights[i] = h
 			vertices[i] = Vector3(k * _cell_x, h, j * _cell_z)
 			uvs[i] = Vector2(corner.x + k * _cell_x, corner.z + j * _cell_z) * 0.1
 			# Normals come from the whole map, so lighting matches across chunk edges
@@ -564,27 +614,7 @@ func _build_chunk(cx: int, cz: int) -> void:
 			indices[m + 4] = i + n + 1
 			indices[m + 5] = i + n
 			m += 6
-
-	var chunk := StaticBody3D.new()
-	chunk.name = "Chunk_%d_%d" % [cx, cz]
-	chunk.position = corner
-	add_child(chunk)
-
-	var mesh := MeshInstance3D.new()
-	mesh.mesh = _make_mesh(vertices, normals, uvs, indices)
-	mesh.material_override = _ground
-	chunk.add_child(mesh)
-
-	# A heightmap collision shape is centered on itself, so put it in the middle of the chunk
-	var shape := HeightMapShape3D.new()
-	shape.map_width = n
-	shape.map_depth = n
-	shape.map_data = chunk_heights
-	var collision := CollisionShape3D.new()
-	collision.shape = shape
-	collision.position = Vector3(chunk_cells * _cell_x * 0.5, 0.0, chunk_cells * _cell_z * 0.5)
-	collision.scale = Vector3(_cell_x, 1.0, _cell_z)
-	chunk.add_child(collision)
+	return _make_mesh(vertices, normals, uvs, indices)
 
 
 # A cliff hanging down around the outside of the map, so from outside it looks like a
@@ -1058,15 +1088,22 @@ func _apply_modifiers(patch := Rect2i()) -> void:
 	# Trails listed one after another are shaped together, so where they meet or cross the
 	# ground stays smooth instead of one trail's cut being stacked on top of another's
 	var trails: Array = []
+	# Sculpting goes on just before the first trail, so trails cut through sculpted ground
+	var sculpted := false
 	for modifier in get_tree().get_nodes_in_group("terrain_modifiers"):
 		if not modifier.is_inside_tree() or modifier == _skip_modifier:
 			continue
 		if modifier.has_method("trail_points"):
+			if not sculpted:
+				_apply_sculpt(patch)
+				sculpted = true
 			trails.append(modifier)
 			continue
 		_apply_trails(trails, patch)
 		trails.clear()
 		_apply_modifier(modifier, patch)
+	if not sculpted:
+		_apply_sculpt(patch)
 	_apply_trails(trails, patch)
 
 
@@ -1074,6 +1111,7 @@ func _apply_modifiers(patch := Rect2i()) -> void:
 ## compared with the ground it's actually cutting into. Nothing about the terrain changes.
 func heights_without(modifier: Node) -> PackedFloat32Array:
 	var heights := _heights
+	var pre_sculpt := _pre_sculpt.duplicate()
 	var mask := _trail_mask.duplicate()
 	var cover := _trail_cover.duplicate()
 	var noise := _trail_noise.duplicate()
@@ -1085,6 +1123,7 @@ func heights_without(modifier: Node) -> PackedFloat32Array:
 	_skip_modifier = null
 	var result := _heights
 	_heights = heights
+	_pre_sculpt = pre_sculpt
 	_trail_mask = mask
 	_trail_cover = cover
 	_trail_noise = noise
@@ -1767,6 +1806,176 @@ func _set_image(prefix: String, kind: String, normal: bool) -> Image:
 		push_warning("Valley: couldn't bring %s to the shared texture format; set its import to VRAM Compressed" % path)
 		return null
 	return image
+
+
+# ---- The Sculpt Brush's shaping ----
+
+# Loads what's been sculpted (if anything). A file made for a different size of map is ignored.
+func _load_sculpt() -> void:
+	_sculpt_deltas = PackedFloat32Array()
+	if ground_sculpt_path == "" or not ResourceLoader.exists(ground_sculpt_path):
+		return
+	var saved: Resource = ResourceLoader.load(ground_sculpt_path, "", ResourceLoader.CACHE_MODE_REPLACE)
+	if saved == null or saved.points_x != _points_x or saved.points_z != _points_z:
+		push_warning("Valley: %s doesn't match this map's size, so it's left out" % ground_sculpt_path)
+		return
+	_sculpt_deltas = saved.deltas
+
+
+# Adds the sculpting onto the ground, noting the ground as it was just before
+func _apply_sculpt(patch: Rect2i) -> void:
+	if _pre_sculpt.size() != _heights.size():
+		_pre_sculpt = _heights.duplicate()
+	var cells := patch if patch.has_area() else Rect2i(0, 0, _points_x, _points_z)
+	var has_sculpt := _sculpt_deltas.size() == _heights.size()
+	for gz in range(cells.position.y, cells.end.y):
+		for gx in range(cells.position.x, cells.end.x):
+			var i := gz * _points_x + gx
+			_pre_sculpt[i] = _heights[i]
+			if has_sculpt:
+				_heights[i] += _sculpt_deltas[i]
+
+
+## Starts a stroke: remembers how things are, for undo, and for putting everything standing
+## on the ground right afterwards
+func begin_sculpt() -> void:
+	if _sculpt_deltas.size() != _heights.size():
+		_stroke_deltas = PackedFloat32Array()
+		_sculpt_deltas.resize(_heights.size())
+		_sculpt_deltas.fill(0.0)
+	else:
+		_stroke_deltas = _sculpt_deltas.duplicate()
+	_stroke_heights = _heights.duplicate()
+	_stroke_area = Rect2()
+	_in_stroke = true
+
+
+## One dab of the Sculpt Brush. "Lift" moves the ground by `amount` meters; "Smooth", "Flatten"
+## and "Erase" close that share of the gap (0-1) to their goal: the ground around it, the
+## height `level`, and the ground without any sculpting. `falloff` is how much of the radius
+## fades softly to nothing at the edge. Only the chunks it touches are redrawn.
+func sculpt_dab(kind: String, center: Vector2, radius: float, amount: float, falloff: float, level = 0.0) -> void:
+	var area := Rect2(center, Vector2.ZERO).grow(radius)
+	var cells := _grid_patch(area)
+	if not cells.has_area() or not _in_stroke:
+		return
+	var before := _heights.duplicate() if kind == "Smooth" else PackedFloat32Array()
+	var reach := clampi(int(radius / (_cell_x * 3.0)), 1, 4)
+	var soft_from := radius * (1.0 - clampf(falloff, 0.0, 1.0))
+	for gz in range(cells.position.y, cells.end.y):
+		for gx in range(cells.position.x, cells.end.x):
+			var spot := Vector2(-_width * 0.5 + gx * _cell_x, -_depth * 0.5 + gz * _cell_z)
+			var d := spot.distance_to(center)
+			if d >= radius:
+				continue
+			var weight := 1.0 if d <= soft_from else 1.0 - smoothstep(soft_from, radius, d)
+			var i := gz * _points_x + gx
+			var change := 0.0
+			match kind:
+				"Lift":
+					change = amount * weight
+				"Smooth":
+					change = (_neighbor_average(before, gx, gz, reach) - before[i]) * amount * weight
+				"Flatten":
+					change = (float(level) - (_pre_sculpt[i] + _sculpt_deltas[i])) * amount * weight
+				"Erase":
+					change = -_sculpt_deltas[i] * amount * weight
+			_sculpt_deltas[i] += change
+			_heights[i] += change
+	_show_stroke(area)
+
+
+## Makes a smooth slope from one spot to another (their heights included), `radius` meters to
+## each side, fading at the edges by `falloff`
+func sculpt_ramp(a: Vector3, b: Vector3, radius: float, falloff: float) -> void:
+	var from := Vector2(a.x, a.z)
+	var to := Vector2(b.x, b.z)
+	var area := Rect2(from, Vector2.ZERO).expand(to).grow(radius)
+	var cells := _grid_patch(area)
+	if not cells.has_area() or not _in_stroke:
+		return
+	var length_squared := from.distance_squared_to(to)
+	var soft_from := radius * (1.0 - clampf(falloff, 0.0, 1.0))
+	for gz in range(cells.position.y, cells.end.y):
+		for gx in range(cells.position.x, cells.end.x):
+			var spot := Vector2(-_width * 0.5 + gx * _cell_x, -_depth * 0.5 + gz * _cell_z)
+			var t := clampf((spot - from).dot(to - from) / length_squared, 0.0, 1.0)
+			var d := spot.distance_to(from.lerp(to, t))
+			if d >= radius:
+				continue
+			var weight := 1.0 if d <= soft_from else 1.0 - smoothstep(soft_from, radius, d)
+			var i := gz * _points_x + gx
+			# Mostly an even slope, easing a little into and out of its ends
+			var height := lerpf(a.y, b.y, lerpf(t, smoothstep(0.0, 1.0, t), 0.5))
+			var change := (height - (_pre_sculpt[i] + _sculpt_deltas[i])) * weight
+			_sculpt_deltas[i] += change
+			_heights[i] += change
+	_show_stroke(area)
+
+
+# Redraws the chunks a dab touched. Just their meshes: collision, trails and everything
+# standing on the ground wait for the end of the stroke.
+func _show_stroke(area: Rect2) -> void:
+	_stroke_area = area if not _stroke_area.has_area() else _stroke_area.merge(area)
+	# (one cell further: a chunk's edge lighting depends on the ground just past it)
+	var margin := area.grow(maxf(_cell_x, _cell_z))
+	var first := chunk_at(margin.position.x, margin.position.y)
+	var last := chunk_at(margin.end.x, margin.end.y)
+	for cz in range(maxi(first.y, 0), mini(last.y, _chunks_z - 1) + 1):
+		for cx in range(maxi(first.x, 0), mini(last.x, _chunks_x - 1) + 1):
+			var chunk := get_node_or_null("Chunk_%d_%d" % [cx, cz])
+			if chunk:
+				(chunk.get_child(0) as MeshInstance3D).mesh = _chunk_mesh(cx, cz)
+
+
+## Ends a stroke: saves the sculpting, then the ground and everything on it catch up. Returns
+## what undo needs (empty if the stroke touched nothing).
+func end_sculpt() -> Dictionary:
+	if not _in_stroke:
+		return {}
+	_in_stroke = false
+	if not _stroke_area.has_area():
+		return {}
+	var stroke := {"before": _stroke_deltas, "after": _sculpt_deltas.duplicate(), "area": _stroke_area}
+	_save_sculpt()
+	# Back to how the heights were, so the rebuild sees how far things need to move
+	_heights = _stroke_heights
+	_rebuild_area(_stroke_area)
+	return stroke
+
+
+## Calls off a stroke, putting everything back
+func cancel_sculpt() -> void:
+	if not _in_stroke:
+		return
+	_in_stroke = false
+	_sculpt_deltas = _stroke_deltas
+	if _stroke_area.has_area():
+		_heights = _stroke_heights
+		_rebuild_area(_stroke_area)
+
+
+## Puts the sculpting back to a saved state (for undo and redo), and rebuilds that patch
+func restore_sculpt(deltas: PackedFloat32Array, area: Rect2) -> void:
+	_sculpt_deltas = deltas.duplicate()
+	_save_sculpt()
+	_rebuild_area(area)
+
+
+func _save_sculpt() -> void:
+	if ground_sculpt_path == "":
+		return
+	if _sculpt_deltas.is_empty():
+		if FileAccess.file_exists(ground_sculpt_path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(ground_sculpt_path))
+		return
+	var saved: Resource = TerrainSculptScript.new()
+	saved.points_x = _points_x
+	saved.points_z = _points_z
+	saved.deltas = _sculpt_deltas
+	var err := ResourceSaver.save(saved, ground_sculpt_path, ResourceSaver.FLAG_COMPRESS)
+	if err != OK:
+		push_error("Valley: couldn't save the ground sculpting to %s (%s)" % [ground_sculpt_path, error_string(err)])
 
 
 # ---- The Texture Brush's painting ----

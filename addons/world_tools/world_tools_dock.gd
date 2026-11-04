@@ -21,8 +21,10 @@ const GROUPS := ["Modifiers", "Paths", "ClearZones"]
 const MODIFIER_HANDLES := "res://addons/world_tools/modifier_handles.gd"
 const OBJECT_PAINTER := "res://addons/world_tools/object_painter.gd"
 const TEXTURE_BRUSH := "res://addons/world_tools/texture_brush.gd"
+const SCULPT_BRUSH := "res://addons/world_tools/sculpt_brush.gd"
 const OBJECTS := "objects"
 const TEXTURE := "texture"
+const SCULPT := "sculpt"
 
 var undo_redo: EditorUndoRedoManager:
 	set(value):
@@ -31,6 +33,8 @@ var undo_redo: EditorUndoRedoManager:
 			_painter.undo_redo = value
 		if _brush:
 			_brush.undo_redo = value
+		if _sculpt:
+			_sculpt.undo_redo = value
 		if _handles:
 			_handles.undo_redo = value
 ## Set by the plugin: redraws the 3D view's overlay (the brush circle)
@@ -39,6 +43,7 @@ var redraw_overlay := func(): pass
 # The painting tools, and which one is switched on ("" = neither)
 var _painter: RefCounted
 var _brush: RefCounted
+var _sculpt: RefCounted
 # Dragging a selected terrain modifier's middle, height and radius
 var _handles: RefCounted
 # Something waiting to be placed where the ground is next clicked: [node, group, undo name]
@@ -48,6 +53,8 @@ var _eat_release := false
 var _active_tool := ""
 var _object_toggle: Button
 var _texture_toggle: Button
+var _sculpt_toggle: Button
+var _sculpt_panel: Control
 var _object_panel: Control
 var _texture_panel: Control
 var _categories: TabBar
@@ -73,6 +80,8 @@ func _init() -> void:
 	_painter.redraw = func(): redraw_overlay.call()
 	_brush = load(TEXTURE_BRUSH).new()
 	_brush.redraw = func(): redraw_overlay.call()
+	_sculpt = load(SCULPT_BRUSH).new()
+	_sculpt.redraw = func(): redraw_overlay.call()
 	_handles = load(MODIFIER_HANDLES).new()
 	_handles.redraw = func(): redraw_overlay.call()
 
@@ -94,10 +103,14 @@ func _init() -> void:
 	_object_toggle.toggle_mode = true
 	_texture_toggle = _add_button(tools, "Texture Brush", "Paint grass, dirt, forest floor, gravel or rock onto the ground", _toggle_tool.bind(TEXTURE))
 	_texture_toggle.toggle_mode = true
+	_sculpt_toggle = _add_button(tools, "Sculpt Brush", "Raise, lower, smooth and flatten the ground, or make ramps, by painting in the 3D view", _toggle_tool.bind(SCULPT))
+	_sculpt_toggle.toggle_mode = true
 	_object_panel = _build_object_panel()
 	add_child(_object_panel)
 	_texture_panel = _build_texture_panel()
 	add_child(_texture_panel)
+	_sculpt_panel = _build_sculpt_panel()
+	add_child(_sculpt_panel)
 
 	_add_heading("View")
 	_slope_view = CheckBox.new()
@@ -152,6 +165,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_handles.poll(_valley())
+	_sculpt.poll(_valley())
 	_refresh_wait -= delta
 	if _refresh_wait > 0.0:
 		return
@@ -501,6 +515,8 @@ func _tool() -> RefCounted:
 			return _painter
 		TEXTURE:
 			return _brush
+		SCULPT:
+			return _sculpt
 	return null
 
 
@@ -519,6 +535,8 @@ func _toggle_tool(which: String) -> void:
 		_fill_materials()
 	_object_toggle.set_pressed_no_signal(_active_tool == OBJECTS)
 	_texture_toggle.set_pressed_no_signal(_active_tool == TEXTURE)
+	_sculpt_toggle.set_pressed_no_signal(_active_tool == SCULPT)
+	_sculpt_panel.visible = _active_tool == SCULPT
 	_object_panel.visible = _active_tool == OBJECTS
 	_texture_panel.visible = _active_tool == TEXTURE
 	if _active_tool != "":
@@ -559,6 +577,31 @@ func _build_object_panel() -> Control:
 		_fill_palette())
 	box.add_child(rescan)
 	box.add_child(_help("Click: place one. Drag: paint many. Alt: erase (scattered ones too). Drag a placed object to move it; hold Shift for fine moves."))
+	return box
+
+
+func _build_sculpt_panel() -> Control:
+	var box := VBoxContainer.new()
+	box.visible = false
+	var modes := GridContainer.new()
+	modes.columns = 3
+	var group := ButtonGroup.new()
+	for mode in _sculpt.MODES:
+		var button := Button.new()
+		button.text = mode
+		button.toggle_mode = true
+		button.button_group = group
+		button.button_pressed = mode == _sculpt.mode
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.pressed.connect(func():
+			_sculpt.mode = mode
+			redraw_overlay.call())
+		modes.add_child(button)
+	box.add_child(modes)
+	box.add_child(_slider_row("Brush Radius (m)", 2.0, 80.0, 0.5, _sculpt.radius, func(v): _sculpt.radius = v))
+	box.add_child(_slider_row("Strength", 0.02, 1.0, 0.01, _sculpt.strength, func(v): _sculpt.strength = v))
+	box.add_child(_slider_row("Falloff", 0.0, 1.0, 0.01, _sculpt.falloff, func(v): _sculpt.falloff = v))
+	box.add_child(_help("Hold and paint. Flatten: Ctrl + click samples the height to pull toward. Ramp: press at one end, drag to the other, let go. Alt rubs sculpting out. Saved after every stroke; Ctrl+Z undoes a stroke."))
 	return box
 
 

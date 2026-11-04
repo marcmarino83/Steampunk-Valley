@@ -2,6 +2,11 @@
 extends Node3D
 ## The wreck of the Brass Lark, the refugee airship the player arrives on.
 ##
+## The wreck itself is the airship model in pieces: the gondola (rolled onto its side, ploughed
+## into the ground), the collapsed envelope beside it, and the engine, a pole and an exhaust
+## pipe thrown clear. The gondola's cabin and the hollow under the envelope are one sheltered
+## space, entered through the torn breach where they meet.
+##
 ## The valley picks a flat, dry spot for it, clears the trees around it, and calls settle()
 ## to set each piece down on the ground. Every direct child of this node counts as one
 ## piece: its height in this scene is how far above (or below, if negative) the ground it sits.
@@ -10,29 +15,6 @@ extends Node3D
 @export var clear_radius := 45.0
 ## How much deeper than its layout the wreck sinks into the ground, in meters
 @export var dig_in := 0.3
-
-# The rigging: each rope runs from one point to the next (in this scene's own coordinates),
-# sagging by the given amount in the middle. "rope" is hemp, "cable" is thin iron wire.
-# Lines whose points all sit at ground height are ropes trailing loose in the mud.
-const RIGGING := [
-	# Still tied between the gondola's rail and the envelope
-	{"points": [Vector3(-3.9, 4.0, -3), Vector3(-8.5, 7.0, -2)], "sag": 0.4, "kind": "rope"},
-	{"points": [Vector3(-3.9, 4.0, 1), Vector3(-8.0, 8.3, 4)], "sag": 0.6, "kind": "rope"},
-	{"points": [Vector3(-3.9, 4.0, 5), Vector3(-7.8, 9.2, 10)], "sag": 0.8, "kind": "rope"},
-	{"points": [Vector3(1.9, 5.4, -1), Vector3(-10.5, 9.2, 2)], "sag": 0.4, "kind": "rope"},
-	{"points": [Vector3(-3.9, 4.0, -6), Vector3(-6.5, 3.8, -9)], "sag": 0.3, "kind": "rope"},
-	{"points": [Vector3(2.5, 3.5, 13), Vector3(-6.8, 8.0, 14)], "sag": 1.2, "kind": "rope"},
-	# Torn loose: hanging from the envelope and trailing off across the ground
-	{"points": [Vector3(-6.4, 7.5, 16), Vector3(-1.5, 0.06, 19)], "sag": 2.0, "kind": "rope"},
-	{"points": [Vector3(-1.5, 0.06, 19), Vector3(3, 0.06, 22), Vector3(6, 0.06, 20.5)], "sag": 0.0, "kind": "rope"},
-	{"points": [Vector3(-3.9, 4.0, -5), Vector3(-4.2, 0.06, -6.5)], "sag": 0.5, "kind": "rope"},
-	{"points": [Vector3(-4.2, 0.06, -6.5), Vector3(-3.6, 0.06, -9.5), Vector3(-1.8, 0.06, -11)], "sag": 0.0, "kind": "rope"},
-	{"points": [Vector3(6.5, 0.06, 21), Vector3(9.5, 0.06, 23.5), Vector3(10, 0.06, 26)], "sag": 0.0, "kind": "rope"},
-	# Snapped iron cables, dangling with nothing on the end
-	{"points": [Vector3(-6.2, 6.5, 0), Vector3(-4.8, 2.2, 0.8)], "sag": 0.15, "kind": "cable"},
-	{"points": [Vector3(-5.6, 4.6, 8), Vector3(-4.6, 1.0, 7.4)], "sag": 0.1, "kind": "cable"},
-	{"points": [Vector3(-7.5, 9.5, 20), Vector3(-5.8, 4.5, 21)], "sag": 0.2, "kind": "cable"},
-]
 
 ## How many crows circle over the wreck
 @export var crow_count := 6
@@ -48,7 +30,6 @@ func _ready() -> void:
 	_make_smoke()
 	_make_embers()
 	_make_crows()
-	_make_rigging()
 
 
 func _process(_delta: float) -> void:
@@ -70,9 +51,10 @@ func _process(_delta: float) -> void:
 		bird.scale.y = 1.0 + sin(t * 14.0 + crow[4]) * 0.9 * flapping
 
 
-## Sets every piece of the wreck down on the valley's ground. The ship's own parts (hulls,
-## envelope, engine, crates, rigging...) sink an extra `dig_in` meters, so it looks like it
-## plowed into the ground; salvage piles and the player's start point sit right on top.
+## Sets every piece of the wreck down on the valley's ground. The ship's own parts (gondola,
+## envelope, engine and the rest) sink an extra `dig_in` meters, so it looks like it plowed
+## into the ground; salvage piles and the player's start point sit right on top. (The cabin's
+## props are raised by `dig_in` in the scene, so they stand on the floor instead of in it.)
 func settle(valley) -> void:
 	for child in get_children():
 		var piece := child as Node3D
@@ -95,69 +77,15 @@ func spawn_point() -> Vector3:
 	return $PlayerSpawn.global_position
 
 
-## What the player is facing when they start: the intact half of the hull
+## What the player is facing when they start: the way into the shelter
 func spawn_look_target() -> Vector3:
-	return $HullIntact.global_position
+	return $Doorway.global_position
 
 
-## Where the ground is scorched black: around the broken boiler
+## Where the ground is scorched black: around the engine, thrown clear and still smouldering
 func scorch_point() -> Vector2:
-	var boiler: Vector3 = $Engine.global_position
-	return Vector2(boiler.x, boiler.z)
-
-
-# Builds every rope and cable in RIGGING out of short straight pieces that follow a sag
-func _make_rigging() -> void:
-	if has_node("Rigging"):
-		return
-	var rigging := Node3D.new()
-	rigging.name = "Rigging"
-	add_child(rigging)
-
-	var rope_look := StandardMaterial3D.new()
-	rope_look.albedo_color = Color(0.42, 0.35, 0.24)
-	rope_look.roughness = 1.0
-	var cable_look := StandardMaterial3D.new()
-	cable_look.albedo_color = Color(0.12, 0.11, 0.1)
-	cable_look.metallic = 0.7
-	cable_look.roughness = 0.5
-	var rope_piece := CylinderMesh.new()
-	rope_piece.top_radius = 0.035
-	rope_piece.bottom_radius = 0.035
-	rope_piece.height = 1.0
-	rope_piece.radial_segments = 5
-	rope_piece.rings = 1
-	rope_piece.material = rope_look
-	var cable_piece := rope_piece.duplicate() as CylinderMesh
-	cable_piece.top_radius = 0.02
-	cable_piece.bottom_radius = 0.02
-	cable_piece.material = cable_look
-
-	for line in RIGGING:
-		var points: Array = line["points"]
-		var piece: Mesh = cable_piece if line["kind"] == "cable" else rope_piece
-		for i in points.size() - 1:
-			# Each span between two points droops in a gentle curve, made of 8 straight bits
-			var start: Vector3 = points[i]
-			var end: Vector3 = points[i + 1]
-			var steps := 8 if line["sag"] > 0.0 else 1
-			var previous := start
-			for s in range(1, steps + 1):
-				var t := float(s) / steps
-				var next := start.lerp(end, t) - Vector3(0, line["sag"] * 4.0 * t * (1.0 - t), 0)
-				rigging.add_child(_rope_segment(previous, next, piece))
-				previous = next
-
-
-# One straight bit of rope from a to b: a thin cylinder stretched and turned to fit
-func _rope_segment(a: Vector3, b: Vector3, piece: Mesh) -> MeshInstance3D:
-	var along := b - a
-	var up := along.normalized()
-	var side := up.cross(Vector3.FORWARD if absf(up.z) < 0.9 else Vector3.RIGHT).normalized()
-	var segment := MeshInstance3D.new()
-	segment.mesh = piece
-	segment.transform = Transform3D(Basis(side, up * along.length(), side.cross(up)), (a + b) * 0.5)
-	return segment
+	var engine: Vector3 = $Engine.global_position
+	return Vector2(engine.x, engine.z)
 
 
 # Thin grey smoke curling up from the broken engine and drifting off on the breeze

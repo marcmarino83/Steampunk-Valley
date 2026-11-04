@@ -4,159 +4,109 @@
 [ext_resource type="Script" path="res://note.gd" id="2_note"]
 [ext_resource type="PackedScene" path="res://scrap_pile.tscn" id="3_scrap"]
 [ext_resource type="PackedScene" path="res://plank_pile.tscn" id="4_planks"]
+[ext_resource type="Material" path="res://assets/crashed_airship/parts/wreck_material.tres" id="5_eswo1"]
 [ext_resource type="PackedScene" path="res://terrain_modifier.tscn" id="5_flatten"]
+[ext_resource type="ArrayMesh" path="res://assets/crashed_airship/parts/gondola.res" id="6_ra4w2"]
+[ext_resource type="ArrayMesh" path="res://assets/crashed_airship/parts/envelope.res" id="7_r20ls"]
+[ext_resource type="ArrayMesh" path="res://assets/crashed_airship/parts/engine.res" id="8_2s40n"]
+[ext_resource type="ArrayMesh" path="res://assets/crashed_airship/parts/pole.res" id="9_im4nv"]
+[ext_resource type="ArrayMesh" path="res://assets/crashed_airship/parts/exhaust_pipe.res" id="10_2myp4"]
 
-[sub_resource type="FastNoiseLite" id="Noise_grime"]
-frequency = 0.03
-fractal_octaves = 5
+[sub_resource type="BoxShape3D" id="BoxShape3D_ouose"]
+size = Vector3(10.8, 4, 0.5)
 
-[sub_resource type="Gradient" id="Grad_wood"]
-offsets = PackedFloat32Array(0, 0.5, 1)
-colors = PackedColorArray(0.15, 0.1, 0.06, 1, 0.29, 0.19, 0.11, 1, 0.38, 0.26, 0.15, 1)
+[sub_resource type="BoxShape3D" id="BoxShape3D_lmikx"]
+size = Vector3(10.8, 4, 0.5)
 
-[sub_resource type="NoiseTexture2D" id="Tex_wood"]
-width = 512
-height = 512
-seamless = true
-color_ramp = SubResource("Grad_wood")
-noise = SubResource("Noise_grime")
+[sub_resource type="BoxShape3D" id="BoxShape3D_xqi30"]
+size = Vector3(0.5, 4, 4.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_2nrwb"]
+size = Vector3(3, 2.8, 2.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_yr171"]
+size = Vector3(4.3, 3, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_kr325"]
+size = Vector3(4.3, 3, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_7qol8"]
+size = Vector3(10.2, 6, 1.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ywwp6"]
+size = Vector3(7.54, 6, 1.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_6hhca"]
+size = Vector3(1, 6, 6.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_714nt"]
+size = Vector3(0.6, 6, 1.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_2htlq"]
+size = Vector3(4.4849997, 1.953224, 8.00998)
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_mrlyr"]
+radius = 0.17520308
+height = 5.9947667
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_cfwtl"]
+radius = 0.5856992
+height = 11.163118
 
 [sub_resource type="Gradient" id="Grad_canvas"]
 offsets = PackedFloat32Array(0, 0.4, 0.7, 1)
 colors = PackedColorArray(0.24, 0.2, 0.14, 1, 0.47, 0.41, 0.31, 1, 0.6, 0.54, 0.42, 1, 0.66, 0.61, 0.49, 1)
 
+[sub_resource type="FastNoiseLite" id="Noise_grime"]
+frequency = 0.03
+
 [sub_resource type="NoiseTexture2D" id="Tex_canvas"]
-width = 512
-height = 512
-seamless = true
+noise = SubResource("Noise_grime")
 color_ramp = SubResource("Grad_canvas")
-noise = SubResource("Noise_grime")
-
-[sub_resource type="Gradient" id="Grad_rust"]
-offsets = PackedFloat32Array(0, 0.45, 1)
-colors = PackedColorArray(0.2, 0.1, 0.05, 1, 0.46, 0.23, 0.1, 1, 0.43, 0.36, 0.21, 1)
-
-[sub_resource type="NoiseTexture2D" id="Tex_rust"]
-width = 256
-height = 256
 seamless = true
-color_ramp = SubResource("Grad_rust")
-noise = SubResource("Noise_grime")
 
-[sub_resource type="StandardMaterial3D" id="Mat_rust"]
-albedo_texture = SubResource("Tex_rust")
-metallic = 0.45
-roughness = 0.75
-uv1_scale = Vector3(0.6, 0.6, 0.6)
+[sub_resource type="StandardMaterial3D" id="Mat_canvas_dark"]
+cull_mode = 2
+albedo_color = Color(0.5, 0.48, 0.45, 1)
+albedo_texture = SubResource("Tex_canvas")
+uv1_scale = Vector3(0.12, 0.12, 0.12)
 uv1_triplanar = true
 
-[sub_resource type="StandardMaterial3D" id="Mat_glass"]
-albedo_color = Color(0.06, 0.08, 0.09, 1)
-metallic = 0.4
-roughness = 0.08
-
-[sub_resource type="StandardMaterial3D" id="Mat_wood"]
-albedo_texture = SubResource("Tex_wood")
-roughness = 0.9
-uv1_scale = Vector3(0.06, 1.4, 0.06)
-uv1_triplanar = true
-
-[sub_resource type="StandardMaterial3D" id="Mat_wood_dark"]
-albedo_color = Color(0.19, 0.13, 0.08, 1)
-roughness = 0.92
+[sub_resource type="BoxMesh" id="Mesh_bedroll"]
+material = SubResource("Mat_canvas_dark")
+size = Vector3(0.8, 0.14, 1.9)
 
 [sub_resource type="StandardMaterial3D" id="Mat_wood_light"]
 albedo_color = Color(0.46, 0.33, 0.19, 1)
 roughness = 0.88
 
-[sub_resource type="StandardMaterial3D" id="Mat_splinter"]
-albedo_color = Color(0.55, 0.42, 0.27, 1)
+[sub_resource type="BoxShape3D" id="Shape_book"]
+size = Vector3(0.5, 0.16, 0.42)
+
+[sub_resource type="StandardMaterial3D" id="Mat_paper"]
+albedo_color = Color(0.86, 0.8, 0.64, 1)
 roughness = 0.95
 
-[sub_resource type="StandardMaterial3D" id="Mat_soot"]
-albedo_color = Color(0.09, 0.07, 0.06, 1)
-roughness = 1.0
+[sub_resource type="BoxMesh" id="Mesh_book_pages"]
+material = SubResource("Mat_paper")
+size = Vector3(0.42, 0.05, 0.36)
+
+[sub_resource type="StandardMaterial3D" id="Mat_leather"]
+albedo_color = Color(0.3, 0.13, 0.07, 1)
+roughness = 0.7
+
+[sub_resource type="BoxMesh" id="Mesh_book_cover"]
+material = SubResource("Mat_leather")
+size = Vector3(0.44, 0.07, 0.34)
 
 [sub_resource type="StandardMaterial3D" id="Mat_brass"]
 albedo_color = Color(0.72, 0.54, 0.24, 1)
 metallic = 0.85
 roughness = 0.4
 
-[sub_resource type="StandardMaterial3D" id="Mat_brass_tarnished"]
-albedo_color = Color(0.45, 0.38, 0.22, 1)
-metallic = 0.7
-roughness = 0.55
-
-[sub_resource type="StandardMaterial3D" id="Mat_iron"]
-albedo_color = Color(0.16, 0.15, 0.14, 1)
-metallic = 0.6
-roughness = 0.6
-
-[sub_resource type="StandardMaterial3D" id="Mat_canvas"]
-cull_mode = 2
-albedo_texture = SubResource("Tex_canvas")
-roughness = 1.0
-uv1_scale = Vector3(0.09, 0.09, 0.09)
-uv1_triplanar = true
-
-[sub_resource type="StandardMaterial3D" id="Mat_canvas_dark"]
-cull_mode = 2
-albedo_color = Color(0.5, 0.48, 0.45, 1)
-albedo_texture = SubResource("Tex_canvas")
-roughness = 1.0
-uv1_scale = Vector3(0.12, 0.12, 0.12)
-uv1_triplanar = true
-
-[sub_resource type="StandardMaterial3D" id="Mat_leather"]
-albedo_color = Color(0.3, 0.13, 0.07, 1)
-roughness = 0.7
-
-[sub_resource type="StandardMaterial3D" id="Mat_paper"]
-albedo_color = Color(0.86, 0.8, 0.64, 1)
-roughness = 0.95
-
-[sub_resource type="BoxMesh" id="Mesh_trim_side"]
+[sub_resource type="BoxMesh" id="Mesh_book_clasp"]
 material = SubResource("Mat_brass")
-size = Vector3(0.12, 0.25, 9)
-
-[sub_resource type="BoxMesh" id="Mesh_trim_rear"]
-material = SubResource("Mat_brass")
-size = Vector3(0.12, 0.25, 7.6)
-
-[sub_resource type="BoxMesh" id="Mesh_bow_trim_a"]
-material = SubResource("Mat_brass")
-size = Vector3(0.12, 0.25, 3.75)
-
-[sub_resource type="BoxMesh" id="Mesh_bow_trim_b"]
-material = SubResource("Mat_brass")
-size = Vector3(0.12, 0.25, 3.15)
-
-[sub_resource type="BoxMesh" id="Mesh_rail"]
-material = SubResource("Mat_brass")
-size = Vector3(0.08, 0.45, 8.8)
-
-[sub_resource type="BoxMesh" id="Mesh_rail_rear"]
-material = SubResource("Mat_brass")
-size = Vector3(0.08, 0.45, 7.2)
-
-[sub_resource type="CylinderMesh" id="Mesh_porthole"]
-material = SubResource("Mat_brass")
-top_radius = 0.32
-bottom_radius = 0.32
-height = 0.14
-radial_segments = 16
-
-[sub_resource type="BoxMesh" id="Mesh_jagged_plank"]
-material = SubResource("Mat_wood")
-size = Vector3(0.25, 0.06, 2.2)
-
-[sub_resource type="BoxMesh" id="Mesh_splinter"]
-material = SubResource("Mat_splinter")
-size = Vector3(0.14, 0.05, 1.3)
-
-[sub_resource type="BoxMesh" id="Mesh_bedroll"]
-material = SubResource("Mat_canvas_dark")
-size = Vector3(0.8, 0.14, 1.9)
+size = Vector3(0.05, 0.08, 0.1)
 
 [sub_resource type="CylinderMesh" id="Mesh_lantern"]
 material = SubResource("Mat_brass")
@@ -165,481 +115,160 @@ bottom_radius = 0.13
 height = 0.32
 radial_segments = 8
 
-[sub_resource type="BoxShape3D" id="Shape_book"]
-size = Vector3(0.5, 0.16, 0.42)
+[sub_resource type="BoxShape3D" id="BoxShape3D_1utw2"]
+size = Vector3(10.2, 3.5, 2.7)
 
-[sub_resource type="BoxMesh" id="Mesh_book_cover"]
-material = SubResource("Mat_leather")
-size = Vector3(0.44, 0.07, 0.34)
+[sub_resource type="BoxShape3D" id="BoxShape3D_vdp44"]
+size = Vector3(9.3, 5, 4.8)
 
-[sub_resource type="BoxMesh" id="Mesh_book_pages"]
-material = SubResource("Mat_paper")
-size = Vector3(0.42, 0.05, 0.36)
-
-[sub_resource type="BoxMesh" id="Mesh_book_clasp"]
-material = SubResource("Mat_brass")
-size = Vector3(0.05, 0.08, 0.1)
-
-[sub_resource type="BoxShape3D" id="Shape_shelter"]
-size = Vector3(5, 3.8, 9.6)
-
-[sub_resource type="SphereMesh" id="Mesh_figurehead"]
-material = SubResource("Mat_brass")
-radius = 0.42
-height = 0.7
-radial_segments = 12
-rings = 6
-
-[sub_resource type="CylinderMesh" id="Mesh_beak"]
-material = SubResource("Mat_brass")
-top_radius = 0.0
-bottom_radius = 0.16
-height = 0.5
-radial_segments = 8
-
-[sub_resource type="BoxMesh" id="Mesh_rudder"]
-material = SubResource("Mat_wood_dark")
-size = Vector3(0.18, 3, 1.7)
-
-[sub_resource type="BoxMesh" id="Mesh_wheelhouse"]
-material = SubResource("Mat_wood")
-size = Vector3(3.4, 1.9, 3.2)
-
-[sub_resource type="BoxMesh" id="Mesh_wheelhouse_roof"]
-material = SubResource("Mat_rust")
-size = Vector3(3.9, 0.15, 3.7)
-
-[sub_resource type="BoxMesh" id="Mesh_window_side"]
-material = SubResource("Mat_glass")
-size = Vector3(0.05, 0.7, 1.8)
-
-[sub_resource type="BoxMesh" id="Mesh_window_front"]
-material = SubResource("Mat_glass")
-size = Vector3(2.4, 0.7, 0.05)
-
-[sub_resource type="TorusMesh" id="Mesh_ship_wheel"]
-material = SubResource("Mat_brass")
-inner_radius = 0.4
-outer_radius = 0.48
-rings = 20
-ring_segments = 6
-
-[sub_resource type="CylinderMesh" id="Mesh_ladder_rail"]
-material = SubResource("Mat_wood_dark")
-top_radius = 0.045
-bottom_radius = 0.045
-height = 4.4
-radial_segments = 6
-
-[sub_resource type="BoxMesh" id="Mesh_ladder_rung"]
-material = SubResource("Mat_wood_dark")
-size = Vector3(0.06, 0.06, 0.55)
-
-[sub_resource type="CylinderMesh" id="Mesh_boiler"]
-material = SubResource("Mat_iron")
-top_radius = 1.0
-bottom_radius = 1.0
-height = 3.0
-radial_segments = 20
-
-[sub_resource type="CylinderMesh" id="Mesh_band"]
-material = SubResource("Mat_brass_tarnished")
-top_radius = 1.05
-bottom_radius = 1.05
-height = 0.16
-radial_segments = 20
-
-[sub_resource type="CylinderMesh" id="Mesh_chimney"]
-material = SubResource("Mat_iron")
-top_radius = 0.24
-bottom_radius = 0.2
-height = 1.6
-radial_segments = 10
-
-[sub_resource type="CylinderMesh" id="Mesh_engine_pipe"]
-material = SubResource("Mat_brass")
-top_radius = 0.09
-bottom_radius = 0.09
-height = 2.4
-radial_segments = 8
-
-[sub_resource type="CylinderMesh" id="Mesh_gauge"]
-material = SubResource("Mat_brass")
-top_radius = 0.2
-bottom_radius = 0.2
-height = 0.08
-radial_segments = 14
-
-[sub_resource type="CylinderShape3D" id="Shape_boiler"]
-height = 3.0
-radius = 1.0
-
-[sub_resource type="TorusMesh" id="Mesh_ring_unit"]
-material = SubResource("Mat_rust")
-inner_radius = 0.975
-outer_radius = 1.025
-rings = 56
-ring_segments = 6
-
-[sub_resource type="CylinderMesh" id="Mesh_nose"]
-material = SubResource("Mat_brass_tarnished")
-top_radius = 0.0
-bottom_radius = 0.45
-height = 5.0
-radial_segments = 10
-
-[sub_resource type="CylinderMesh" id="Mesh_nose_snapped"]
-material = SubResource("Mat_brass_tarnished")
-top_radius = 0.0
-bottom_radius = 0.22
-height = 2.2
-radial_segments = 8
-
-[sub_resource type="TorusMesh" id="Mesh_collar"]
-material = SubResource("Mat_brass_tarnished")
-inner_radius = 1.5
-outer_radius = 1.8
-rings = 28
-ring_segments = 8
-
-[sub_resource type="BoxMesh" id="Mesh_fin"]
-material = SubResource("Mat_canvas_dark")
-size = Vector3(0.18, 4.4, 5.6)
-
-[sub_resource type="BoxMesh" id="Mesh_flap"]
-material = SubResource("Mat_canvas_dark")
-size = Vector3(3, 0.04, 4)
-
-[sub_resource type="CylinderMesh" id="Mesh_big_pipe"]
-material = SubResource("Mat_rust")
-top_radius = 0.25
-bottom_radius = 0.25
-height = 3.2
-radial_segments = 12
-
-[sub_resource type="CylinderMesh" id="Mesh_short_pipe"]
-material = SubResource("Mat_rust")
-top_radius = 0.25
-bottom_radius = 0.25
-height = 1.1
-radial_segments = 12
-
-[sub_resource type="CylinderMesh" id="Mesh_flange"]
-material = SubResource("Mat_rust")
-top_radius = 0.4
-bottom_radius = 0.4
-height = 0.12
-radial_segments = 12
-
-[sub_resource type="CylinderMesh" id="Mesh_valve_stem"]
-material = SubResource("Mat_iron")
-top_radius = 0.05
-bottom_radius = 0.05
-height = 0.6
-radial_segments = 6
-
-[sub_resource type="TorusMesh" id="Mesh_valve_wheel"]
-material = SubResource("Mat_rust")
-inner_radius = 0.2
-outer_radius = 0.28
-rings = 16
-ring_segments = 6
-
-[sub_resource type="CylinderMesh" id="Mesh_hub"]
-material = SubResource("Mat_brass")
-top_radius = 0.3
-bottom_radius = 0.3
-height = 0.6
-radial_segments = 12
-
-[sub_resource type="BoxMesh" id="Mesh_blade"]
-material = SubResource("Mat_wood_dark")
-size = Vector3(2.4, 0.08, 0.42)
-
-[sub_resource type="BoxMesh" id="Mesh_plank"]
-material = SubResource("Mat_wood")
-size = Vector3(2.6, 0.06, 0.28)
-
-[sub_resource type="BoxMesh" id="Mesh_plank_burnt"]
-material = SubResource("Mat_soot")
-size = Vector3(1.8, 0.06, 0.28)
-
-[sub_resource type="CylinderMesh" id="Mesh_pipe_brass"]
-material = SubResource("Mat_rust")
-top_radius = 0.1
-bottom_radius = 0.1
-height = 2.2
-radial_segments = 8
-
-[sub_resource type="CylinderMesh" id="Mesh_pipe_iron"]
-material = SubResource("Mat_iron")
-top_radius = 0.13
-bottom_radius = 0.13
-height = 1.8
-radial_segments = 8
-
-[sub_resource type="CylinderMesh" id="Mesh_barrel"]
-material = SubResource("Mat_wood_light")
-top_radius = 0.36
-bottom_radius = 0.36
-height = 0.95
-radial_segments = 12
-
-[node name="CrashSite" type="Node3D"]
+[node name="CrashSite" type="Node3D" unique_id=719810639]
 script = ExtResource("1_site")
 
-[node name="HullIntact" type="Node3D" parent="."]
-position = Vector3(0, 0.5, 0)
-rotation_degrees = Vector3(0, 0, 12)
+[node name="ScrapPile1" parent="." unique_id=898346723 instance=ExtResource("3_scrap")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 0, 0)
 
-[node name="Hull" type="CSGCombiner3D" parent="HullIntact"]
-use_collision = true
+[node name="ScrapPile2" parent="." unique_id=791839803 instance=ExtResource("3_scrap")]
+transform = Transform3D(0.76604444, 0, 0.6427876, 0, 1, 0, -0.6427876, 0, 0.76604444, 8, 0, 4)
 
-[node name="Plan" type="CSGPolygon3D" parent="HullIntact/Hull"]
-position = Vector3(0, 4.2, 0)
-rotation_degrees = Vector3(-90, 0, 0)
-polygon = PackedVector2Array(-3, -6, 3, -6, 3, 3, 1.8, 6.5, 0, 9, -1.8, 6.5, -3, 3)
-depth = 5.8
-material = SubResource("Mat_wood")
+[node name="ScrapPile3" parent="." unique_id=710020007 instance=ExtResource("3_scrap")]
+transform = Transform3D(-0.34202012, 0, 0.9396926, 0, 1, 0, -0.9396926, 0, -0.34202012, -17, 0, -8)
 
-[node name="Section" type="CSGCombiner3D" parent="HullIntact/Hull"]
-operation = 1
+[node name="ScrapPile4" parent="." unique_id=128007014 instance=ExtResource("3_scrap")]
+transform = Transform3D(0.8660254, 0, -0.5, 0, 1, 0, 0.5, 0, 0.8660254, 4, 0, -16)
 
-[node name="SectionBox" type="CSGBox3D" parent="HullIntact/Hull/Section"]
-position = Vector3(0, 1.4, 0)
-size = Vector3(6.2, 5.6, 26)
-material = SubResource("Mat_wood")
+[node name="ScrapPile5" parent="." unique_id=949442435 instance=ExtResource("3_scrap")]
+transform = Transform3D(0.25881907, 0, 0.9659258, 0, 1, 0, -0.9659258, 0, 0.25881907, 18, 0, -10)
 
-[node name="SectionRound" type="CSGCylinder3D" parent="HullIntact/Hull/Section"]
-operation = 1
-position = Vector3(0, 2.4, 0)
-rotation_degrees = Vector3(90, 0, 0)
-radius = 3.8
-height = 26.0
-sides = 28
-material = SubResource("Mat_wood")
+[node name="PlankPile1" parent="." unique_id=1525295432 instance=ExtResource("4_planks")]
+transform = Transform3D(0.90630776, 0, 0.42261827, 0, 1, 0, -0.42261827, 0, 0.90630776, -12, 0, 4)
 
-[node name="Inside" type="CSGBox3D" parent="HullIntact/Hull"]
-operation = 2
-position = Vector3(0, 1.95, 1.5)
-size = Vector3(5.2, 3.9, 10)
-material = SubResource("Mat_wood_dark")
+[node name="PlankPile2" parent="." unique_id=114788951 instance=ExtResource("4_planks")]
+transform = Transform3D(0.49999997, 0, -0.86602545, 0, 1, 0, 0.86602545, 0, 0.49999997, -6, 0, -14)
 
-[node name="TornRoof" type="CSGBox3D" parent="HullIntact/Hull"]
-operation = 2
-position = Vector3(0, 4.3, 5.4)
-rotation_degrees = Vector3(-35, 0, 0)
-size = Vector3(7, 2.6, 3.4)
-material = SubResource("Mat_soot")
+[node name="PlayerSpawn" type="Marker3D" parent="." unique_id=2018112674]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 1.5)
 
-[node name="TornSide" type="CSGBox3D" parent="HullIntact/Hull"]
-operation = 2
-position = Vector3(-3, 1.2, 5.6)
-rotation_degrees = Vector3(0, -30, 20)
-size = Vector3(2.5, 3, 2.5)
-material = SubResource("Mat_soot")
+[node name="GroundFlatten" parent="." unique_id=1374346190 instance=ExtResource("5_flatten")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -1)
+radius = 38.0
+falloff = 0.35
+level_to_ground = true
 
-[node name="TornCorner" type="CSGBox3D" parent="HullIntact/Hull"]
-operation = 2
-position = Vector3(2.7, 2.6, 6.2)
-rotation_degrees = Vector3(20, 40, 10)
-size = Vector3(1.8, 2.2, 1.6)
-material = SubResource("Mat_soot")
+[node name="Gondola" type="Node3D" parent="." unique_id=977946969]
+transform = Transform3D(1, 0, 0, 0, 0.9781476, -0.2079117, 0, 0.2079117, 0.9781476, -7.69, -0.3, -6.72)
 
-[node name="TrimLeft" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-3.06, 3.4, 1.5)
-mesh = SubResource("Mesh_trim_side")
+[node name="Model" type="MeshInstance3D" parent="Gondola" unique_id=1443148049]
+material_override = ExtResource("5_eswo1")
+mesh = ExtResource("6_ra4w2")
 
-[node name="TrimRight" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(3.06, 3.4, 1.5)
-mesh = SubResource("Mesh_trim_side")
+[node name="Body" type="StaticBody3D" parent="Gondola" unique_id=266983265]
 
-[node name="TrimLowLeft" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-3.06, 0.9, 1.5)
-mesh = SubResource("Mesh_trim_side")
+[node name="NorthWall" type="CollisionShape3D" parent="Gondola/Body" unique_id=619648437]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 2, -2.15)
+shape = SubResource("BoxShape3D_ouose")
 
-[node name="TrimLowRight" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(3.06, 0.9, 1.5)
-mesh = SubResource("Mesh_trim_side")
+[node name="SouthWall" type="CollisionShape3D" parent="Gondola/Body" unique_id=90516611]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 2, 1.5)
+shape = SubResource("BoxShape3D_lmikx")
 
-[node name="BowTrimRightA" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(2.5, 3.4, -4.75)
-rotation_degrees = Vector3(0, 18.9, 0)
-mesh = SubResource("Mesh_bow_trim_a")
+[node name="SternWall" type="CollisionShape3D" parent="Gondola/Body" unique_id=253458695]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.3, 2, -0.32)
+shape = SubResource("BoxShape3D_xqi30")
 
-[node name="BowTrimRightB" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(0.97, 3.4, -7.75)
-rotation_degrees = Vector3(0, 35.8, 0)
-mesh = SubResource("Mesh_bow_trim_b")
+[node name="SternFrame" type="CollisionShape3D" parent="Gondola/Body" unique_id=1800310174]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.9, 1.4, -0.32)
+shape = SubResource("BoxShape3D_2nrwb")
 
-[node name="BowTrimLeftA" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-2.5, 3.4, -4.75)
-rotation_degrees = Vector3(0, -18.9, 0)
-mesh = SubResource("Mesh_bow_trim_a")
+[node name="WheelNorth" type="CollisionShape3D" parent="Gondola/Body" unique_id=1176098795]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.35, 1.5, -2.9)
+shape = SubResource("BoxShape3D_yr171")
 
-[node name="BowTrimLeftB" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-0.97, 3.4, -7.75)
-rotation_degrees = Vector3(0, -35.8, 0)
-mesh = SubResource("Mesh_bow_trim_b")
+[node name="WheelSouth" type="CollisionShape3D" parent="Gondola/Body" unique_id=763331157]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.35, 1.5, 2.6)
+shape = SubResource("BoxShape3D_kr325")
 
-[node name="RailLeft" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-2.9, 4.42, 1.5)
-mesh = SubResource("Mesh_rail")
+[node name="Envelope" type="Node3D" parent="." unique_id=1575291762]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.54, 0, -6.12)
 
-[node name="RailRight" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(2.9, 4.42, 1.5)
-mesh = SubResource("Mesh_rail")
+[node name="Model" type="MeshInstance3D" parent="Envelope" unique_id=1592786073]
+material_override = ExtResource("5_eswo1")
+mesh = ExtResource("7_r20ls")
 
-[node name="Figurehead" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(0, 3.6, -9.25)
-mesh = SubResource("Mesh_figurehead")
+[node name="Body" type="StaticBody3D" parent="Envelope" unique_id=983183403]
 
-[node name="Beak" type="MeshInstance3D" parent="HullIntact/Figurehead"]
-position = Vector3(0, 0.05, -0.5)
-rotation_degrees = Vector3(-90, 0, 0)
-mesh = SubResource("Mesh_beak")
+[node name="NorthWall" type="CollisionShape3D" parent="Envelope/Body" unique_id=2075365557]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 3, -4.6)
+shape = SubResource("BoxShape3D_7qol8")
 
-[node name="Porthole1" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(3.06, 2.2, -2)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_porthole")
+[node name="SouthWall" type="CollisionShape3D" parent="Envelope/Body" unique_id=271871236]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.03, 3, 1.9)
+shape = SubResource("BoxShape3D_ywwp6")
 
-[node name="Porthole2" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(3.06, 2.2, 1)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_porthole")
+[node name="NoseWall" type="CollisionShape3D" parent="Envelope/Body" unique_id=935284090]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.3, 3, -1.3)
+shape = SubResource("BoxShape3D_6hhca")
 
-[node name="Porthole3" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(3.06, 2.2, 4)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_porthole")
+[node name="JunctionWall" type="CollisionShape3D" parent="Envelope/Body" unique_id=2124108412]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.9, 3, -3.3)
+shape = SubResource("BoxShape3D_714nt")
 
-[node name="Porthole4" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-3.06, 2.2, -2)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_porthole")
+[node name="Engine" type="Node3D" parent="." unique_id=242974981]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.28, 0, 8.45)
 
-[node name="Porthole5" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-3.06, 2.2, 1)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_porthole")
+[node name="Model" type="MeshInstance3D" parent="Engine" unique_id=1745431548]
+material_override = ExtResource("5_eswo1")
+mesh = ExtResource("8_2s40n")
 
-[node name="Porthole6" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-3.06, 2.2, 4)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_porthole")
+[node name="Body" type="StaticBody3D" parent="Engine" unique_id=535975108]
 
-[node name="JaggedPlank1" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-2.2, 0.6, 6.5)
-rotation_degrees = Vector3(-15, -10, 0)
-mesh = SubResource("Mesh_jagged_plank")
+[node name="Bulk" type="CollisionShape3D" parent="Engine/Body" unique_id=513521315]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.398965, -0.26519203)
+shape = SubResource("BoxShape3D_2htlq")
 
-[node name="JaggedPlank2" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(1.8, 3.4, 6.3)
-rotation_degrees = Vector3(25, 15, 5)
-mesh = SubResource("Mesh_jagged_plank")
+[node name="SmokeVent" type="Marker3D" parent="Engine" unique_id=914466444]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3701134, 2.5479202, -1.7056303)
 
-[node name="JaggedPlank3" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-2.9, 2.4, 6.6)
-rotation_degrees = Vector3(-5, 20, 60)
-mesh = SubResource("Mesh_jagged_plank")
+[node name="Pole" type="Node3D" parent="." unique_id=453054633]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.57, 0, 10.77)
 
-[node name="Splinter1" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(3.0, 1.4, 6.4)
-rotation_degrees = Vector3(10, -25, 80)
-mesh = SubResource("Mesh_splinter")
+[node name="Model" type="MeshInstance3D" parent="Pole" unique_id=975882996]
+material_override = ExtResource("5_eswo1")
+mesh = ExtResource("9_im4nv")
 
-[node name="Splinter2" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-1.2, 4.1, 6.3)
-rotation_degrees = Vector3(30, 10, 0)
-mesh = SubResource("Mesh_splinter")
+[node name="Body" type="StaticBody3D" parent="Pole" unique_id=1556449311]
 
-[node name="Splinter3" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-3.0, 0.9, 6.3)
-rotation_degrees = Vector3(-20, 30, 85)
-mesh = SubResource("Mesh_splinter")
+[node name="Length" type="CollisionShape3D" parent="Pole/Body" unique_id=1748144495]
+transform = Transform3D(-0.9988584, -0.047770165, 2.0881001e-09, 0, -4.3711392e-08, -1.0000001, 0.047770165, -0.9988584, 4.3661487e-08, 0.01651287, 0.4206484, -0.0071247816)
+shape = SubResource("CapsuleShape3D_mrlyr")
 
-[node name="Splinter4" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(0.8, 4.15, 6.0)
-rotation_degrees = Vector3(-15, -20, 5)
-mesh = SubResource("Mesh_splinter")
+[node name="ExhaustPipe" type="Node3D" parent="." unique_id=1496336624]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.98, 0, -0.4)
 
-[node name="Wheelhouse" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(0, 5.15, -0.6)
-mesh = SubResource("Mesh_wheelhouse")
+[node name="Model" type="MeshInstance3D" parent="ExhaustPipe" unique_id=1678173297]
+material_override = ExtResource("5_eswo1")
+mesh = ExtResource("10_2myp4")
 
-[node name="Roof" type="MeshInstance3D" parent="HullIntact/Wheelhouse"]
-position = Vector3(0, 1.02, 0)
-rotation_degrees = Vector3(4, 0, -3)
-mesh = SubResource("Mesh_wheelhouse_roof")
+[node name="Body" type="StaticBody3D" parent="ExhaustPipe" unique_id=1767602732]
 
-[node name="WindowLeft" type="MeshInstance3D" parent="HullIntact/Wheelhouse"]
-position = Vector3(-1.72, 0.25, 0)
-mesh = SubResource("Mesh_window_side")
+[node name="Length" type="CollisionShape3D" parent="ExhaustPipe/Body" unique_id=458566294]
+transform = Transform3D(0.9919573, -0.12657326, 5.532693e-09, 0, -4.3711392e-08, -1.0000001, 0.12657326, 0.9919573, -4.335983e-08, -0.4592601, 0.6287871, -0.096386075)
+shape = SubResource("CapsuleShape3D_cfwtl")
 
-[node name="WindowRight" type="MeshInstance3D" parent="HullIntact/Wheelhouse"]
-position = Vector3(1.72, 0.25, 0)
-mesh = SubResource("Mesh_window_side")
+[node name="Cabin" type="Node3D" parent="." unique_id=1068047912]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 
-[node name="WindowFront" type="MeshInstance3D" parent="HullIntact/Wheelhouse"]
-position = Vector3(0, 0.25, -1.62)
-mesh = SubResource("Mesh_window_front")
-
-[node name="ShipWheel" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(0, 4.95, -2.8)
-rotation_degrees = Vector3(90, 0, 0)
-mesh = SubResource("Mesh_ship_wheel")
-
-[node name="Ladder" type="Node3D" parent="HullIntact"]
-position = Vector3(3.6, 2.1, 2.2)
-rotation_degrees = Vector3(0, 0, -16)
-
-[node name="RailA" type="MeshInstance3D" parent="HullIntact/Ladder"]
-position = Vector3(0, 0, -0.27)
-mesh = SubResource("Mesh_ladder_rail")
-
-[node name="RailB" type="MeshInstance3D" parent="HullIntact/Ladder"]
-position = Vector3(0, 0, 0.27)
-mesh = SubResource("Mesh_ladder_rail")
-
-[node name="Rung1" type="MeshInstance3D" parent="HullIntact/Ladder"]
-position = Vector3(0, -1.6, 0)
-mesh = SubResource("Mesh_ladder_rung")
-
-[node name="Rung2" type="MeshInstance3D" parent="HullIntact/Ladder"]
-position = Vector3(0, -0.95, 0)
-mesh = SubResource("Mesh_ladder_rung")
-
-[node name="Rung3" type="MeshInstance3D" parent="HullIntact/Ladder"]
-position = Vector3(0, -0.3, 0)
-mesh = SubResource("Mesh_ladder_rung")
-
-[node name="Rung4" type="MeshInstance3D" parent="HullIntact/Ladder"]
-position = Vector3(0, 0.35, 0)
-mesh = SubResource("Mesh_ladder_rung")
-
-[node name="Rung5" type="MeshInstance3D" parent="HullIntact/Ladder"]
-position = Vector3(0, 1.0, 0)
-mesh = SubResource("Mesh_ladder_rung")
-
-[node name="Rung6" type="MeshInstance3D" parent="HullIntact/Ladder"]
-position = Vector3(0, 1.65, 0)
-mesh = SubResource("Mesh_ladder_rung")
-
-[node name="Bedroll" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-1.4, 0.07, -0.4)
+[node name="Bedroll" type="MeshInstance3D" parent="Cabin" unique_id=1136393376]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -7.5, 0.07, -7.1)
 mesh = SubResource("Mesh_bedroll")
 
-[node name="LogCrate" type="CSGBox3D" parent="HullIntact"]
-position = Vector3(1.4, 0.35, -2.6)
-rotation_degrees = Vector3(0, 12, 0)
+[node name="LogCrate" type="CSGBox3D" parent="Cabin" unique_id=250227881]
+transform = Transform3D(0.9781476, 0, 0.2079117, 0, 1, 0, -0.2079117, 0, 0.9781476, 4.2, 0.35, -8.1)
 use_collision = true
 size = Vector3(0.7, 0.7, 0.7)
 material = SubResource("Mat_wood_light")
 
-[node name="ShipsLog" type="StaticBody3D" parent="HullIntact"]
-position = Vector3(1.4, 0.74, -2.6)
-rotation_degrees = Vector3(0, -20, 0)
+[node name="ShipsLog" type="StaticBody3D" parent="Cabin" unique_id=72691768]
+transform = Transform3D(0.9396926, 0, -0.34202012, 0, 1, 0, 0.34202012, 0, 0.9396926, 4.2, 0.74, -8.1)
 script = ExtResource("2_note")
 title = "Ship's Log"
 text = "Log of the Brass Lark, Captain Ilsa Wren.
@@ -652,804 +281,40 @@ Day 12. Something below is following us. When we turn, it turns.
 
 Final entry. The cells are failing. I'm bringing her down in the valley ahead. If anyone finds this, don't"
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="HullIntact/ShipsLog"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Cabin/ShipsLog" unique_id=852764888]
 shape = SubResource("Shape_book")
 
-[node name="Pages" type="MeshInstance3D" parent="HullIntact/ShipsLog"]
-position = Vector3(0.015, 0, 0)
+[node name="Pages" type="MeshInstance3D" parent="Cabin/ShipsLog" unique_id=2142795120]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.015, 0, 0)
 mesh = SubResource("Mesh_book_pages")
 
-[node name="Cover" type="MeshInstance3D" parent="HullIntact/ShipsLog"]
-position = Vector3(0, 0.012, 0)
+[node name="Cover" type="MeshInstance3D" parent="Cabin/ShipsLog" unique_id=1732818268]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.012, 0)
 mesh = SubResource("Mesh_book_cover")
 
-[node name="Clasp" type="MeshInstance3D" parent="HullIntact/ShipsLog"]
-position = Vector3(0.22, 0.005, 0)
+[node name="Clasp" type="MeshInstance3D" parent="Cabin/ShipsLog" unique_id=2006628563]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.22, 0.005, 0)
 mesh = SubResource("Mesh_book_clasp")
 
-[node name="Lantern" type="MeshInstance3D" parent="HullIntact"]
-position = Vector3(-1.9, 3.4, -1.0)
+[node name="Lantern" type="MeshInstance3D" parent="Cabin" unique_id=2023975811]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 3.2, -7.4)
 mesh = SubResource("Mesh_lantern")
 
-[node name="LanternLight" type="OmniLight3D" parent="HullIntact/Lantern"]
-position = Vector3(0, -0.15, 0)
+[node name="LanternLight" type="OmniLight3D" parent="Cabin/Lantern" unique_id=1426872959]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.15, 0)
 light_color = Color(1, 0.72, 0.42, 1)
 light_energy = 1.4
 omni_range = 9.0
 
-[node name="Shelter" type="Area3D" parent="HullIntact" groups=["shelters"]]
+[node name="Shelter" type="Area3D" parent="." unique_id=389293648 groups=["shelters"]]
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="HullIntact/Shelter"]
-position = Vector3(0, 1.95, 1.4)
-shape = SubResource("Shape_shelter")
+[node name="Gondola" type="CollisionShape3D" parent="Shelter" unique_id=241016559]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.4, 1.75, -7.05)
+shape = SubResource("BoxShape3D_1utw2")
 
-[node name="BoardingPlank" type="CSGBox3D" parent="."]
-position = Vector3(0.7, 0.28, 7.7)
-rotation_degrees = Vector3(10, 4, 0)
-use_collision = true
-size = Vector3(1.3, 0.1, 3.4)
-material = SubResource("Mat_wood")
+[node name="Envelope" type="CollisionShape3D" parent="Shelter" unique_id=1574582269]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.35, 2.5, -7.4)
+shape = SubResource("BoxShape3D_vdp44")
 
-[node name="HullBroken" type="Node3D" parent="."]
-position = Vector3(5, 0.25, 15.5)
-rotation_degrees = Vector3(4, 22, -20)
-
-[node name="Hull" type="CSGCombiner3D" parent="HullBroken"]
-use_collision = true
-
-[node name="Plan" type="CSGPolygon3D" parent="HullBroken/Hull"]
-position = Vector3(0, 4.2, 0)
-rotation_degrees = Vector3(-90, 0, 0)
-polygon = PackedVector2Array(-3, 5, 3, 5, 3, -3, 2.4, -4.6, 0, -5.3, -2.4, -4.6, -3, -3)
-depth = 5.8
-material = SubResource("Mat_wood")
-
-[node name="Section" type="CSGCombiner3D" parent="HullBroken/Hull"]
-operation = 1
-
-[node name="SectionBox" type="CSGBox3D" parent="HullBroken/Hull/Section"]
-position = Vector3(0, 1.4, 0)
-size = Vector3(6.2, 5.6, 20)
-material = SubResource("Mat_wood")
-
-[node name="SectionRound" type="CSGCylinder3D" parent="HullBroken/Hull/Section"]
-operation = 1
-position = Vector3(0, 2.4, 0)
-rotation_degrees = Vector3(90, 0, 0)
-radius = 3.8
-height = 20.0
-sides = 28
-material = SubResource("Mat_wood")
-
-[node name="Inside" type="CSGBox3D" parent="HullBroken/Hull"]
-operation = 2
-position = Vector3(0, 1.95, -1.0)
-size = Vector3(5.2, 3.9, 9.4)
-material = SubResource("Mat_wood_dark")
-
-[node name="TornRoof" type="CSGBox3D" parent="HullBroken/Hull"]
-operation = 2
-position = Vector3(0, 4.3, -4.3)
-rotation_degrees = Vector3(35, 0, 0)
-size = Vector3(7, 2.4, 3.2)
-material = SubResource("Mat_soot")
-
-[node name="Jag1" type="CSGBox3D" parent="HullBroken/Hull"]
-operation = 2
-position = Vector3(1.8, 3.4, -4.7)
-rotation_degrees = Vector3(25, 15, 30)
-size = Vector3(2.4, 2, 1.8)
-material = SubResource("Mat_soot")
-
-[node name="Jag2" type="CSGBox3D" parent="HullBroken/Hull"]
-operation = 2
-position = Vector3(-2.3, 1.0, -5.0)
-rotation_degrees = Vector3(-20, -30, 15)
-size = Vector3(2, 2.4, 1.6)
-material = SubResource("Mat_soot")
-
-[node name="Jag3" type="CSGBox3D" parent="HullBroken/Hull"]
-operation = 2
-position = Vector3(2.9, 0.5, -4.5)
-rotation_degrees = Vector3(0, 35, -20)
-size = Vector3(1.4, 1.6, 1.6)
-material = SubResource("Mat_soot")
-
-[node name="Jag4" type="CSGBox3D" parent="HullBroken/Hull"]
-operation = 2
-position = Vector3(-1.0, -0.6, -5.2)
-rotation_degrees = Vector3(30, 10, 0)
-size = Vector3(2.2, 1.4, 1.4)
-material = SubResource("Mat_soot")
-
-[node name="TrimLeft" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(-3.06, 3.4, -0.6)
-mesh = SubResource("Mesh_trim_rear")
-
-[node name="TrimRight" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(3.06, 3.4, -0.6)
-mesh = SubResource("Mesh_trim_rear")
-
-[node name="TrimLowLeft" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(-3.06, 0.9, -0.6)
-mesh = SubResource("Mesh_trim_rear")
-
-[node name="TrimLowRight" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(3.06, 0.9, -0.6)
-mesh = SubResource("Mesh_trim_rear")
-
-[node name="RailLeft" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(-2.9, 4.42, -0.4)
-mesh = SubResource("Mesh_rail_rear")
-
-[node name="RailRight" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(2.9, 4.42, -0.4)
-mesh = SubResource("Mesh_rail_rear")
-
-[node name="Porthole1" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(3.06, 2.2, -1.5)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_porthole")
-
-[node name="Porthole2" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(3.06, 2.2, 1.5)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_porthole")
-
-[node name="Porthole3" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(-3.06, 2.2, -1.5)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_porthole")
-
-[node name="Porthole4" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(-3.06, 2.2, 1.5)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_porthole")
-
-[node name="Rudder" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(0, 1.4, 5.9)
-rotation_degrees = Vector3(0, 18, 0)
-mesh = SubResource("Mesh_rudder")
-
-[node name="JaggedPlank1" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(1.6, 1.2, -5.6)
-rotation_degrees = Vector3(15, -12, 0)
-mesh = SubResource("Mesh_jagged_plank")
-
-[node name="JaggedPlank2" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(-1.9, 2.8, -5.4)
-rotation_degrees = Vector3(-20, 10, 4)
-mesh = SubResource("Mesh_jagged_plank")
-
-[node name="JaggedPlank3" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(2.95, 2.2, -5.5)
-rotation_degrees = Vector3(5, -15, 70)
-mesh = SubResource("Mesh_jagged_plank")
-
-[node name="Splinter1" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(-2.95, 1.8, -5.6)
-rotation_degrees = Vector3(-10, 20, 85)
-mesh = SubResource("Mesh_splinter")
-
-[node name="Splinter2" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(0.6, 4.1, -5.3)
-rotation_degrees = Vector3(-25, -15, 0)
-mesh = SubResource("Mesh_splinter")
-
-[node name="Splinter3" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(-0.8, 4.1, -5.5)
-rotation_degrees = Vector3(-35, 20, 5)
-mesh = SubResource("Mesh_splinter")
-
-[node name="Splinter4" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(2.95, 0.6, -5.7)
-rotation_degrees = Vector3(20, -30, 80)
-mesh = SubResource("Mesh_splinter")
-
-[node name="Splinter5" type="MeshInstance3D" parent="HullBroken"]
-position = Vector3(-2.95, 3.3, -5.4)
-rotation_degrees = Vector3(15, 25, 75)
-mesh = SubResource("Mesh_splinter")
-
-[node name="Engine" type="Node3D" parent="."]
-position = Vector3(8, -0.2, -11)
-rotation_degrees = Vector3(0, -20, 0)
-
-[node name="Boiler" type="MeshInstance3D" parent="Engine"]
-position = Vector3(0, 0.6, 0)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_boiler")
-
-[node name="Band1" type="MeshInstance3D" parent="Engine"]
-position = Vector3(-1.1, 0.6, 0)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_band")
-
-[node name="Band2" type="MeshInstance3D" parent="Engine"]
-position = Vector3(0, 0.6, 0)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_band")
-
-[node name="Band3" type="MeshInstance3D" parent="Engine"]
-position = Vector3(1.1, 0.6, 0)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_band")
-
-[node name="Chimney" type="MeshInstance3D" parent="Engine"]
-position = Vector3(0.6, 1.9, 0)
-rotation_degrees = Vector3(0, 0, -20)
-mesh = SubResource("Mesh_chimney")
-
-[node name="SmokeVent" type="Marker3D" parent="Engine"]
-position = Vector3(0.88, 2.7, 0)
-
-[node name="Pipe" type="MeshInstance3D" parent="Engine"]
-position = Vector3(-0.8, 1.3, 0.9)
-rotation_degrees = Vector3(60, 0, 30)
-mesh = SubResource("Mesh_engine_pipe")
-
-[node name="Gauge" type="MeshInstance3D" parent="Engine"]
-position = Vector3(1.55, 0.9, 0)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_gauge")
-
-[node name="Body" type="StaticBody3D" parent="Engine"]
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Engine/Body"]
-position = Vector3(0, 0.6, 0)
-rotation_degrees = Vector3(0, 0, 90)
-shape = SubResource("Shape_boiler")
-
-[node name="Envelope" type="Node3D" parent="."]
-position = Vector3(-12, 0, 0)
-rotation_degrees = Vector3(0, -4, 0)
-
-[node name="Shell" type="CSGCombiner3D" parent="Envelope"]
-use_collision = true
-
-[node name="RearSkin" type="CSGSphere3D" parent="Envelope/Shell"]
-position = Vector3(0, 5, 10)
-rotation_degrees = Vector3(-7, 0, 0)
-scale = Vector3(6, 6, 18)
-radius = 1.0
-radial_segments = 36
-rings = 18
-material = SubResource("Mat_canvas")
-
-[node name="FrontSkin" type="CSGSphere3D" parent="Envelope/Shell"]
-position = Vector3(0.5, 1.6, -12)
-rotation_degrees = Vector3(3, 2, -6)
-scale = Vector3(7, 3.2, 16)
-radius = 1.0
-radial_segments = 36
-rings = 18
-material = SubResource("Mat_canvas")
-
-[node name="Crumple1" type="CSGSphere3D" parent="Envelope/Shell"]
-position = Vector3(1, 1.0, -26)
-rotation_degrees = Vector3(20, 30, 15)
-scale = Vector3(4.5, 2.2, 4)
-radius = 1.0
-radial_segments = 16
-rings = 8
-material = SubResource("Mat_canvas")
-
-[node name="Crumple2" type="CSGSphere3D" parent="Envelope/Shell"]
-position = Vector3(-2, 0.8, -24.5)
-rotation_degrees = Vector3(-15, -20, 25)
-scale = Vector3(3, 2.6, 3)
-radius = 1.0
-radial_segments = 16
-rings = 8
-material = SubResource("Mat_canvas")
-
-[node name="Buckle" type="CSGBox3D" parent="Envelope/Shell"]
-position = Vector3(0.5, 1.5, -27.5)
-rotation_degrees = Vector3(30, 45, 20)
-size = Vector3(4, 1.2, 3)
-material = SubResource("Mat_canvas")
-
-[node name="RearHollow" type="CSGSphere3D" parent="Envelope/Shell"]
-operation = 2
-position = Vector3(0, 5, 10)
-rotation_degrees = Vector3(-7, 0, 0)
-scale = Vector3(5.8, 5.8, 17.8)
-radius = 1.0
-radial_segments = 36
-rings = 18
-material = SubResource("Mat_canvas_dark")
-
-[node name="FrontHollow" type="CSGSphere3D" parent="Envelope/Shell"]
-operation = 2
-position = Vector3(0.5, 1.6, -12)
-rotation_degrees = Vector3(3, 2, -6)
-scale = Vector3(6.8, 3.0, 15.8)
-radius = 1.0
-radial_segments = 36
-rings = 18
-material = SubResource("Mat_canvas_dark")
-
-[node name="TearTop" type="CSGBox3D" parent="Envelope/Shell"]
-operation = 2
-position = Vector3(0, 10.8, 6)
-rotation_degrees = Vector3(5, 20, 10)
-size = Vector3(3.5, 2.5, 6)
-material = SubResource("Mat_canvas_dark")
-
-[node name="TearSide" type="CSGBox3D" parent="Envelope/Shell"]
-operation = 2
-position = Vector3(5.8, 5.5, 14)
-rotation_degrees = Vector3(0, 10, 30)
-size = Vector3(2.5, 3.5, 5)
-material = SubResource("Mat_canvas_dark")
-
-[node name="TearFront" type="CSGBox3D" parent="Envelope/Shell"]
-operation = 2
-position = Vector3(1, 4.5, -8)
-rotation_degrees = Vector3(10, -15, 5)
-size = Vector3(5, 3, 7)
-material = SubResource("Mat_canvas_dark")
-
-[node name="TearFrontSide" type="CSGBox3D" parent="Envelope/Shell"]
-operation = 2
-position = Vector3(6.6, 1.8, -16)
-rotation_degrees = Vector3(0, 15, 40)
-size = Vector3(2, 2.5, 5)
-material = SubResource("Mat_canvas_dark")
-
-[node name="TearTail" type="CSGBox3D" parent="Envelope/Shell"]
-operation = 2
-position = Vector3(0, 7.2, 27.5)
-rotation_degrees = Vector3(-30, 15, 0)
-size = Vector3(5, 5, 3)
-material = SubResource("Mat_canvas_dark")
-
-[node name="TearLow" type="CSGBox3D" parent="Envelope/Shell"]
-operation = 2
-position = Vector3(5.5, 2.5, 4)
-rotation_degrees = Vector3(10, -10, 20)
-size = Vector3(2.2, 2.2, 3.5)
-material = SubResource("Mat_canvas_dark")
-
-[node name="RearFrame" type="Node3D" parent="Envelope"]
-position = Vector3(0, 5, 10)
-rotation_degrees = Vector3(-7, 0, 0)
-
-[node name="Stringers" type="CSGCombiner3D" parent="Envelope/RearFrame"]
-
-[node name="Plate0" type="CSGSphere3D" parent="Envelope/RearFrame/Stringers"]
-scale = Vector3(0.16, 6.12, 18.12)
-radius = 1.0
-radial_segments = 36
-rings = 18
-material = SubResource("Mat_rust")
-
-[node name="Plate45" type="CSGSphere3D" parent="Envelope/RearFrame/Stringers"]
-rotation_degrees = Vector3(0, 0, 45)
-scale = Vector3(0.16, 6.12, 18.12)
-radius = 1.0
-radial_segments = 36
-rings = 18
-material = SubResource("Mat_rust")
-
-[node name="Plate90" type="CSGSphere3D" parent="Envelope/RearFrame/Stringers"]
-rotation_degrees = Vector3(0, 0, 90)
-scale = Vector3(0.16, 6.12, 18.12)
-radius = 1.0
-radial_segments = 36
-rings = 18
-material = SubResource("Mat_rust")
-
-[node name="Plate135" type="CSGSphere3D" parent="Envelope/RearFrame/Stringers"]
-rotation_degrees = Vector3(0, 0, 135)
-scale = Vector3(0.16, 6.12, 18.12)
-radius = 1.0
-radial_segments = 36
-rings = 18
-material = SubResource("Mat_rust")
-
-[node name="Core" type="CSGSphere3D" parent="Envelope/RearFrame/Stringers"]
-operation = 2
-scale = Vector3(5.96, 5.96, 17.96)
-radius = 1.0
-radial_segments = 36
-rings = 18
-material = SubResource("Mat_rust")
-
-[node name="Rib1" type="MeshInstance3D" parent="Envelope/RearFrame"]
-position = Vector3(0, 0, -6)
-rotation_degrees = Vector3(90, 0, 0)
-scale = Vector3(5.76, 5.76, 5.76)
-mesh = SubResource("Mesh_ring_unit")
-
-[node name="Rib2" type="MeshInstance3D" parent="Envelope/RearFrame"]
-position = Vector3(0, 0, -2)
-rotation_degrees = Vector3(90, 0, 0)
-scale = Vector3(6.06, 6.06, 6.06)
-mesh = SubResource("Mesh_ring_unit")
-
-[node name="Rib3" type="MeshInstance3D" parent="Envelope/RearFrame"]
-position = Vector3(0, 0, 2)
-rotation_degrees = Vector3(90, 0, 0)
-scale = Vector3(6.06, 6.06, 6.06)
-mesh = SubResource("Mesh_ring_unit")
-
-[node name="Rib4" type="MeshInstance3D" parent="Envelope/RearFrame"]
-position = Vector3(0, 0, 6)
-rotation_degrees = Vector3(90, 0, 0)
-scale = Vector3(5.76, 5.76, 5.76)
-mesh = SubResource("Mesh_ring_unit")
-
-[node name="Rib5Bent" type="MeshInstance3D" parent="Envelope/RearFrame"]
-position = Vector3(0.4, -0.3, 10)
-rotation_degrees = Vector3(76, 9, 4)
-scale = Vector3(5.3, 5.1, 4.9)
-mesh = SubResource("Mesh_ring_unit")
-
-[node name="Rib6" type="MeshInstance3D" parent="Envelope/RearFrame"]
-position = Vector3(0, 0, 14)
-rotation_degrees = Vector3(90, 0, 0)
-scale = Vector3(3.87, 3.87, 3.87)
-mesh = SubResource("Mesh_ring_unit")
-
-[node name="FrontFrame" type="Node3D" parent="Envelope"]
-position = Vector3(0.5, 1.6, -12)
-rotation_degrees = Vector3(3, 2, -6)
-
-[node name="FrontRib1" type="MeshInstance3D" parent="Envelope/FrontFrame"]
-position = Vector3(0, 0, 8)
-rotation_degrees = Vector3(90, 0, 0)
-scale = Vector3(6.16, 1, 2.87)
-mesh = SubResource("Mesh_ring_unit")
-
-[node name="FrontRib2Bent" type="MeshInstance3D" parent="Envelope/FrontFrame"]
-position = Vector3(0.3, 0.4, 2)
-rotation_degrees = Vector3(104, 12, 9)
-scale = Vector3(7.0, 1, 3.6)
-mesh = SubResource("Mesh_ring_unit")
-
-[node name="FrontRib3Snapped" type="CSGCombiner3D" parent="Envelope/FrontFrame"]
-position = Vector3(0, 0, -4)
-
-[node name="Ring" type="CSGTorus3D" parent="Envelope/FrontFrame/FrontRib3Snapped"]
-rotation_degrees = Vector3(90, 0, 0)
-scale = Vector3(6.88, 1, 3.2)
-inner_radius = 0.975
-outer_radius = 1.025
-sides = 48
-ring_sides = 6
-material = SubResource("Mat_rust")
-
-[node name="Gap" type="CSGBox3D" parent="Envelope/FrontFrame/FrontRib3Snapped"]
-operation = 2
-position = Vector3(3.2, 2.4, 0)
-rotation_degrees = Vector3(0, 0, 25)
-size = Vector3(3.5, 2.5, 1)
-material = SubResource("Mat_rust")
-
-[node name="SprungEnd" type="MeshInstance3D" parent="Envelope/FrontFrame/FrontRib3Snapped"]
-position = Vector3(4.6, 3.2, 0.5)
-rotation_degrees = Vector3(20, 0, -55)
-mesh = SubResource("Mesh_pipe_brass")
-
-[node name="FrontRib4Bent" type="MeshInstance3D" parent="Envelope/FrontFrame"]
-position = Vector3(-0.4, -0.5, -10)
-rotation_degrees = Vector3(80, -14, -12)
-scale = Vector3(5.6, 1, 2.3)
-mesh = SubResource("Mesh_ring_unit")
-
-[node name="LooseRib" type="CSGCombiner3D" parent="Envelope"]
-position = Vector3(9.5, 0.1, -22)
-rotation_degrees = Vector3(6, 160, 84)
-
-[node name="Ring" type="CSGTorus3D" parent="Envelope/LooseRib"]
-scale = Vector3(4, 1, 4)
-inner_radius = 0.975
-outer_radius = 1.025
-sides = 40
-ring_sides = 6
-material = SubResource("Mat_rust")
-
-[node name="KeepQuarter" type="CSGBox3D" parent="Envelope/LooseRib"]
-operation = 1
-position = Vector3(2.5, 0, 2.5)
-size = Vector3(5, 1, 5)
-material = SubResource("Mat_rust")
-
-[node name="FlapSide" type="MeshInstance3D" parent="Envelope"]
-position = Vector3(6.3, 4.6, 13)
-rotation_degrees = Vector3(0, 0, -72)
-mesh = SubResource("Mesh_flap")
-
-[node name="FlapFront" type="MeshInstance3D" parent="Envelope"]
-position = Vector3(6.0, 1.6, -15)
-rotation_degrees = Vector3(0, 10, -58)
-scale = Vector3(0.85, 1, 0.9)
-mesh = SubResource("Mesh_flap")
-
-[node name="FlapHole" type="MeshInstance3D" parent="Envelope"]
-position = Vector3(1.4, 3.6, -6.8)
-rotation_degrees = Vector3(38, 0, 12)
-mesh = SubResource("Mesh_flap")
-
-[node name="FlapTop" type="MeshInstance3D" parent="Envelope"]
-position = Vector3(3.1, 9.4, 5.5)
-rotation_degrees = Vector3(0, 20, -38)
-scale = Vector3(0.8, 1, 0.75)
-mesh = SubResource("Mesh_flap")
-
-[node name="FlapTail" type="MeshInstance3D" parent="Envelope"]
-position = Vector3(2.2, 5.6, 25.5)
-rotation_degrees = Vector3(-20, -10, -65)
-scale = Vector3(0.7, 1, 0.8)
-mesh = SubResource("Mesh_flap")
-
-[node name="NoseSpike" type="MeshInstance3D" parent="Envelope"]
-position = Vector3(1.6, 1.0, -30.0)
-rotation_degrees = Vector3(-62, 22, 0)
-mesh = SubResource("Mesh_nose")
-
-[node name="NoseSnapped" type="MeshInstance3D" parent="Envelope"]
-position = Vector3(4.2, 0.15, -31.5)
-rotation_degrees = Vector3(0, 40, 88)
-mesh = SubResource("Mesh_nose_snapped")
-
-[node name="NoseCollar" type="MeshInstance3D" parent="Envelope"]
-position = Vector3(1.0, 1.3, -27.8)
-rotation_degrees = Vector3(70, 22, 10)
-mesh = SubResource("Mesh_collar")
-
-[node name="FinTop" type="MeshInstance3D" parent="Envelope"]
-position = Vector3(0, 10.4, 25.5)
-rotation_degrees = Vector3(-7, 0, 0)
-mesh = SubResource("Mesh_fin")
-
-[node name="FinSide" type="MeshInstance3D" parent="Envelope"]
-position = Vector3(3.8, 6.6, 25.5)
-rotation_degrees = Vector3(-7, 0, 90)
-mesh = SubResource("Mesh_fin")
-
-[node name="FinBent" type="MeshInstance3D" parent="Envelope"]
-position = Vector3(-3.6, 5.6, 25.8)
-rotation_degrees = Vector3(18, -15, -118)
-mesh = SubResource("Mesh_fin")
-
-[node name="Propeller" type="Node3D" parent="."]
-position = Vector3(6, 0.3, -20)
-rotation_degrees = Vector3(75, 20, 0)
-
-[node name="Hub" type="MeshInstance3D" parent="Propeller"]
-mesh = SubResource("Mesh_hub")
-
-[node name="Blade1" type="Node3D" parent="Propeller"]
-
-[node name="Mesh" type="MeshInstance3D" parent="Propeller/Blade1"]
-position = Vector3(1.4, 0, 0)
-rotation_degrees = Vector3(18, 0, 0)
-mesh = SubResource("Mesh_blade")
-
-[node name="Blade2" type="Node3D" parent="Propeller"]
-rotation_degrees = Vector3(0, 120, 0)
-
-[node name="Mesh" type="MeshInstance3D" parent="Propeller/Blade2"]
-position = Vector3(1.4, 0, 0)
-rotation_degrees = Vector3(18, 0, 0)
-mesh = SubResource("Mesh_blade")
-
-[node name="Blade3" type="Node3D" parent="Propeller"]
-rotation_degrees = Vector3(0, 240, 0)
-
-[node name="Mesh" type="MeshInstance3D" parent="Propeller/Blade3"]
-position = Vector3(1.2, 0.45, 0)
-rotation_degrees = Vector3(18, 0, 38)
-mesh = SubResource("Mesh_blade")
-
-[node name="Crate1" type="CSGBox3D" parent="."]
-position = Vector3(5.5, 0.45, 5)
-rotation_degrees = Vector3(0, 25, 8)
-use_collision = true
-size = Vector3(1.1, 1.1, 1.1)
-material = SubResource("Mat_wood_light")
-
-[node name="Crate2" type="CSGBox3D" parent="."]
-position = Vector3(-4.8, 0.4, 3.5)
-rotation_degrees = Vector3(0, -15, 0)
-use_collision = true
-size = Vector3(0.9, 0.9, 0.9)
-material = SubResource("Mat_wood_light")
-
-[node name="Crate3" type="CSGBox3D" parent="."]
-position = Vector3(12, 0.35, -12)
-rotation_degrees = Vector3(10, 40, -12)
-use_collision = true
-size = Vector3(1.2, 0.9, 0.9)
-material = SubResource("Mat_wood_light")
-
-[node name="Crate4" type="CSGBox3D" parent="."]
-position = Vector3(-2.5, 0.35, -20)
-rotation_degrees = Vector3(0, 10, 30)
-use_collision = true
-size = Vector3(0.8, 0.8, 0.8)
-material = SubResource("Mat_wood_light")
-
-[node name="Crate5" type="CSGBox3D" parent="."]
-position = Vector3(10.5, 0.45, 6.5)
-rotation_degrees = Vector3(0, 60, 0)
-use_collision = true
-size = Vector3(1, 1, 1)
-material = SubResource("Mat_wood_light")
-
-[node name="Crate6" type="CSGBox3D" parent="."]
-position = Vector3(-4.2, 0.25, -6)
-rotation_degrees = Vector3(-20, 70, 0)
-use_collision = true
-size = Vector3(0.7, 0.6, 0.7)
-material = SubResource("Mat_wood_dark")
-
-[node name="Barrel" type="MeshInstance3D" parent="."]
-position = Vector3(9.5, 0.3, 2.5)
-rotation_degrees = Vector3(0, 30, 90)
-mesh = SubResource("Mesh_barrel")
-
-[node name="Plank1" type="MeshInstance3D" parent="."]
-position = Vector3(3.5, 0.04, -4)
-rotation_degrees = Vector3(0, 35, 3)
-mesh = SubResource("Mesh_plank")
-
-[node name="Plank2" type="MeshInstance3D" parent="."]
-position = Vector3(-3.5, 0.04, -10)
-rotation_degrees = Vector3(0, -50, 0)
-mesh = SubResource("Mesh_plank")
-
-[node name="Plank3" type="MeshInstance3D" parent="."]
-position = Vector3(1, 0.04, -12)
-rotation_degrees = Vector3(0, 80, -4)
-mesh = SubResource("Mesh_plank_burnt")
-
-[node name="Plank4" type="MeshInstance3D" parent="."]
-position = Vector3(8, 0.04, 2)
-rotation_degrees = Vector3(0, 10, 0)
-mesh = SubResource("Mesh_plank")
-
-[node name="Plank5" type="MeshInstance3D" parent="."]
-position = Vector3(1.5, 0.04, 10.5)
-rotation_degrees = Vector3(0, 120, 2)
-mesh = SubResource("Mesh_plank_burnt")
-
-[node name="Plank6" type="MeshInstance3D" parent="."]
-position = Vector3(5, 0.04, -19)
-rotation_degrees = Vector3(0, -25, 0)
-mesh = SubResource("Mesh_plank")
-
-[node name="Plank7" type="MeshInstance3D" parent="."]
-position = Vector3(2.8, 0.04, 8.8)
-rotation_degrees = Vector3(0, 65, -3)
-mesh = SubResource("Mesh_plank")
-
-[node name="Pipe1" type="MeshInstance3D" parent="."]
-position = Vector3(-1.5, 0.1, -13)
-rotation_degrees = Vector3(0, 20, 90)
-mesh = SubResource("Mesh_pipe_brass")
-
-[node name="Pipe2" type="MeshInstance3D" parent="."]
-position = Vector3(7.5, 0.13, -3.5)
-rotation_degrees = Vector3(0, -40, 90)
-mesh = SubResource("Mesh_pipe_iron")
-
-[node name="Pipe3" type="MeshInstance3D" parent="."]
-position = Vector3(-1, 0.1, -16.5)
-rotation_degrees = Vector3(0, 75, 90)
-mesh = SubResource("Mesh_pipe_brass")
-
-[node name="Pipe4" type="MeshInstance3D" parent="."]
-position = Vector3(-4.5, 0.13, 9)
-rotation_degrees = Vector3(0, 5, 90)
-mesh = SubResource("Mesh_pipe_iron")
-
-[node name="PipeAssembly1" type="Node3D" parent="."]
-position = Vector3(-3.5, 0.22, 15)
-rotation_degrees = Vector3(0, 30, 0)
-
-[node name="Pipe" type="MeshInstance3D" parent="PipeAssembly1"]
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_big_pipe")
-
-[node name="FlangeA" type="MeshInstance3D" parent="PipeAssembly1"]
-position = Vector3(-1.6, 0, 0)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_flange")
-
-[node name="FlangeB" type="MeshInstance3D" parent="PipeAssembly1"]
-position = Vector3(1.6, 0, 0)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_flange")
-
-[node name="Elbow" type="MeshInstance3D" parent="PipeAssembly1"]
-position = Vector3(1.75, 0.55, 0)
-mesh = SubResource("Mesh_short_pipe")
-
-[node name="ValveStem" type="MeshInstance3D" parent="PipeAssembly1"]
-position = Vector3(0.3, 0.45, 0)
-mesh = SubResource("Mesh_valve_stem")
-
-[node name="ValveWheel" type="MeshInstance3D" parent="PipeAssembly1"]
-position = Vector3(0.3, 0.78, 0)
-mesh = SubResource("Mesh_valve_wheel")
-
-[node name="PipeAssembly2" type="Node3D" parent="."]
-position = Vector3(11, 0.22, 8.5)
-rotation_degrees = Vector3(0, -50, 8)
-
-[node name="Pipe" type="MeshInstance3D" parent="PipeAssembly2"]
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_big_pipe")
-
-[node name="FlangeA" type="MeshInstance3D" parent="PipeAssembly2"]
-position = Vector3(-1.6, 0, 0)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_flange")
-
-[node name="FlangeB" type="MeshInstance3D" parent="PipeAssembly2"]
-position = Vector3(1.6, 0, 0)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_flange")
-
-[node name="ValveWheel" type="MeshInstance3D" parent="PipeAssembly2"]
-position = Vector3(-0.5, 0.3, 0.25)
-rotation_degrees = Vector3(70, 0, 0)
-mesh = SubResource("Mesh_valve_wheel")
-
-[node name="PipeAssembly3" type="Node3D" parent="."]
-position = Vector3(-3, 0.22, -26)
-rotation_degrees = Vector3(0, 100, -6)
-
-[node name="Pipe" type="MeshInstance3D" parent="PipeAssembly3"]
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_big_pipe")
-
-[node name="FlangeA" type="MeshInstance3D" parent="PipeAssembly3"]
-position = Vector3(-1.6, 0, 0)
-rotation_degrees = Vector3(0, 0, 90)
-mesh = SubResource("Mesh_flange")
-
-[node name="Elbow" type="MeshInstance3D" parent="PipeAssembly3"]
-position = Vector3(1.6, 0.4, 0)
-rotation_degrees = Vector3(0, 0, -25)
-mesh = SubResource("Mesh_short_pipe")
-
-[node name="ScrapPile1" parent="." instance=ExtResource("3_scrap")]
-position = Vector3(6.5, 0, -1)
-
-[node name="ScrapPile2" parent="." instance=ExtResource("3_scrap")]
-position = Vector3(-4, 0, -12.5)
-rotation_degrees = Vector3(0, 40, 0)
-
-[node name="ScrapPile3" parent="." instance=ExtResource("3_scrap")]
-position = Vector3(3, 0, -16)
-rotation_degrees = Vector3(0, 110, 0)
-
-[node name="ScrapPile4" parent="." instance=ExtResource("3_scrap")]
-position = Vector3(12.5, 0, -8)
-rotation_degrees = Vector3(0, -30, 0)
-
-[node name="ScrapPile5" parent="." instance=ExtResource("3_scrap")]
-position = Vector3(1.5, 0, -22)
-rotation_degrees = Vector3(0, 75, 0)
-
-[node name="PlankPile1" parent="." instance=ExtResource("4_planks")]
-position = Vector3(-5.5, 0, 7)
-rotation_degrees = Vector3(0, 25, 0)
-
-[node name="PlankPile2" parent="." instance=ExtResource("4_planks")]
-position = Vector3(9.5, 0, -5.5)
-rotation_degrees = Vector3(0, -60, 0)
-
-[node name="PlayerSpawn" type="Marker3D" parent="."]
-position = Vector3(12.5, 0, -1.5)
-
-[node name="GroundFlatten" parent="." instance=ExtResource("5_flatten")]
-position = Vector3(-3, 0, -1)
-mode = 2
-radius = 38.0
-falloff = 0.35
-level_to_ground = true
+[node name="Doorway" type="Marker3D" parent="." unique_id=615674426]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 1.5, -4.2)

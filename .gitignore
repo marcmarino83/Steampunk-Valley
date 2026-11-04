@@ -3,7 +3,8 @@
 /android/
 
 # Paid assets (ToffeeCraft "Tree 3D Pack - MEGA"): the license forbids redistribution,
-# and this repository is public, so these must never be committed or pushed
+# and this repository is public, so these must never be committed or pushed. (The three
+# maple models are also over GitHub's 100 MB limit.)
 /assets/trees/birch/
 /assets/trees/douglasfir/
 /assets/trees/maple/

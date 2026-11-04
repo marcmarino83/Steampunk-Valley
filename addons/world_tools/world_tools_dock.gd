@@ -44,6 +44,9 @@ var _texture_panel: Control
 var _categories: TabBar
 var _palette_list: ItemList
 var _material_list: ItemList
+# The Texture Brush's material pictures, by color or image path
+var _thumbnails := {}
+const THUMBNAIL := 48
 
 var _list: Tree
 var _slope_view: CheckBox
@@ -126,10 +129,14 @@ func _ready() -> void:
 	get_tree().node_removed.connect(func(_n): _list_dirty = true)
 	EditorInterface.get_selection().selection_changed.connect(func(): _list_dirty = true)
 	# New scenes dropped into assets/ show up in the palette by themselves
+	# ...and so do new texture sets in assets/textures, in the Texture Brush's picker (the
+	# ground picks them up at its next rebuild)
 	EditorInterface.get_resource_filesystem().filesystem_changed.connect(func():
 		if _active_tool == OBJECTS:
 			_painter.scan_palette()
-			_fill_palette())
+			_fill_palette()
+		elif _active_tool == TEXTURE:
+			_fill_materials())
 
 
 func _process(delta: float) -> void:
@@ -408,8 +415,8 @@ func forward_input(camera: Camera3D, event: InputEvent) -> bool:
 	if tool == null:
 		return false
 	var used: bool = tool.handle_input(camera, event, _valley())
-	if used and tool == _painter and _painter.status != "":
-		_status.text = _painter.status
+	if used and tool.status != "":
+		_status.text = tool.status
 	return used
 
 
@@ -440,6 +447,8 @@ func _toggle_tool(which: String) -> void:
 	if _active_tool == OBJECTS and _painter:
 		_painter.scan_palette()
 		_fill_palette()
+	if _active_tool == TEXTURE:
+		_fill_materials()
 	_object_toggle.set_pressed_no_signal(_active_tool == OBJECTS)
 	_texture_toggle.set_pressed_no_signal(_active_tool == TEXTURE)
 	_object_panel.visible = _active_tool == OBJECTS
@@ -488,36 +497,70 @@ func _build_object_panel() -> Control:
 func _build_texture_panel() -> Control:
 	var box := VBoxContainer.new()
 	box.visible = false
+	# A grid of small pictures that wraps onto as many rows as it needs and grows to fit them
+	# all, so every material shows without scrolling
 	_material_list = ItemList.new()
 	_material_list.icon_mode = ItemList.ICON_MODE_TOP
-	_material_list.fixed_icon_size = Vector2i(56, 56)
+	_material_list.fixed_icon_size = Vector2i(THUMBNAIL, THUMBNAIL)
 	_material_list.max_columns = 0
 	_material_list.same_column_width = true
-	_material_list.custom_minimum_size = Vector2(0, 100)
-	var swatches := {
-		"Grass": Color(0.22, 0.29, 0.1), "Dirt": Color(0.28, 0.24, 0.17),
-		"Forest Floor": "res://assets/textures/forest_floor/Ground037_2K-JPG_Color.jpg",
-		"Gravel Path": "res://assets/textures/gravel_path/Ground108_2K-JPG_Color.jpg",
-		"Rock": "res://assets/textures/rock_cliff/Rock051_2K-JPG_Color.jpg",
-	}
-	for name in swatches:
-		var look = swatches[name]
-		var icon: Texture2D
-		if look is Color:
-			var image := Image.create_empty(56, 56, false, Image.FORMAT_RGB8)
-			image.fill(look)
-			icon = ImageTexture.create_from_image(image)
-		elif ResourceLoader.exists(look):
-			icon = load(look)
-		_material_list.add_item(name, icon)
-	_material_list.select(0)
-	_material_list.item_selected.connect(func(i): _brush.material = i)
+	_material_list.fixed_column_width = THUMBNAIL + 34
+	_material_list.max_text_lines = 2
+	_material_list.auto_height = true
+	_material_list.item_selected.connect(func(i):
+		_brush.material = _material_list.get_item_metadata(i)
+		_brush.material_name = _material_list.get_item_text(i)
+		redraw_overlay.call())
 	box.add_child(_material_list)
 	box.add_child(_slider_row("Brush Radius (m)", 0.5, 40.0, 0.5, _brush.radius, func(v): _brush.radius = v))
 	box.add_child(_slider_row("Strength", 0.02, 1.0, 0.01, _brush.strength, func(v): _brush.strength = v))
 	box.add_child(_slider_row("Falloff", 0.0, 1.0, 0.01, _brush.falloff, func(v): _brush.falloff = v))
 	box.add_child(_help("Click or drag to paint. Alt erases back to the automatic coloring. Saved after every stroke."))
 	return box
+
+
+# Lists every material the Texture Brush can paint: grass, dirt, and each texture set found in
+# assets/textures (so a new folder there shows up here by itself), each with a small
+# picture of its Color image
+func _fill_materials() -> void:
+	var valley = _valley()
+	if valley == null or not valley.has_method("paint_materials"):
+		return
+	var picked: String = _brush.material
+	_material_list.clear()
+	for entry in valley.paint_materials():
+		var index := _material_list.add_item(entry["name"], _thumbnail(entry["color"]))
+		_material_list.set_item_metadata(index, entry["id"])
+		_material_list.set_item_tooltip(index, entry["name"] + ("" if entry["color"] is Color else "\n" + String(entry["color"])))
+		if entry["id"] == picked:
+			_material_list.select(index)
+	if not _material_list.is_anything_selected() and _material_list.item_count > 0:
+		_material_list.select(0)
+		_brush.material = _material_list.get_item_metadata(0)
+		_brush.material_name = _material_list.get_item_text(0)
+
+
+# A small square picture of a material: a plain swatch for a color, or its Color image shrunk
+# down (made once, then kept)
+func _thumbnail(look) -> Texture2D:
+	var key := str(look)
+	if _thumbnails.has(key):
+		return _thumbnails[key]
+	var image: Image
+	if look is Color:
+		image = Image.create_empty(THUMBNAIL, THUMBNAIL, false, Image.FORMAT_RGB8)
+		image.fill(look)
+	else:
+		var texture := load(look) as Texture2D
+		if texture == null:
+			return null
+		image = texture.get_image().duplicate()
+		if image.is_compressed():
+			image.decompress()
+		image.convert(Image.FORMAT_RGB8)
+		image.resize(THUMBNAIL, THUMBNAIL, Image.INTERPOLATE_LANCZOS)
+	_thumbnails[key] = ImageTexture.create_from_image(image)
+	return _thumbnails[key]
 
 
 # Shows the current category's scenes, with pictures of them as they load

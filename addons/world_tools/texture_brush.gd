@@ -1,6 +1,7 @@
 @tool
 extends RefCounted
-## The Texture Brush: paints ground materials (grass, dirt, forest floor, gravel path, rock)
+## The Texture Brush: paints ground materials (grass, dirt, and every texture set in
+## assets/textures: forest floor, gravel, the rocks...)
 ## onto the terrain over its automatic coloring.
 ##   click / drag       paint the picked material
 ##   Alt + click/drag   rub the painting out, back to the automatic coloring
@@ -13,8 +14,12 @@ var undo_redo: EditorUndoRedoManager
 ## Called whenever the 3D view's overlay needs redrawing
 var redraw: Callable
 
-## Which material to paint: an index into the Valley's PAINT_MATERIALS
-var material := 0
+## Which material to paint: an id from the Valley's paint_materials() ("grass", "dirt", or a
+## texture set's "folder/name"), and its name for people
+var material := "grass"
+var material_name := "Grass"
+## A message for the panel (like why nothing was painted)
+var status := ""
 var radius := 4.0
 ## How much one pass of the brush lays on (0-1)
 var strength := 0.35
@@ -67,7 +72,8 @@ func handle_input(camera: Camera3D, event: InputEvent, valley) -> bool:
 # so a stroke lays on about the same amount however fast the mouse goes.
 func _dab(valley) -> void:
 	_last_dab = _cursor
-	valley.paint_ground(Vector2(_cursor.x, _cursor.z), radius, strength * 0.5, falloff, material, _erasing)
+	if not valley.paint_ground(Vector2(_cursor.x, _cursor.z), radius, strength * 0.5, falloff, material, _erasing):
+		status = "Twelve materials are painted already: erase one everywhere to make room for %s." % material_name
 
 
 ## Ends the stroke: saves the painting and records the stroke as one step for Ctrl+Z
@@ -81,7 +87,7 @@ func finish_stroke(valley) -> void:
 	if undo_redo == null:
 		_before = []
 		return
-	undo_redo.create_action("Erase ground paint" if _erasing else "Paint %s" % valley.PAINT_MATERIALS[material])
+	undo_redo.create_action("Erase ground paint" if _erasing else "Paint %s" % material_name)
 	undo_redo.add_do_method(valley, "restore_paint", after)
 	undo_redo.add_undo_method(valley, "restore_paint", _before)
 	undo_redo.commit_action(false)
@@ -99,7 +105,7 @@ func draw(overlay: Control, camera: Camera3D, valley) -> void:
 		# The soft edge starts here
 		if falloff > 0.02 and falloff < 0.98:
 			painter._ring(overlay, camera, valley, _cursor, radius * (1.0 - falloff), Color(color, 0.45), 1.5)
-	var picked: String = valley.PAINT_MATERIALS[material] if material < valley.PAINT_MATERIALS.size() else "?"
+	var picked := material_name
 	load("res://addons/world_tools/object_painter.gd")._hint(overlay, [
 		"Texture Brush: %s" % picked,
 		"Click / drag: paint",

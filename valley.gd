@@ -105,6 +105,31 @@ extends StaticBody3D
 @export var coal_seam_scene: PackedScene = preload("res://coal_seam.tscn")
 @export var coal_seam_count := 80
 
+@export_group("Ground materials")
+## Which texture set (from assets/textures, as "folder/name") the ground uses for each job.
+## Leave one empty, or name a set that isn't there, and that job is simply skipped.
+## Mossy forest floor under the trees:
+@export var forest_floor_set := "forest_floor/Ground037"
+## Trail surfaces:
+@export var gravel_set := "gravel_path/Ground108"
+## Plain rock, between the others on the mountains (shown with its moss muted):
+@export var rock_set := "rock_cliff/Rock051"
+## Mossy rock, on moderately steep and shaded slopes:
+@export var mossy_rock_set := "rock_cliff/Rock051"
+## Sheer cliff rock, on the steepest faces:
+@export var cliff_rock_set := "rock_cliff/Rock022"
+## Scree, at the foot of steep slopes and down the gullies:
+@export var scree_set := "rock_cliff/Rocks011"
+## How many meters each set repeats over, and its color tint. Sets not listed repeat every
+## 3 m (4 m for rock), slightly darkened.
+const SET_LOOKS := {
+	"forest_floor/Ground037": [3.0, Color(0.5, 0.52, 0.4)],
+	"gravel_path/Ground108": [2.5, Color(0.92, 0.86, 0.78)],
+	"rock_cliff/Rock051": [4.0, Color(0.66, 0.64, 0.6)],
+	"rock_cliff/Rock022": [6.0, Color(0.74, 0.72, 0.69)],
+	"rock_cliff/Rocks011": [2.5, Color(0.82, 0.8, 0.76)],
+}
+
 @export_group("Ground paint")
 ## Where the Texture Brush's painting is kept. It's made the first time you paint, saved
 ## each time you finish a stroke, and survives every rebuild.
@@ -171,8 +196,7 @@ var _ground: Material
 # What's been painted with the Texture Brush (loaded from Ground Paint Path), and the
 # pictures made from it for the ground material
 var _paint: Resource
-var _paint_texture_a: ImageTexture
-var _paint_texture_b: ImageTexture
+var _paint_textures: Array[ImageTexture] = []
 # Spots where objects were rubbed out with the Object Painter (so scattered trees, rocks and
 # resources don't come back there), sorted into squares of the map: each is (x, z, radius)
 const ERASE_SQUARE := 8.0
@@ -351,6 +375,7 @@ func generate() -> void:
 	if not _load_heights():
 		return
 	_ground = ground_material.duplicate() if ground_material else null
+	_apply_texture_sets()
 	_base_heights = _heights.duplicate()
 	for layer in [_trail_mask, _trail_cover, _trail_noise, _trail_grass, _forest_floor]:
 		layer.resize(_heights.size())
@@ -1456,13 +1481,15 @@ func _sample_layer(layer: PackedByteArray, x: float, z: float) -> float:
 	return lerpf(top, bottom, tz) / 255.0
 
 
-# Hands the ground's maps to its material: trail wear, how ragged each trail's edge is, and
-# forest floor, one pixel per grid point each
+# Hands the ground's maps to its material: trail wear, how ragged each trail's edge is,
+# forest floor and the ground's height (for finding the foot of steep slopes and gullies,
+# where scree gathers), one pixel per grid point each
 func _update_ground_texture() -> void:
 	if not _ground is ShaderMaterial or _trail_mask.size() != _points_x * _points_z:
 		return
-	for layer in [["ground_map", _trail_mask], ["edge_map", _trail_noise], ["forest_map", _forest_floor]]:
-		var image := Image.create_from_data(_points_x, _points_z, false, Image.FORMAT_R8, layer[1])
+	var heights := Image.create_from_data(_points_x, _points_z, false, Image.FORMAT_RF, _heights.to_byte_array())
+	for layer in [["ground_map", _trail_mask], ["edge_map", _trail_noise], ["forest_map", _forest_floor], ["height_map", heights]]:
+		var image: Image = layer[1] if layer[1] is Image else Image.create_from_data(_points_x, _points_z, false, Image.FORMAT_R8, layer[1])
 		var texture := _ground.get_shader_parameter(layer[0]) as ImageTexture
 		if texture and texture.get_width() == _points_x and texture.get_height() == _points_z:
 			texture.update(image)
@@ -1517,11 +1544,192 @@ func refresh_forest_floor() -> void:
 	_update_ground_texture()
 
 
+# ---- Texture sets: the ground's textured materials ----
+
+## Where the ground's texture sets live. Every *_Color image in a folder under here (with its
+## NormalGL, Roughness, Displacement and AmbientOcclusion beside it, sharing its name) is one
+## set: it can be painted with the Texture Brush, and used by the automatic ground below.
+const TEXTURE_FOLDER := "res://assets/textures"
+## The most texture sets the ground material holds
+const MAX_TEXTURE_SETS := 16
+# How each kind of map in a set is named, and the format every set's maps are kept in (so
+# they can share one texture array): VRAM compressed, 2048 pixels, with mipmaps
+const SET_MAPS := ["Color", "NormalGL", "Roughness", "AmbientOcclusion", "Displacement"]
+const SET_UNIFORMS := ["set_albedo", "set_normal", "set_roughness", "set_ao", "set_height"]
+const SET_SIZE := 2048
+
+# The sets found and the arrays made from them, kept between rebuilds (making them reads
+# every texture, which takes a moment): {"key", "sets", "arrays", "has_ao"}
+static var _set_cache := {}
+
+
+## Every texture set in assets/textures: [{id ("folder/name"), name (for people), color (path
+## to its Color image)}], sorted by id. A folder with one set is named after the folder;
+## with several, each is named after the folder and the set.
+func texture_sets() -> Array:
+	var found := []
+	for folder in DirAccess.get_directories_at(TEXTURE_FOLDER):
+		var sets := []
+		for file in DirAccess.get_files_at(TEXTURE_FOLDER.path_join(folder)):
+			var ext := file.get_extension().to_lower()
+			if ext in ["jpg", "jpeg", "png", "webp"] and file.get_basename().ends_with("_Color"):
+				sets.append(file)
+		sets.sort()
+		for file: String in sets:
+			var prefix := file.get_basename().trim_suffix("_Color")
+			var short := prefix.trim_suffix("_2K-JPG").trim_suffix("_1K-JPG").trim_suffix("_4K-JPG").trim_suffix("_2K-PNG")
+			var title := folder.capitalize() if sets.size() == 1 else "%s (%s)" % [folder.capitalize(), short]
+			found.append({"id": folder + "/" + short, "name": title, "color": TEXTURE_FOLDER.path_join(folder).path_join(file), "prefix": TEXTURE_FOLDER.path_join(folder).path_join(prefix), "folder": folder})
+	found.sort_custom(func(a, b): return a["id"] < b["id"])
+	return found.slice(0, MAX_TEXTURE_SETS)
+
+
+## The materials the Texture Brush can paint: grass and dirt (the plain ground colors), then
+## every texture set. [{id, name, color (a Color, or a path to the set's Color image)}]
+func paint_materials() -> Array:
+	var materials := [
+		{"id": "grass", "name": "Grass", "color": Color(0.22, 0.29, 0.1)},
+		{"id": "dirt", "name": "Dirt", "color": Color(0.28, 0.24, 0.17)},
+	]
+	for set in texture_sets():
+		materials.append({"id": set["id"], "name": set["name"], "color": set["color"]})
+	return materials
+
+
+# Gathers every texture set into texture arrays for the ground material, and tells it which
+# set does which job. The arrays are made once and reused until the sets change.
+func _apply_texture_sets() -> void:
+	if not _ground is ShaderMaterial:
+		return
+	var sets := texture_sets()
+	var key := ""
+	for set in sets:
+		key += set["id"] + ";"
+	if _set_cache.get("key", "") != key:
+		_set_cache = _build_set_arrays(sets, key)
+	var usable: Array = _set_cache["sets"]
+	for m in SET_UNIFORMS.size():
+		_ground.set_shader_parameter(SET_UNIFORMS[m], _set_cache["arrays"][m])
+	var scales := PackedFloat32Array()
+	var tints := PackedVector4Array()
+	var has_ao := PackedFloat32Array()
+	scales.resize(MAX_TEXTURE_SETS)
+	tints.resize(MAX_TEXTURE_SETS)
+	has_ao.resize(MAX_TEXTURE_SETS)
+	for i in usable.size():
+		var look: Array = SET_LOOKS.get(usable[i]["id"], [])
+		var rocky: bool = usable[i]["folder"].to_lower().contains("rock") or usable[i]["folder"].to_lower().contains("cliff") or usable[i]["folder"].to_lower().contains("scree")
+		scales[i] = look[0] if not look.is_empty() else (4.0 if rocky else 3.0)
+		var tint: Color = look[1] if not look.is_empty() else Color(0.85, 0.84, 0.8)
+		# The tint's alpha marks rock, which wraps round steep ground from three sides
+		tints[i] = Vector4(tint.r, tint.g, tint.b, 1.0 if rocky else 0.0)
+		has_ao[i] = 1.0 if _set_cache["has_ao"][i] else 0.0
+	_ground.set_shader_parameter("set_scale", scales)
+	_ground.set_shader_parameter("set_tint", tints)
+	_ground.set_shader_parameter("set_has_ao", has_ao)
+	for job in [["forest_set", forest_floor_set], ["gravel_set", gravel_set], ["rock_set", rock_set],
+			["mossy_rock_set", mossy_rock_set], ["cliff_rock_set", cliff_rock_set], ["scree_set", scree_set]]:
+		_ground.set_shader_parameter(job[0], _set_index(job[1]))
+
+
+# The layer a set is in (by id), or -1 if there's no such set
+func _set_index(id: String) -> int:
+	var usable: Array = _set_cache.get("sets", [])
+	for i in usable.size():
+		if usable[i]["id"] == id:
+			return i
+	return -1
+
+
+func _build_set_arrays(sets: Array, key: String) -> Dictionary:
+	var usable := []
+	var has_ao := []
+	var layers := []
+	for m in SET_MAPS.size():
+		layers.append([])
+	for set in sets:
+		var images := []
+		var ok := true
+		for m in SET_MAPS.size():
+			var image := _set_image(set["prefix"], SET_MAPS[m], m == 1)
+			# A set without an AO map borrows a plain white one (and the material knows to
+			# ignore it); every other map has to be there
+			if image == null and m == 3:
+				image = null
+			elif image == null:
+				push_warning("Valley: texture set %s has no %s map, so it's left out" % [set["id"], SET_MAPS[m]])
+				ok = false
+				break
+			images.append(image)
+		if not ok:
+			continue
+		usable.append(set)
+		has_ao.append(images[3] != null)
+		for m in SET_MAPS.size():
+			layers[m].append(images[m])
+	# Sets without an AO map share the first one there is (it's ignored for them)
+	var spare_ao: Image = null
+	for image in layers[3]:
+		if image:
+			spare_ao = image
+			break
+	if spare_ao == null and not layers[2].is_empty():
+		spare_ao = layers[2][0]
+	for i in layers[3].size():
+		if layers[3][i] == null:
+			layers[3][i] = spare_ao
+	var arrays := []
+	for m in SET_MAPS.size():
+		var array := Texture2DArray.new()
+		if not layers[m].is_empty():
+			var err := array.create_from_images(layers[m])
+			if err != OK:
+				push_error("Valley: couldn't put the texture sets' %s maps together (%s)" % [SET_MAPS[m], error_string(err)])
+		arrays.append(array)
+	return {"key": key, "sets": usable, "arrays": arrays, "has_ao": has_ao}
+
+
+# One map of a texture set, in the shared format (VRAM compressed, SET_SIZE pixels, with
+# mipmaps), or null if it isn't there or can't be made to match
+func _set_image(prefix: String, kind: String, normal: bool) -> Image:
+	var path := ""
+	for ext in ["jpg", "jpeg", "png", "webp"]:
+		if ResourceLoader.exists("%s_%s.%s" % [prefix, kind, ext]):
+			path = "%s_%s.%s" % [prefix, kind, ext]
+			break
+	if path == "":
+		return null
+	var texture := load(path) as Texture2D
+	if texture == null:
+		return null
+	var image := texture.get_image()
+	if image == null:
+		return null
+	var want := Image.FORMAT_RGTC_RG if normal else Image.FORMAT_DXT1
+	if image.get_format() == want and image.get_width() == SET_SIZE and image.get_height() == SET_SIZE and image.has_mipmaps():
+		return image
+	# Imported some other way (a new set with Godot's default import settings): bring it to the
+	# shared format here. Setting its import to VRAM Compressed, 2048 max (and Normal Map on for
+	# NormalGL) makes this unnecessary and loading faster.
+	image = image.duplicate()
+	if image.is_compressed():
+		image.decompress()
+	image.convert(Image.FORMAT_RGBA8)
+	if image.get_size() != Vector2i(SET_SIZE, SET_SIZE):
+		image.resize(SET_SIZE, SET_SIZE, Image.INTERPOLATE_CUBIC)
+	image.generate_mipmaps()
+	image.compress(Image.COMPRESS_S3TC, Image.COMPRESS_SOURCE_NORMAL if normal else Image.COMPRESS_SOURCE_GENERIC)
+	if image.get_format() != want:
+		push_warning("Valley: couldn't bring %s to the shared texture format; set its import to VRAM Compressed" % path)
+		return null
+	return image
+
+
 # ---- The Texture Brush's painting ----
 
-## The materials the Texture Brush can paint, in the order the ground material keeps them
-const PAINT_MATERIALS := ["Grass", "Dirt", "Forest Floor", "Gravel Path", "Rock"]
 const TerrainPaintScript = preload("res://terrain_paint.gd")
+## How many materials can be painted at once (each takes one channel of the paint maps)
+const PAINT_CHANNELS := 12
 
 
 # Loads what's been painted (if anything) and hands it to the ground material
@@ -1529,17 +1737,42 @@ func _load_paint() -> void:
 	_paint = null
 	if ground_paint_path != "" and ResourceLoader.exists(ground_paint_path):
 		_paint = ResourceLoader.load(ground_paint_path, "", ResourceLoader.CACHE_MODE_REPLACE)
-	_paint_texture_a = null
-	_paint_texture_b = null
+		_upgrade_paint()
+	_paint_textures.clear()
 	_upload_paint()
+
+
+# Paint saved before the brush could paint any texture set kept grass, dirt, forest floor and
+# gravel in one picture and rock in another: move them into the channels, unchanged
+func _upgrade_paint() -> void:
+	if _paint == null or not _paint.maps.is_empty() or _paint.image_a == null:
+		return
+	var b: Image = _paint.image_b
+	var second := Image.create_empty(_paint.image_a.get_width(), _paint.image_a.get_height(), false, Image.FORMAT_RGBA8)
+	if b:
+		for y in b.get_height():
+			for x in b.get_width():
+				var rock := b.get_pixel(x, y).r
+				if rock > 0.0:
+					second.set_pixel(x, y, Color(rock, 0, 0, 0))
+	var a: Image = _paint.image_a.duplicate()
+	a.convert(Image.FORMAT_RGBA8)
+	var maps: Array[Image] = [a, second, Image.create_empty(a.get_width(), a.get_height(), false, Image.FORMAT_RGBA8)]
+	_paint.maps = maps
+	_paint.layers = PackedStringArray(["grass", "dirt", "forest_floor/Ground037", "gravel_path/Ground108", "rock_cliff/Rock051"])
+	_paint.image_a = null
+	_paint.image_b = null
 
 
 # Makes an empty painting covering the whole map, ready for the first stroke
 func _new_paint() -> void:
 	_paint = TerrainPaintScript.new()
 	var size := Vector2i(ceili(_width / PAINT_TEXEL), ceili(_depth / PAINT_TEXEL))
-	_paint.image_a = Image.create_empty(size.x, size.y, false, Image.FORMAT_RGBA8)
-	_paint.image_b = Image.create_empty(size.x, size.y, false, Image.FORMAT_R8)
+	var maps: Array[Image] = []
+	_paint.maps = maps
+	for i in PAINT_CHANNELS / 4:
+		_paint.maps.append(Image.create_empty(size.x, size.y, false, Image.FORMAT_RGBA8))
+	_paint.layers = PackedStringArray()
 	_paint.origin = map_rect().position
 	_paint.texel = PAINT_TEXEL
 
@@ -1547,37 +1780,63 @@ func _new_paint() -> void:
 func _upload_paint() -> void:
 	if not _ground is ShaderMaterial:
 		return
-	if _paint == null or _paint.image_a == null or _paint.image_b == null:
+	if _paint == null or _paint.maps.size() < PAINT_CHANNELS / 4:
 		_ground.set_shader_parameter("paint_info", Vector4(0, 0, 1, 0))
 		return
-	if _paint_texture_a and _paint_texture_a.get_size() == Vector2(_paint.image_a.get_size()):
-		_paint_texture_a.update(_paint.image_a)
-		_paint_texture_b.update(_paint.image_b)
-	else:
-		_paint_texture_a = ImageTexture.create_from_image(_paint.image_a)
-		_paint_texture_b = ImageTexture.create_from_image(_paint.image_b)
-		_ground.set_shader_parameter("paint_a", _paint_texture_a)
-		_ground.set_shader_parameter("paint_b", _paint_texture_b)
+	for i in PAINT_CHANNELS / 4:
+		var image: Image = _paint.maps[i]
+		if i < _paint_textures.size() and _paint_textures[i].get_size() == Vector2(image.get_size()):
+			_paint_textures[i].update(image)
+		else:
+			if i < _paint_textures.size():
+				_paint_textures[i] = ImageTexture.create_from_image(image)
+			else:
+				_paint_textures.append(ImageTexture.create_from_image(image))
+			_ground.set_shader_parameter("paint_%d" % i, _paint_textures[i])
+	# Which material each channel holds
+	var channels := PackedInt32Array()
+	channels.resize(PAINT_CHANNELS)
+	channels.fill(-3)
+	for c in mini(_paint.layers.size(), PAINT_CHANNELS):
+		match _paint.layers[c]:
+			"grass":
+				channels[c] = -1
+			"dirt":
+				channels[c] = -2
+			var id:
+				channels[c] = _set_index(id)
+				if channels[c] < 0:
+					channels[c] = -3
+	_ground.set_shader_parameter("paint_channel", channels)
 	_ground.set_shader_parameter("paint_info", Vector4(_paint.origin.x, _paint.origin.y, _paint.texel, 1.0))
 
 
-## Paints one dab of a material (an index into PAINT_MATERIALS) onto the ground, or with
+## Paints one dab of a material (an id from paint_materials()) onto the ground, or with
 ## `erase` rubs the painting out back to the automatic coloring. `strength` is how much one
 ## dab lays on (0-1), and `falloff` how much of the radius fades softly to nothing at the
-## edge (0 = hard edge, 1 = soft all the way from the middle).
-func paint_ground(center: Vector2, radius: float, strength: float, falloff: float, material: int, erase := false) -> void:
+## edge (0 = hard edge, 1 = soft all the way from the middle). Returns false if the material
+## couldn't be painted (all channels are in use by other materials).
+func paint_ground(center: Vector2, radius: float, strength: float, falloff: float, material: String, erase := false) -> bool:
 	if _paint == null:
 		if erase:
-			return
+			return true
 		_new_paint()
-	var a: Image = _paint.image_a
-	var b: Image = _paint.image_b
+	var channel := -1
+	if not erase:
+		channel = _paint.layers.find(material)
+		if channel < 0:
+			if _paint.layers.size() >= PAINT_CHANNELS:
+				return false
+			var layers: PackedStringArray = _paint.layers
+			layers.append(material)
+			_paint.layers = layers
+			channel = layers.size() - 1
+	var maps: Array = _paint.maps
 	var texel: float = _paint.texel
 	var origin: Vector2 = _paint.origin
-	var first := Vector2i(((center - origin - Vector2.ONE * radius) / texel).floor())
-	var last := Vector2i(((center - origin + Vector2.ONE * radius) / texel).ceil())
-	first = first.clamp(Vector2i.ZERO, a.get_size() - Vector2i.ONE)
-	last = last.clamp(Vector2i.ZERO, a.get_size() - Vector2i.ONE)
+	var size: Vector2i = maps[0].get_size()
+	var first := Vector2i(((center - origin - Vector2.ONE * radius) / texel).floor()).clamp(Vector2i.ZERO, size - Vector2i.ONE)
+	var last := Vector2i(((center - origin + Vector2.ONE * radius) / texel).ceil()).clamp(Vector2i.ZERO, size - Vector2i.ONE)
 	var soft_from := radius * (1.0 - clampf(falloff, 0.0, 1.0))
 	for y in range(first.y, last.y + 1):
 		for x in range(first.x, last.x + 1):
@@ -1588,17 +1847,19 @@ func paint_ground(center: Vector2, radius: float, strength: float, falloff: floa
 			var amount := strength * (1.0 if d <= soft_from else 1.0 - smoothstep(soft_from, radius, d))
 			if amount <= 0.0:
 				continue
-			var ca := a.get_pixel(x, y)
-			var cb := b.get_pixel(x, y)
-			var weights := [ca.r, ca.g, ca.b, ca.a, cb.r]
-			for m in 5:
-				if erase or m != material:
-					weights[m] *= 1.0 - amount
-				else:
-					weights[m] += (1.0 - weights[m]) * amount
-			a.set_pixel(x, y, Color(weights[0], weights[1], weights[2], weights[3]))
-			b.set_pixel(x, y, Color(weights[4], 0, 0))
+			# Laying one material on thins all the others by the same amount, so together
+			# they never add up to more than the whole ground
+			for m in maps.size():
+				var image: Image = maps[m]
+				var c := image.get_pixel(x, y)
+				for k in 4:
+					if m * 4 + k == channel:
+						c[k] += (1.0 - c[k]) * amount
+					else:
+						c[k] *= 1.0 - amount
+				image.set_pixel(x, y, c)
 	_upload_paint()
+	return true
 
 
 ## Saves the painting to Ground Paint Path (the Texture Brush does this after each stroke)
@@ -1613,7 +1874,10 @@ func save_paint() -> void:
 func paint_snapshot() -> Array:
 	if _paint == null:
 		return []
-	return [_paint.image_a.duplicate(), _paint.image_b.duplicate()]
+	var maps := []
+	for image: Image in _paint.maps:
+		maps.append(image.duplicate())
+	return [maps, _paint.layers.duplicate()]
 
 
 ## Puts back a painting from paint_snapshot() (for undo and redo), and saves it
@@ -1626,9 +1890,12 @@ func restore_paint(snapshot: Array) -> void:
 		return
 	if _paint == null:
 		_new_paint()
-	_paint.image_a = snapshot[0].duplicate()
-	_paint.image_b = snapshot[1].duplicate()
-	_paint_texture_a = null
+	var maps: Array[Image] = []
+	for image: Image in snapshot[0]:
+		maps.append(image.duplicate())
+	_paint.maps = maps
+	_paint.layers = snapshot[1].duplicate()
+	_paint_textures.clear()
 	_upload_paint()
 	save_paint()
 

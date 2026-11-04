@@ -1,20 +1,6 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://bm46i82rjv7ap"]
 
 [ext_resource type="Shader" uid="uid://ii1qdvoc6vmk" path="res://terrain.gdshader" id="1_shader"]
-[ext_resource type="Texture2D" uid="uid://ds3v4ynn6pwmn" path="res://assets/textures/forest_floor/Ground037_2K-JPG_Color.jpg" id="2_ff_c"]
-[ext_resource type="Texture2D" uid="uid://deqptluoi2lt2" path="res://assets/textures/forest_floor/Ground037_2K-JPG_NormalGL.jpg" id="3_ff_n"]
-[ext_resource type="Texture2D" uid="uid://denko78lk00f5" path="res://assets/textures/forest_floor/Ground037_2K-JPG_Roughness.jpg" id="4_ff_r"]
-[ext_resource type="Texture2D" uid="uid://fnngscj01aqm" path="res://assets/textures/forest_floor/Ground037_2K-JPG_Displacement.jpg" id="5_ff_h"]
-[ext_resource type="Texture2D" uid="uid://dunh7uyydnxqd" path="res://assets/textures/gravel_path/Ground108_2K-JPG_Color.jpg" id="6_gp_c"]
-[ext_resource type="Texture2D" uid="uid://dtyesw5hl0sft" path="res://assets/textures/gravel_path/Ground108_2K-JPG_NormalGL.jpg" id="7_gp_n"]
-[ext_resource type="Texture2D" uid="uid://cmhqv4dbsa7ds" path="res://assets/textures/gravel_path/Ground108_2K-JPG_Roughness.jpg" id="8_gp_r"]
-[ext_resource type="Texture2D" uid="uid://46q70sn1n5te" path="res://assets/textures/gravel_path/Ground108_2K-JPG_AmbientOcclusion.jpg" id="9_gp_ao"]
-[ext_resource type="Texture2D" uid="uid://cblkvj475fr3b" path="res://assets/textures/gravel_path/Ground108_2K-JPG_Displacement.jpg" id="10_gp_h"]
-[ext_resource type="Texture2D" uid="uid://5fhqyc1ymt5n" path="res://assets/textures/rock_cliff/Rock051_2K-JPG_Color.jpg" id="11_rc_c"]
-[ext_resource type="Texture2D" uid="uid://b73ahfqlmpdge" path="res://assets/textures/rock_cliff/Rock051_2K-JPG_NormalGL.jpg" id="12_rc_n"]
-[ext_resource type="Texture2D" uid="uid://c2276ojdoyil8" path="res://assets/textures/rock_cliff/Rock051_2K-JPG_Roughness.jpg" id="13_rc_r"]
-[ext_resource type="Texture2D" uid="uid://bki3u02tg17aq" path="res://assets/textures/rock_cliff/Rock051_2K-JPG_AmbientOcclusion.jpg" id="14_rc_ao"]
-[ext_resource type="Texture2D" uid="uid://dedb17q3s3313" path="res://assets/textures/rock_cliff/Rock051_2K-JPG_Displacement.jpg" id="15_rc_h"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_detail"]
 frequency = 0.008
@@ -32,31 +18,17 @@ shader_parameter/grass_dark = Color(0.13, 0.2, 0.06, 1)
 shader_parameter/grass_light = Color(0.3, 0.34, 0.12, 1)
 shader_parameter/grass_dry = Color(0.4, 0.36, 0.19, 1)
 shader_parameter/dirt_color = Color(0.28, 0.24, 0.17, 1)
-shader_parameter/forest_albedo = ExtResource("2_ff_c")
-shader_parameter/forest_normal = ExtResource("3_ff_n")
-shader_parameter/forest_roughness = ExtResource("4_ff_r")
-shader_parameter/forest_height = ExtResource("5_ff_h")
-shader_parameter/forest_scale = 3.0
-shader_parameter/gravel_albedo = ExtResource("6_gp_c")
-shader_parameter/gravel_normal = ExtResource("7_gp_n")
-shader_parameter/gravel_roughness = ExtResource("8_gp_r")
-shader_parameter/gravel_ao = ExtResource("9_gp_ao")
-shader_parameter/gravel_height = ExtResource("10_gp_h")
-shader_parameter/gravel_scale = 2.5
-shader_parameter/rock_albedo = ExtResource("11_rc_c")
-shader_parameter/rock_normal = ExtResource("12_rc_n")
-shader_parameter/rock_roughness = ExtResource("13_rc_r")
-shader_parameter/rock_ao = ExtResource("14_rc_ao")
-shader_parameter/rock_height = ExtResource("15_rc_h")
-shader_parameter/rock_scale = 4.0
 shader_parameter/normal_strength = 1.0
 shader_parameter/height_blend_depth = 0.2
-shader_parameter/rock_start = 0.62
-shader_parameter/rock_full = 0.45
+shader_parameter/rock_begin_degrees = 30.0
+shader_parameter/rock_full_degrees = 52.0
+shader_parameter/rock_edge_noise = 12.0
+shader_parameter/cliff_degrees = 48.0
+shader_parameter/moss_facing = Vector2(0, -1)
+shader_parameter/rock_variation = 0.7
+shader_parameter/scree_below_rise = 0.7
+shader_parameter/scree_gully_depth = 0.8
 shader_parameter/water_height = 27.3
 shader_parameter/shore_width = 1.5
 shader_parameter/slope_view = false
 shader_parameter/walk_limit_degrees = 45.0
-shader_parameter/forest_tint = Color(0.5, 0.52, 0.4, 1)
-shader_parameter/gravel_tint = Color(0.92, 0.86, 0.78, 1)
-shader_parameter/rock_tint = Color(0.78, 0.76, 0.72, 1)

@@ -1,10 +1,14 @@
 // Paints the ground: grass on gentle slopes, dirt patches, mossy forest floor under the trees,
-// wet mud by the water, gravel trails, and textured rock wherever it's steep; then whatever
-// has been painted on with the Texture Brush. Also used on boulders, which gives them mossy tops.
+// wet mud by the water, gravel trails, and on the mountains a mix of rocks: mossy rock on
+// moderate and shaded slopes, plain rock, sheer cliff rock on the steepest faces, and scree
+// at the foot of steep slopes and down the gullies. Then whatever has been painted on with
+// the Texture Brush. Also used on boulders, which gives them mossy tops.
 //
-// Every layer has a height (from its texture's Displacement map, or a soft pattern for the
-// plain grass and dirt), and layers blend by height rather than fading evenly: where gravel
-// meets grass, the stones show through first and the grass fills the low spots between them.
+// The textured materials come from assets/textures, one set per *_Color image, gathered by
+// the Valley into texture arrays (one layer per set). Every layer has a height (from its
+// Displacement map, or a soft pattern for the plain grass and dirt), and layers blend by
+// height rather than fading evenly: where gravel meets grass, the stones show through first
+// and the grass fills the low spots between them; rock rises through the grass the same way.
 shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
@@ -16,40 +20,51 @@ uniform vec3 grass_light : source_color = vec3(0.30, 0.34, 0.12);
 uniform vec3 grass_dry : source_color = vec3(0.40, 0.36, 0.19);
 uniform vec3 dirt_color : source_color = vec3(0.28, 0.24, 0.17);
 
-// The textured ground materials. Each repeats every so many meters.
-group_uniforms forest_floor;
-uniform sampler2D forest_albedo : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D forest_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D forest_roughness : hint_default_white, filter_linear_mipmap, repeat_enable;
-uniform sampler2D forest_height : hint_default_black, filter_linear_mipmap, repeat_enable;
-uniform float forest_scale = 3.0;
-uniform vec3 forest_tint : source_color = vec3(0.5, 0.52, 0.4);
-group_uniforms gravel_path;
-uniform sampler2D gravel_albedo : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D gravel_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D gravel_roughness : hint_default_white, filter_linear_mipmap, repeat_enable;
-uniform sampler2D gravel_ao : hint_default_white, filter_linear_mipmap, repeat_enable;
-uniform sampler2D gravel_height : hint_default_black, filter_linear_mipmap, repeat_enable;
-uniform float gravel_scale = 2.5;
-uniform vec3 gravel_tint : source_color = vec3(0.92, 0.86, 0.78);
-group_uniforms rock_cliff;
-uniform sampler2D rock_albedo : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D rock_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D rock_roughness : hint_default_white, filter_linear_mipmap, repeat_enable;
-uniform sampler2D rock_ao : hint_default_white, filter_linear_mipmap, repeat_enable;
-uniform sampler2D rock_height : hint_default_black, filter_linear_mipmap, repeat_enable;
-uniform float rock_scale = 4.0;
-uniform vec3 rock_tint : source_color = vec3(0.78, 0.76, 0.72);
+// The texture sets, one layer each (the Valley fills these in), with how many meters each
+// repeats over, a color tint (its alpha is 1 for rock sets, which wrap round steep ground
+// from three sides), and whether it has an ambient occlusion map
+group_uniforms texture_sets;
+uniform sampler2DArray set_albedo : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2DArray set_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2DArray set_roughness : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform sampler2DArray set_ao : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform sampler2DArray set_height : hint_default_black, filter_linear_mipmap, repeat_enable;
+uniform float set_scale[16];
+uniform vec4 set_tint[16];
+uniform float set_has_ao[16];
+// Which layer the ground uses for each job (-1 = none, so that job is skipped)
+uniform int forest_set = -1;
+uniform int gravel_set = -1;
+uniform int rock_set = -1;
+uniform int mossy_rock_set = -1;
+uniform int cliff_rock_set = -1;
+uniform int scree_set = -1;
 group_uniforms;
 // How strongly the textures' normal maps tilt the lighting (0 = flat, 1 = as made)
 uniform float normal_strength : hint_range(0.0, 2.0) = 1.0;
 // How soft height blending is: small = crisp edges along stones, large = closer to a plain fade
 uniform float height_blend_depth : hint_range(0.01, 1.0) = 0.2;
 
-// Rock starts showing where the ground is steeper than this (1 = flat, 0 = a cliff)...
-uniform float rock_start : hint_range(0.0, 1.0) = 0.62;
-// ...and fully covers it from here
-uniform float rock_full : hint_range(0.0, 1.0) = 0.45;
+group_uniforms mountains;
+// Rock starts rising through the grass from this slope (degrees)...
+uniform float rock_begin_degrees : hint_range(0.0, 90.0) = 30.0;
+// ...and covers the ground fully by this one. A pattern nudges both up and down, so the
+// edge wanders and breaks up instead of following the slope exactly.
+uniform float rock_full_degrees : hint_range(0.0, 90.0) = 52.0;
+// How far (in degrees) the pattern nudges where rock begins
+uniform float rock_edge_noise : hint_range(0.0, 30.0) = 12.0;
+// Sheer cliff rock takes over on faces steeper than this
+uniform float cliff_degrees : hint_range(0.0, 90.0) = 48.0;
+// Moss grows thickest on slopes facing this way (in the world: x, z), out of the sun
+uniform vec2 moss_facing = vec2(0.0, -1.0);
+// How strongly the broad light and dark streaks and color shifts show across the rock
+uniform float rock_variation : hint_range(0.0, 1.0) = 0.7;
+// Scree gathers below slopes that rise faster than this (meters up per meter across)...
+uniform float scree_below_rise = 0.7;
+// ...and in gullies dug in deeper than this (meters, compared with the ground 7 m around)
+uniform float scree_gully_depth = 0.8;
+group_uniforms;
+
 // Height of the water surface; the valley sets this to match
 uniform float water_height = 42.0;
 // How far above the water the ground stays dark and muddy
@@ -68,17 +83,22 @@ uniform bool slope_view = false;
 uniform float walk_limit_degrees = 45.0;
 // What the valley works out about the ground, one pixel per terrain grid point: how worn
 // into a trail it is (0 = untouched, 1 = trail), how ragged that trail's edge is (its Edge
-// Noise), and how much forest floor the trees here spread over it. The valley fills these
-// in, along with where the map starts and its grid spacing.
+// Noise), how much forest floor the trees here spread over it, and the ground's height.
+// The valley fills these in, along with where the map starts and its grid spacing.
 uniform sampler2D ground_map : hint_default_black, filter_linear, repeat_disable;
 uniform sampler2D edge_map : hint_default_black, filter_linear, repeat_disable;
 uniform sampler2D forest_map : hint_default_black, filter_linear, repeat_disable;
+uniform sampler2D height_map : hint_default_black, filter_linear, repeat_disable;
 uniform vec4 ground_map_info = vec4(0.0, 0.0, 1.0, 1.0);
-// What's been painted with the Texture Brush, one pixel per meter: how much grass, dirt,
-// forest floor and gravel (paint_a's red, green, blue, alpha) and rock (paint_b's red).
-uniform sampler2D paint_a : hint_default_black, filter_linear, repeat_disable;
-uniform sampler2D paint_b : hint_default_black, filter_linear, repeat_disable;
-// Where the painted map starts (x, z), and how many meters each pixel covers
+// What's been painted with the Texture Brush, one pixel per meter: twelve channels (red,
+// green, blue, alpha of each map), each holding how much of one material is there. Which
+// material each channel is: -1 = grass, -2 = dirt, -3 = unused, 0 or more = a texture set.
+uniform sampler2D paint_0 : hint_default_black, filter_linear, repeat_disable;
+uniform sampler2D paint_1 : hint_default_black, filter_linear, repeat_disable;
+uniform sampler2D paint_2 : hint_default_black, filter_linear, repeat_disable;
+uniform int paint_channel[12];
+// Where the painted map starts (x, z), how many meters each pixel covers, and whether
+// anything is painted at all
 uniform vec4 paint_info = vec4(0.0, 0.0, 1.0, 0.0);
 
 varying vec3 world_pos;
@@ -128,60 +148,52 @@ vec3 unpack_normal(vec4 texel) {
 	return vec3(xy, sqrt(max(1.0 - dot(xy, xy), 0.0)));
 }
 
-// A texture laid flat on the ground (looking down), tilting the ground's own normal
-vec3 flat_normal(vec3 tn, vec3 n) {
-	return normalize(vec3(tn.x + n.x, abs(tn.z) * n.y, tn.y + n.z));
-}
-
-// Forest floor and gravel: laid flat, with a second, larger and turned copy blended in by a
-// slow pattern, and a gentle brightness wander, so the repeats don't line up into a grid
-Ground flat_layer(sampler2D albedo_map, sampler2D normal_map, sampler2D rough_map, sampler2D height_map, float scale, vec3 tint, vec3 n, float large, float medium) {
+// A texture set laid flat on the ground (looking down), with a second, larger and turned
+// copy blended in by a slow pattern, and a gentle brightness wander, so the repeats don't
+// line up into a grid
+Ground flat_set(int layer, vec3 n, float large, float medium) {
+	float scale = set_scale[layer];
+	float l = float(layer);
 	vec2 uv = world_pos.xz / scale;
 	vec2 uv2 = mat2(vec2(0.8, -0.6), vec2(0.6, 0.8)) * world_pos.xz / (scale * 1.7) + vec2(0.37, 0.71);
 	float other = smoothstep(0.35, 0.65, medium) * 0.5;
 	Ground g;
-	g.albedo = mix(texture(albedo_map, uv).rgb, texture(albedo_map, uv2).rgb, other) * tint * (0.85 + large * 0.3);
-	g.normal = flat_normal(unpack_normal(texture(normal_map, uv)), n);
+	g.albedo = mix(texture(set_albedo, vec3(uv, l)).rgb, texture(set_albedo, vec3(uv2, l)).rgb, other) * set_tint[layer].rgb * (0.85 + large * 0.3);
+	vec3 tn = unpack_normal(texture(set_normal, vec3(uv, l)));
+	g.normal = normalize(vec3(tn.x + n.x, abs(tn.z) * n.y, tn.y + n.z));
 	// (never quite as glossy as the scans: the ground is dry and dusty)
-	g.roughness = mix(0.6, 1.0, texture(rough_map, uv).r);
-	g.ao = 1.0;
-	g.height = mix(texture(height_map, uv).r, texture(height_map, uv2).r, other);
+	g.roughness = mix(0.6, 1.0, texture(set_roughness, vec3(uv, l)).r);
+	g.ao = set_has_ao[layer] > 0.5 ? texture(set_ao, vec3(uv, l)).r : 1.0;
+	g.height = mix(texture(set_height, vec3(uv, l)).r, texture(set_height, vec3(uv2, l)).r, other);
 	return g;
 }
 
-// Rock, projected from three sides and blended by which way the ground faces ("triplanar"),
-// so it doesn't stretch down cliffs
-Ground rock_layer(vec3 n, float large) {
+// A texture set projected from three sides and blended by which way the ground faces
+// ("triplanar"), so rock doesn't stretch down cliffs. Roughness and crevice shadow come from
+// the side the ground faces most (they're subtle; this saves samples).
+Ground triplanar_set(int layer, vec3 n) {
 	vec3 w = pow(abs(n), vec3(4.0));
 	w /= w.x + w.y + w.z;
-	vec3 p = world_pos / rock_scale;
-	vec2 uvx = p.zy;
-	vec2 uvy = p.xz;
-	vec2 uvz = p.xy;
+	float l = float(layer);
+	vec3 p = world_pos / set_scale[layer];
+	vec3 uvx = vec3(p.zy, l);
+	vec3 uvy = vec3(p.xz, l);
+	vec3 uvz = vec3(p.xy, l);
 	Ground g;
-	g.albedo = (texture(rock_albedo, uvx).rgb * w.x + texture(rock_albedo, uvy).rgb * w.y + texture(rock_albedo, uvz).rgb * w.z) * rock_tint * (0.85 + large * 0.3);
+	g.albedo = (texture(set_albedo, uvx).rgb * w.x + texture(set_albedo, uvy).rgb * w.y + texture(set_albedo, uvz).rgb * w.z) * set_tint[layer].rgb;
 	// Each side's normal map tilts the surface around its own axis ("whiteout" blend)
-	vec3 tx = unpack_normal(texture(rock_normal, uvx));
-	vec3 ty = unpack_normal(texture(rock_normal, uvy));
-	vec3 tz = unpack_normal(texture(rock_normal, uvz));
+	vec3 tx = unpack_normal(texture(set_normal, uvx));
+	vec3 ty = unpack_normal(texture(set_normal, uvy));
+	vec3 tz = unpack_normal(texture(set_normal, uvz));
 	tx = vec3(tx.xy + n.zy, abs(tx.z) * n.x);
 	ty = vec3(ty.xy + n.xz, abs(ty.z) * n.y);
 	tz = vec3(tz.xy + n.xy, abs(tz.z) * n.z);
 	g.normal = normalize(tx.zyx * w.x + ty.xzy * w.y + tz.xyz * w.z);
-	g.roughness = mix(0.55, 1.0, texture(rock_roughness, uvx).r * w.x + texture(rock_roughness, uvy).r * w.y + texture(rock_roughness, uvz).r * w.z);
-	g.ao = texture(rock_ao, uvx).r * w.x + texture(rock_ao, uvy).r * w.y + texture(rock_ao, uvz).r * w.z;
-	g.height = texture(rock_height, uvx).r * w.x + texture(rock_height, uvy).r * w.y + texture(rock_height, uvz).r * w.z;
+	vec3 main_uv = w.y > max(w.x, w.z) ? uvy : (w.x > w.z ? uvx : uvz);
+	g.roughness = mix(0.55, 1.0, texture(set_roughness, main_uv).r);
+	g.ao = set_has_ao[layer] > 0.5 ? texture(set_ao, main_uv).r : 1.0;
+	g.height = texture(set_height, uvx).r * w.x + texture(set_height, uvy).r * w.y + texture(set_height, uvz).r * w.z;
 	return g;
-}
-
-Ground gravel_layer(vec3 n, float large, float medium) {
-	Ground g = flat_layer(gravel_albedo, gravel_normal, gravel_roughness, gravel_height, gravel_scale, gravel_tint, n, large, medium);
-	g.ao = texture(gravel_ao, world_pos.xz / gravel_scale).r;
-	return g;
-}
-
-Ground forest_layer(vec3 n, float large, float medium) {
-	return flat_layer(forest_albedo, forest_normal, forest_roughness, forest_height, forest_scale, forest_tint, n, large, medium);
 }
 
 // The plain grass: big patches of darker and lighter green, some dry areas, fine speckle.
@@ -209,13 +221,54 @@ Ground dirt_layer(vec3 n, float small) {
 	return g;
 }
 
+// A painted channel's material: grass, dirt, or a texture set (rock sets wrap around steep
+// ground from three sides; the rest are laid flat)
+Ground paint_layer(int which, vec3 n, float large, float medium, float small) {
+	if (which == -1) {
+		return grass_layer(n, large, medium, small);
+	}
+	if (which == -2) {
+		return dirt_layer(n, small);
+	}
+	if (set_tint[which].a > 0.5) {
+		return triplanar_set(which, n);
+	}
+	return flat_set(which, n, large, medium);
+}
+
+// The ground's height (from the valley's height map) at a spot
+float ground_height(vec2 xz) {
+	vec2 uv = ((xz - ground_map_info.xy) / ground_map_info.zw + 0.5) / vec2(textureSize(height_map, 0));
+	return texture(height_map, uv).r;
+}
+
+// The broad, slow changes across rock: lighter and darker swathes tens of meters across,
+// streaks running down the faces, and a drift between cooler and warmer stone
+vec3 rock_variety(vec3 albedo, float steep_face, float macro) {
+	float broad = texture(detail_noise, world_pos.xz * 0.004 + vec2(world_pos.y * 0.002)).r;
+	float blotches = texture(detail_noise, world_pos.xz * 0.02 + vec2(world_pos.y * 0.01, 0.43)).r;
+	float streaks = texture(detail_noise, vec2(dot(world_pos.xz, vec2(0.71, 0.71)) * 0.035, world_pos.y * 0.004)).r;
+	float warmth = texture(detail_noise, world_pos.xz * 0.0025 + vec2(0.31, 0.77)).r;
+	// (the pattern's values mostly sit between 0.35 and 0.65, so that's the range stretched out)
+	vec3 varied = albedo * mix(0.5, 1.35, smoothstep(0.36, 0.64, broad));
+	varied *= mix(0.75, 1.15, smoothstep(0.38, 0.62, blotches));
+	varied *= mix(1.0, mix(0.6, 1.1, smoothstep(0.4, 0.6, streaks)), steep_face);
+	// Cool blue-grey stone in some places, warm, iron-stained ochre in others
+	varied *= mix(vec3(0.84, 0.92, 1.08), vec3(1.24, 1.02, 0.72), smoothstep(0.38, 0.62, warmth));
+	// The rock's own pattern, blown up big: ledges and bands that still read from far away
+	varied *= mix(1.0, clamp(macro / 0.33, 0.55, 1.5), 0.55);
+	return mix(albedo, varied, rock_variation);
+}
+
 void fragment() {
 	vec3 n = normalize(world_normal);
 
-	// The same pattern at big, medium and small sizes
+	// The same pattern at big, medium and small sizes, and one in between
 	float large = texture(detail_noise, world_pos.xz * 0.003).r;
 	float medium = texture(detail_noise, world_pos.xz * 0.027).r;
 	float small = texture(detail_noise, world_pos.xz * 0.31).r;
+	float between = texture(detail_noise, world_pos.xz * 0.11 + vec2(0.53, 0.19)).r;
+	float slope = degrees(acos(clamp(n.y, -1.0, 1.0)));
 
 	// ---- The automatic ground ----
 	Ground g = grass_layer(n, large, medium, small);
@@ -223,18 +276,40 @@ void fragment() {
 	// Bare dirt patches
 	float patches = smoothstep(0.60, 0.70, medium * 0.75 + large * 0.25);
 	g = mix_ground(g, dirt, patches);
-	// Fairly steep ground (but not cliff) wears down to bare, stony soil
-	float worn = smoothstep(0.86, 0.70, n.y + (medium - 0.5) * 0.2);
-	g = mix_ground(g, dirt, worn * 0.85);
+	// Fairly steep ground wears down to bare, stony soil
+	float worn = smoothstep(26.0, 42.0, slope + (medium - 0.5) * 12.0);
+	g = mix_ground(g, dirt, worn * 0.7);
 
 	// Forest floor under the trees, with a ragged edge where the woods give way to grass
 	vec2 map_uv = ((world_pos.xz - ground_map_info.xy) / ground_map_info.zw + 0.5) / vec2(textureSize(ground_map, 0));
 	float trail = texture(ground_map, map_uv).r;
-	float between = texture(detail_noise, world_pos.xz * 0.11 + vec2(0.53, 0.19)).r;
 	float woods = smoothstep(0.35, 0.8, texture(forest_map, map_uv).r + (medium - 0.5) * 0.3 + (between - 0.5) * 0.45 + (small - 0.5) * 0.15);
-	if (woods > 0.001) {
-		Ground forest = forest_layer(n, large, medium);
+	if (woods > 0.001 && forest_set >= 0) {
+		Ground forest = flat_set(forest_set, n, large, medium);
 		g = mix_ground(g, forest, height_mix(g.height, forest.height, woods));
+	}
+
+	// Scree: broken stone gathered where steep ground gives way to gentler (it rolls down and
+	// stops there), and down the gullies. Worked out from the heights 7 m around.
+	if (scree_set >= 0 && slope > 6.0) {
+		float here = ground_height(world_pos.xz);
+		float rise = 0.0;
+		float around = 0.0;
+		for (int k = 0; k < 8; k++) {
+			float a = float(k) * 0.785398;
+			float h = ground_height(world_pos.xz + vec2(cos(a), sin(a)) * 7.0);
+			rise = max(rise, (h - here) / 7.0);
+			around += h;
+		}
+		float gully = around / 8.0 - here;
+		float below_steep = smoothstep(scree_below_rise, scree_below_rise + 0.5, rise) * (1.0 - smoothstep(40.0, 52.0, slope));
+		float in_gully = smoothstep(scree_gully_depth, scree_gully_depth + 1.5, gully) * smoothstep(10.0, 22.0, slope);
+		float scree_amount = clamp(max(below_steep, in_gully) + (between - 0.5) * 0.6 + (small - 0.5) * 0.2, 0.0, 1.0);
+		scree_amount *= smoothstep(water_height + 0.3, water_height + 1.5, world_pos.y);
+		if (scree_amount > 0.01) {
+			Ground scree = flat_set(scree_set, n, large, medium);
+			g = mix_ground(g, scree, height_mix(g.height, scree.height, scree_amount));
+		}
 	}
 
 	// Dark wet mud right by the water
@@ -264,56 +339,89 @@ void fragment() {
 		puddle *= 1.0 - burnt;
 	}
 
-	// Rock wherever it's steep, with a ragged edge where it meets the grass
-	float steep = smoothstep(rock_start, rock_full, n.y + (medium - 0.5) * 0.18);
-	if (steep > 0.001) {
-		Ground rock = rock_layer(n, large);
-		g = mix_ground(g, rock, height_mix(g.height, rock.height, steep));
+	// Rock, rising through the grass as the ground steepens. The pattern pushes where it
+	// begins up and down, so it comes through in broken outcrops rather than a band, and
+	// height blending lets the tallest stones show first.
+	float wobble = ((medium - 0.5) * 1.2 + (between - 0.5) * 0.8 + (small - 0.5) * 0.3) * rock_edge_noise;
+	float rockiness = smoothstep(rock_begin_degrees, rock_full_degrees, slope + wobble);
+	if (rockiness > 0.001 && rock_set >= 0) {
+		// Plain rock between the others: the set with its moss muted to bare grey stone
+		Ground stone = triplanar_set(rock_set, n);
+		Ground rock = stone;
+		float grey = dot(stone.albedo, vec3(0.3, 0.55, 0.15));
+		rock.albedo = mix(vec3(grey), stone.albedo, 0.6) * vec3(0.92, 0.94, 0.98);
+		// Moss on moderately steep slopes, and thickest where they face out of the sun, in big
+		// patches that come and go across the mountain
+		float shaded = smoothstep(0.05, 0.55, dot(n.xz, normalize(moss_facing)));
+		float moderate = smoothstep(22.0, 32.0, slope) * (1.0 - smoothstep(46.0, 60.0, slope));
+		float patchy = texture(detail_noise, world_pos.xz * 0.008 + vec2(0.71, 0.13)).r;
+		float moss = clamp(max(moderate * 0.8, shaded * smoothstep(18.0, 30.0, slope)) + (between - 0.5) * 0.9 + (smoothstep(0.38, 0.62, patchy) - 0.5) * 1.4, 0.0, 1.0);
+		if (moss > 0.01 && mossy_rock_set >= 0) {
+			Ground mossy = mossy_rock_set == rock_set ? stone : triplanar_set(mossy_rock_set, n);
+			mossy.albedo *= vec3(0.88, 1.06, 0.66);
+			rock = mix_ground(rock, mossy, height_mix(rock.height, mossy.height, moss));
+		}
+		// Sheer cliff rock on the steepest faces
+		// (where slopes are all much the same, the pattern decides: cliff in some swathes, mossy
+		// and plain rock in others)
+		float sheer = smoothstep(cliff_degrees - 8.0, cliff_degrees + 8.0, slope + wobble * 0.6 - (smoothstep(0.38, 0.62, patchy) - 0.5) * 36.0);
+		if (sheer > 0.01 && cliff_rock_set >= 0) {
+			Ground cliff = triplanar_set(cliff_rock_set, n);
+			rock = mix_ground(rock, cliff, height_mix(rock.height, cliff.height, sheer));
+		}
+		// The big-scale pattern: the cliff rock's (or plain rock's) own texture, nine times larger,
+		// from the side the ground faces most
+		int big = cliff_rock_set >= 0 ? cliff_rock_set : rock_set;
+		vec3 aw = abs(n);
+		vec2 big_uv = (aw.y > max(aw.x, aw.z) ? world_pos.xz : (aw.x > aw.z ? world_pos.zy : world_pos.xy)) / (set_scale[big] * 9.0);
+		float macro = dot(texture(set_albedo, vec3(big_uv, float(big))).rgb, vec3(0.33));
+		rock.albedo = rock_variety(rock.albedo, smoothstep(35.0, 60.0, slope), macro);
+		g = mix_ground(g, rock, height_mix(g.height, rock.height, rockiness));
 	}
 
 	// Trails: gravel, fraying into the ground at its edges (more raggedly if the trail's
 	// Edge Noise is turned up)
-	if (trail > 0.001) {
+	if (trail > 0.001 && gravel_set >= 0) {
 		float ragged = 0.2 + texture(edge_map, map_uv).r * 1.6;
 		float fray = smoothstep(0.2, 0.8, trail + ((medium - 0.5) * 0.6 + (small - 0.5) * 0.35) * ragged);
 		if (fray > 0.001) {
-			Ground gravel = gravel_layer(n, large, medium);
+			Ground gravel = flat_set(gravel_set, n, large, medium);
 			g = mix_ground(g, gravel, height_mix(g.height, gravel.height, fray));
 		}
 	}
 
 	// ---- What's been painted on top ----
 	if (paint_info.w > 0.0) {
-		vec2 paint_uv = (world_pos.xz - paint_info.xy) / paint_info.z / vec2(textureSize(paint_a, 0));
-		vec4 pa = texture(paint_a, paint_uv);
-		float pb = texture(paint_b, paint_uv).r;
-		float coverage = min(pa.r + pa.g + pa.b + pa.a + pb, 1.0);
+		vec2 paint_uv = (world_pos.xz - paint_info.xy) / paint_info.z / vec2(textureSize(paint_0, 0));
+		vec4 p0 = texture(paint_0, paint_uv);
+		vec4 p1 = texture(paint_1, paint_uv);
+		vec4 p2 = texture(paint_2, paint_uv);
+		float weights[12] = float[](p0.r, p0.g, p0.b, p0.a, p1.r, p1.g, p1.b, p1.a, p2.r, p2.g, p2.b, p2.a);
+		float coverage = 0.0;
+		for (int c = 0; c < 12; c++) {
+			coverage += weights[c];
+		}
+		coverage = min(coverage, 1.0);
 		if (coverage > 0.003) {
 			// The painted materials, each laid over the last by height in proportion to how
 			// much of it there is...
-			float laid = pa.r;
-			Ground painted = grass_layer(n, large, medium, small);
-			if (pa.g > 0.002) {
-				laid += pa.g;
-				painted = mix_ground(painted, dirt, height_mix(painted.height, dirt.height, pa.g / laid));
-			}
-			if (pa.b > 0.002) {
-				laid += pa.b;
-				Ground forest = forest_layer(n, large, medium);
-				painted = mix_ground(painted, forest, height_mix(painted.height, forest.height, pa.b / laid));
-			}
-			if (pa.a > 0.002) {
-				laid += pa.a;
-				Ground gravel = gravel_layer(n, large, medium);
-				painted = mix_ground(painted, gravel, height_mix(painted.height, gravel.height, pa.a / laid));
-			}
-			if (pb > 0.002) {
-				laid += pb;
-				Ground rock = rock_layer(n, large);
-				painted = mix_ground(painted, rock, height_mix(painted.height, rock.height, pb / laid));
+			float laid = 0.0;
+			Ground painted = g;
+			for (int c = 0; c < 12; c++) {
+				if (weights[c] > 0.002 && paint_channel[c] > -3) {
+					Ground layer = paint_layer(paint_channel[c], n, large, medium, small);
+					if (laid == 0.0) {
+						painted = layer;
+					} else {
+						painted = mix_ground(painted, layer, height_mix(painted.height, layer.height, weights[c] / (laid + weights[c])));
+					}
+					laid += weights[c];
+				}
 			}
 			// ...then over the automatic ground, by how much has been painted here
-			g = mix_ground(g, painted, height_mix(g.height, painted.height, coverage));
+			if (laid > 0.0) {
+				g = mix_ground(g, painted, height_mix(g.height, painted.height, coverage));
+			}
 		}
 	}
 
@@ -330,11 +438,10 @@ void fragment() {
 
 	// Slope view: green = easy walking, yellow = close to the limit, red = too steep to climb
 	if (slope_view) {
-		float angle = degrees(acos(clamp(n.y, -1.0, 1.0)));
 		vec3 tint = vec3(0.15, 0.75, 0.2);
-		if (angle >= walk_limit_degrees) {
+		if (slope >= walk_limit_degrees) {
 			tint = vec3(0.9, 0.15, 0.1);
-		} else if (angle >= walk_limit_degrees - 8.0) {
+		} else if (slope >= walk_limit_degrees - 8.0) {
 			tint = vec3(0.95, 0.8, 0.1);
 		}
 		ALBEDO = mix(ALBEDO, tint, 0.7);

@@ -105,6 +105,19 @@ extends StaticBody3D
 @export var coal_seam_scene: PackedScene = preload("res://coal_seam.tscn")
 @export var coal_seam_count := 80
 
+@export_group("Tall peaks")
+## Ridges and gullies are carved into ground above this height, in meters (0 depth = none)...
+@export var ridges_from := 120.0
+## ...reaching full depth by this height
+@export var ridges_full := 155.0
+## How deep the ridges and gullies are at full depth, in meters
+@export var ridge_depth := 26.0
+## Roughly how far apart the ridges are, in meters
+@export var ridge_spacing := 55.0
+## No trees are scattered above this height, give or take 10 m so the tree line isn't straight.
+## Trees placed by hand with the Object Painter can still go anywhere.
+@export var tree_line := 125.0
+
 @export_group("Ground materials")
 ## Which texture set (from assets/textures, as "folder/name") the ground uses for each job.
 ## Leave one empty, or name a set that isn't there, and that job is simply skipped.
@@ -221,6 +234,11 @@ var _erased := {}
 var _placed_spots := {}
 # Big placed objects that keep scattered things away: x, z and how far (meters)
 var _placed_clears: Array[Vector3] = []
+# The ground as it'd be without the tall peaks' ridges. Things are scattered using this, then
+# lifted onto the ridges, so the ridges don't reshuffle the forest and resources below them.
+var _unridged := PackedFloat32Array()
+var _ridge_cuts := PackedFloat32Array()
+var _ridge_key := ""
 var _points_x := 0
 var _points_z := 0
 var _chunks_x := 0
@@ -424,6 +442,13 @@ func generate() -> void:
 	_load_sculpt()
 	# Reshape the ground with any terrain modifiers, before anything is built on it
 	_apply_modifiers()
+	_unridged = _heights.duplicate()
+	if _add_peak_ridges():
+		_heights = _base_heights.duplicate()
+		for layer in [_trail_mask, _trail_cover, _trail_noise, _trail_grass]:
+			layer.fill(0)
+		_trail_ground.clear()
+		_apply_modifiers()
 	_update_ground_texture()
 	_update_flow_map()
 	_load_paint()
@@ -456,6 +481,8 @@ func generate() -> void:
 	_clear_zones = get_tree().get_nodes_in_group("clear_zones")
 	# So is where objects were rubbed out or placed by hand with the Object Painter
 	_gather_painted_objects()
+	var final_heights := _heights
+	_heights = _unridged
 	_scatter_trees()
 	_scatter_feature_trees()
 	_scatter_resources()
@@ -467,6 +494,8 @@ func generate() -> void:
 	foliage.valley = self
 	add_child(foliage)
 	foliage.build_rocks(_ground)
+	_heights = final_heights
+	_lift_onto_ridges()
 	# Mossy forest floor under all the trees, scattered and placed alike
 	refresh_forest_floor()
 	_refresh_marker_rings(map_rect())
@@ -710,6 +739,132 @@ func _build_walls() -> void:
 		add_child(wall)
 
 
+# Carves ridges and gullies into the tall peaks, in the ground everything else builds on: gullies
+# are cut where water would drain, so they run downhill and branch into each other, leaving
+# sharp ridges between them. It fades in with height, so nothing changes below Ridges From.
+# True if it changed anything. Worked out once, then kept until the settings change.
+func _add_peak_ridges() -> bool:
+	if ridge_depth <= 0.0:
+		return false
+	var key := "%s %s %s %s %s %s" % [heightmap_path, map_seed, ridges_from, ridges_full, ridge_depth, ridge_spacing]
+	if _ridge_key != key or _ridge_cuts.size() != _base_heights.size():
+		_ridge_cuts = _work_out_ridges()
+		_ridge_key = key
+	var changed := false
+	for i in _base_heights.size():
+		if _ridge_cuts[i] != 0.0:
+			_base_heights[i] += _ridge_cuts[i]
+			changed = true
+	return changed
+
+
+func _work_out_ridges() -> PackedFloat32Array:
+	var count := _base_heights.size()
+	var cuts := PackedFloat32Array()
+	cuts.resize(count)
+	# The slopes are too even to drain anywhere interesting by themselves, so a rumpled pattern
+	# is laid over them, and the water gathers in its folds
+	var rumple := FastNoiseLite.new()
+	rumple.seed = map_seed + 31
+	rumple.noise_type = FastNoiseLite.TYPE_PERLIN
+	rumple.frequency = 1.0 / maxf(ridge_spacing, 8.0)
+	rumple.fractal_type = FastNoiseLite.FRACTAL_FBM
+	rumple.fractal_octaves = 4
+	rumple.domain_warp_enabled = true
+	rumple.domain_warp_type = FastNoiseLite.DOMAIN_WARP_SIMPLEX
+	rumple.domain_warp_amplitude = ridge_spacing * 0.4
+	rumple.domain_warp_frequency = 0.5 / maxf(ridge_spacing, 8.0)
+	var levels := PackedFloat32Array()
+	levels.resize(count)
+	var flow := PackedFloat32Array()
+	flow.resize(count)
+	# Only ground near or above the ridges matters
+	var floor_level := ridges_from - 25.0
+	var order := PackedInt32Array()
+	var lowest := INF
+	var highest := -INF
+	for gz in _points_z:
+		for gx in _points_x:
+			var i := gz * _points_x + gx
+			levels[i] = _base_heights[i]
+			if _base_heights[i] < floor_level:
+				continue
+			levels[i] += rumple.get_noise_2d(-_width * 0.5 + gx * _cell_x, -_depth * 0.5 + gz * _cell_z) * ridge_depth * 0.9
+			flow[i] = 1.0
+			lowest = minf(lowest, levels[i])
+			highest = maxf(highest, levels[i])
+			order.append(i)
+	if order.is_empty():
+		return cuts
+	# Highest first, without a full sort: into bins a tenth of a meter tall
+	var bins := int((highest - lowest) / 0.1) + 1
+	var starts := PackedInt32Array()
+	starts.resize(bins + 1)
+	for i in order:
+		starts[bins - int((levels[i] - lowest) / 0.1)] += 1
+	for b in bins:
+		starts[b + 1] += starts[b]
+	var sorted := PackedInt32Array()
+	sorted.resize(order.size())
+	for i in order:
+		var b := bins - 1 - int((levels[i] - lowest) / 0.1)
+		sorted[starts[b]] = i
+		starts[b] += 1
+	for i in sorted:
+		var gx := i % _points_x
+		var gz := i / _points_x
+		var low_level := levels[i]
+		var low := -1
+		for dz in range(maxi(gz - 1, 0), mini(gz + 2, _points_z)):
+			for dx in range(maxi(gx - 1, 0), mini(gx + 2, _points_x)):
+				var other := dz * _points_x + dx
+				if levels[other] < low_level:
+					low_level = levels[other]
+					low = other
+		if low >= 0:
+			flow[low] += flow[i]
+	# The more water, the deeper the cut, by how many doublings it's collected. The rumple stays
+	# too, so the ridges between the gullies stand up. Softened a little, so a cut's sides slope.
+	var carve := PackedFloat32Array()
+	carve.resize(count)
+	for i in sorted:
+		carve[i] = minf(log(flow[i]) / log(2.0) / 9.0, 1.0)
+	carve = _blur(carve, _points_x, _points_z, 1)
+	for gz in _points_z:
+		for gx in _points_x:
+			var i := gz * _points_x + gx
+			var amount := smoothstep(ridges_from, ridges_full, _base_heights[i])
+			if amount > 0.0:
+				var fold := rumple.get_noise_2d(-_width * 0.5 + gx * _cell_x, -_depth * 0.5 + gz * _cell_z)
+				cuts[i] = (fold * 0.8 - carve[i] + 0.25) * ridge_depth * amount
+	return cuts
+
+# Moves what was scattered on the ground without ridges up or down onto the ridges
+func _lift_onto_ridges() -> void:
+	for child in get_children():
+		var thing := child as Node3D
+		if thing == null or not thing.has_method("gather"):
+			continue
+		var p := thing.position
+		thing.position.y += _height_in(_heights, p.x, p.z) - _height_in(_unridged, p.x, p.z)
+	var foliage := get_node_or_null("Foliage")
+	var rocks: MultiMeshInstance3D = foliage.get_node_or_null("Rocks") if foliage else null
+	if rocks:
+		var multimesh := rocks.multimesh
+		for i in multimesh.instance_count:
+			var place := multimesh.get_instance_transform(i)
+			var change := _height_in(_heights, place.origin.x, place.origin.z) - _height_in(_unridged, place.origin.x, place.origin.z)
+			if absf(change) > 0.0:
+				place.origin.y += change
+				multimesh.set_instance_transform(i, place)
+
+
+## True above the tree line, where no trees are scattered. It wanders 10 m up and down. Based on
+## the ground without ridges, like everything scattered.
+func is_above_tree_line(x: float, z: float) -> bool:
+	return _height_in(_unridged, x, z) > tree_line + _forest.get_noise_2d(x * 0.7, z * 0.7) * 10.0
+
+
 # Scatter trees anywhere that's dry and not too steep
 func _scatter_trees() -> void:
 	var using_pack := not forest_trees.is_empty() or not young_trees.is_empty()
@@ -744,7 +899,12 @@ func _scatter_trees() -> void:
 			tree.scale = Vector3.ONE * rng.randf_range(0.8, 1.4)
 			tree.position = Vector3(x, h - 0.2, z)
 		tree.rotation.y = rng.randf() * TAU
-		add_child(tree)
+		# Above the tree line this tree just isn't planted. It still counts and keeps its spot,
+		# so everything scattered below stays exactly where it was.
+		if is_above_tree_line(x, z):
+			tree.free()
+		else:
+			add_child(tree)
 		_remember_spot(Vector2(x, z), _taken_spots)
 		_remember_spot(Vector2(x, z), _tree_spots)
 		placed += 1
@@ -809,7 +969,7 @@ func _optional_scene(path: String) -> PackedScene:
 # True if a special tree may grow here: gentle enough ground, clear of the wreck, the trails
 # and any Clear Zone
 func _feature_spot_ok(x: float, z: float, max_slope: float) -> bool:
-	return get_slope(x, z) <= max_slope and not is_near_crash_site(x, z) and not is_on_trail(x, z, 3.0) and not is_cleared(x, z, "trees") and not is_erased(x, z) and not is_near_placed(x, z, 4.0)
+	return get_slope(x, z) <= max_slope and not is_above_tree_line(x, z) and not is_near_crash_site(x, z) and not is_on_trail(x, z, 3.0) and not is_cleared(x, z, "trees") and not is_erased(x, z) and not is_near_placed(x, z, 4.0)
 
 
 # Stands one tree at this spot, sized and turned at random like the rest of the forest
@@ -1662,11 +1822,18 @@ func _update_flow_map() -> void:
 					low = other
 		if low >= 0:
 			flow[low] += flow[i]
-	# Stored by how many doublings it's collected, since big rivers would swamp small gullies
+	# Stored by how many doublings it's collected, since big rivers would swamp small gullies,
+	# then blurred: a smooth hillside sheds many thin parallel trickles, which would show as
+	# stripes, while a real gully collects enough to stay strong through the blur
+	var amounts := PackedFloat32Array()
+	amounts.resize(w * h)
+	for i in flow.size():
+		amounts[i] = log(flow[i]) / log(2.0) * 28.0
+	amounts = _blur(amounts, w, h, 3)
 	var bytes := PackedByteArray()
 	bytes.resize(w * h)
-	for i in flow.size():
-		bytes[i] = mini(int(log(flow[i]) / log(2.0) * 28.0), 255)
+	for i in amounts.size():
+		bytes[i] = mini(int(amounts[i]), 255)
 	var image := Image.create_from_data(w, h, false, Image.FORMAT_R8, bytes)
 	var texture := _ground.get_shader_parameter("flow_map") as ImageTexture
 	if texture and texture.get_width() == w and texture.get_height() == h:

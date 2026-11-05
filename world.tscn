@@ -7,7 +7,9 @@
 [ext_resource type="PackedScene" path="res://terrain_modifier.tscn" id="7_pkg7o"]
 [ext_resource type="PackedScene" path="res://terrain_path.tscn" id="8_gbfbk"]
 [ext_resource type="Material" uid="uid://bm46i82rjv7ap" path="res://terrain_material.tres" id="8_terrain"]
+[ext_resource type="Script" uid="uid://tfmmljfyf6ih" path="res://terrain_modifier.gd" id="8_wse8f"]
 [ext_resource type="PackedScene" path="res://crash_site.tscn" id="9_crash"]
+[ext_resource type="Script" uid="uid://dx58b7rtar5el" path="res://placed_objects.gd" id="9_ioo17"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.26, 0.42, 0.68, 1)
@@ -114,7 +116,7 @@ radius = 22.0
 falloff = 0.16
 
 [node name="TerrainModifier6" parent="TerrainEdits/Modifiers" unique_id=939329846 instance=ExtResource("7_pkg7o")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 84.24348, 38.974382, 64.89062)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 84.24348, 38.97438, 64.89062)
 visible = false
 mode = 1
 
@@ -131,11 +133,81 @@ mode = 3
 radius = 9.5
 
 [node name="TerrainModifier9" parent="TerrainEdits/Modifiers" unique_id=1031173948 instance=ExtResource("7_pkg7o")]
-transform = Transform3D(0.67549, -0.39948365, 0.619779, 0.50904137, 0.86074203, 0, -0.53346986, 0.31549314, 0.7847764, 122.85055, 64.322696, 151.04367)
+transform = Transform3D(0.67549, -0.39948365, 0.619779, 0.50904137, 0.86074203, 0, -0.53346986, 0.31549314, 0.7847764, 122.85055, 64.32269, 151.04367)
 visible = false
 mode = 1
 radius = 6.5
 strength = 0.15
+
+[node name="Flatten" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1865705771 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 162.82732, 85.15952, 82.862)
+visible = false
+script = ExtResource("8_wse8f")
+radius = 34.0
+falloff = 0.7
+
+[node name="Flatten2" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1291104352 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 188.42397, 85.057816, 67.03898)
+visible = false
+script = ExtResource("8_wse8f")
+falloff = 0.7
+
+[node name="Flatten3" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1128803829 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 173.56915, 85.93637, 67.232994)
+visible = false
+script = ExtResource("8_wse8f")
+falloff = 0.7
+
+[node name="Flatten4" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=883695741 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 151.10428, 85.14977, 72.4182)
+visible = false
+script = ExtResource("8_wse8f")
+falloff = 0.7
+
+[node name="RaiseLower" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=2025384728 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 151.7136, 75.72999, 57.38644)
+visible = false
+script = ExtResource("8_wse8f")
+mode = 1
+
+[node name="RaiseLower2" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=252669910 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 198.99648, 88.56788, 68.315315)
+visible = false
+script = ExtResource("8_wse8f")
+mode = 1
+radius = 4.5
+
+[node name="RaiseLower3" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1339956508 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 189.74057, 80.68221, 60.775528)
+visible = false
+script = ExtResource("8_wse8f")
+mode = 1
+
+[node name="RaiseLower4" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1188631521 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 164.83322, 81.752335, 65.782036)
+visible = false
+script = ExtResource("8_wse8f")
+mode = 1
+
+[node name="RaiseLower5" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1412741088 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 151.26413, 84.37573, 65.03769)
+visible = false
+script = ExtResource("8_wse8f")
+mode = 1
+
+[node name="RaiseLower6" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=971218668 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 160.96481, 76.3265, 58.83805)
+visible = false
+script = ExtResource("8_wse8f")
+mode = 1
+radius = 5.0
+
+[node name="RaiseLower7" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=850597084 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 171.86868, 72.78368, 52.94865)
+visible = false
+script = ExtResource("8_wse8f")
+mode = 1
+radius = 5.0
 
 [node name="Paths" type="Node3D" parent="TerrainEdits" unique_id=1597188750]
 visible = false
@@ -152,3 +224,9 @@ mode = 3
 [node name="ClearZones" type="Node3D" parent="TerrainEdits" unique_id=1619069690]
 
 [node name="Trees" type="Node3D" parent="TerrainEdits" unique_id=743867619]
+
+[node name="Objects" type="Node3D" parent="TerrainEdits" unique_id=749453922]
+script = ExtResource("9_ioo17")
+erased = PackedVector3Array()
+
+[node name="Bushes" type="Node3D" parent="TerrainEdits/Objects" unique_id=122728712]

@@ -7,7 +7,6 @@
 [ext_resource type="PackedScene" path="res://terrain_modifier.tscn" id="7_pkg7o"]
 [ext_resource type="PackedScene" path="res://terrain_path.tscn" id="8_gbfbk"]
 [ext_resource type="Material" uid="uid://bm46i82rjv7ap" path="res://terrain_material.tres" id="8_terrain"]
-[ext_resource type="Script" uid="uid://tfmmljfyf6ih" path="res://terrain_modifier.gd" id="8_wse8f"]
 [ext_resource type="PackedScene" path="res://crash_site.tscn" id="9_crash"]
 [ext_resource type="Script" uid="uid://dx58b7rtar5el" path="res://placed_objects.gd" id="9_ioo17"]
 [ext_resource type="PackedScene" path="res://assets/landmarks/ruined_castle/Steampunk_Castle_Ruin.tscn" id="11_70uel"]
@@ -143,85 +142,72 @@ mode = 1
 radius = 6.5
 strength = 0.15
 
-[node name="Flatten" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1865705771 instance=ExtResource("7_pkg7o")]
+[node name="Flatten" parent="TerrainEdits/Modifiers" unique_id=1865705771 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 162.82732, 85.15952, 82.862)
 visible = false
-script = ExtResource("8_wse8f")
 radius = 34.0
 falloff = 0.7
 
-[node name="Flatten2" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1291104352 instance=ExtResource("7_pkg7o")]
+[node name="Flatten2" parent="TerrainEdits/Modifiers" unique_id=1291104352 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 188.42397, 85.057816, 67.03898)
 visible = false
-script = ExtResource("8_wse8f")
 falloff = 0.7
 
-[node name="Flatten3" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1128803829 instance=ExtResource("7_pkg7o")]
+[node name="Flatten3" parent="TerrainEdits/Modifiers" unique_id=1128803829 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 173.56915, 85.93637, 67.232994)
 visible = false
-script = ExtResource("8_wse8f")
 falloff = 0.7
 
-[node name="Flatten4" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=883695741 instance=ExtResource("7_pkg7o")]
+[node name="Flatten4" parent="TerrainEdits/Modifiers" unique_id=883695741 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 151.10428, 85.14977, 72.4182)
 visible = false
-script = ExtResource("8_wse8f")
 falloff = 0.7
 
-[node name="RaiseLower" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=2025384728 instance=ExtResource("7_pkg7o")]
+[node name="RaiseLower" parent="TerrainEdits/Modifiers" unique_id=2025384728 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 151.7136, 75.72999, 57.38644)
 visible = false
-script = ExtResource("8_wse8f")
 mode = 1
 
-[node name="RaiseLower2" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=252669910 instance=ExtResource("7_pkg7o")]
+[node name="RaiseLower2" parent="TerrainEdits/Modifiers" unique_id=252669910 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 198.99648, 88.56788, 68.315315)
 visible = false
-script = ExtResource("8_wse8f")
 mode = 1
 radius = 4.5
 
-[node name="RaiseLower3" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1339956508 instance=ExtResource("7_pkg7o")]
+[node name="RaiseLower3" parent="TerrainEdits/Modifiers" unique_id=1339956508 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 189.74057, 80.68221, 60.775528)
 visible = false
-script = ExtResource("8_wse8f")
 mode = 1
 
-[node name="RaiseLower4" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1188631521 instance=ExtResource("7_pkg7o")]
+[node name="RaiseLower4" parent="TerrainEdits/Modifiers" unique_id=1188631521 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 164.83322, 81.752335, 65.782036)
 visible = false
-script = ExtResource("8_wse8f")
 mode = 1
 
-[node name="RaiseLower5" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1412741088 instance=ExtResource("7_pkg7o")]
+[node name="RaiseLower5" parent="TerrainEdits/Modifiers" unique_id=1412741088 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 151.26413, 84.37573, 65.03769)
 visible = false
-script = ExtResource("8_wse8f")
 mode = 1
 
-[node name="RaiseLower6" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=971218668 instance=ExtResource("7_pkg7o")]
+[node name="RaiseLower6" parent="TerrainEdits/Modifiers" unique_id=971218668 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 160.96481, 76.3265, 58.83805)
 visible = false
-script = ExtResource("8_wse8f")
 mode = 1
 radius = 5.0
 
-[node name="RaiseLower7" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=850597084 instance=ExtResource("7_pkg7o")]
+[node name="RaiseLower7" parent="TerrainEdits/Modifiers" unique_id=850597084 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 171.86868, 72.78368, 52.94865)
 visible = false
-script = ExtResource("8_wse8f")
 mode = 1
 radius = 5.0
 
-[node name="Flatten5" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=2116316474 instance=ExtResource("7_pkg7o")]
+[node name="Flatten5" parent="TerrainEdits/Modifiers" unique_id=2116316474 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 170.4738, 82.48599, 58.77693)
-script = ExtResource("8_wse8f")
 radius = 46.5
 falloff = 0.7
 
-[node name="Flatten6" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=2122072023 instance=ExtResource("7_pkg7o")]
+[node name="Flatten6" parent="TerrainEdits/Modifiers" unique_id=2122072023 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 195.81392, 83.008575, 61.11728)
-script = ExtResource("8_wse8f")
 falloff = 0.7
 
 [node name="Paths" type="Node3D" parent="TerrainEdits" unique_id=1597188750]
@@ -248,42 +234,32 @@ erased = PackedVector3Array()
 
 [node name="Landmarks" type="Node3D" parent="TerrainEdits/Objects" unique_id=1809577231]
 
-[node name="CastleRuin" type="StaticBody3D" parent="TerrainEdits/Objects/Landmarks" unique_id=1596589445 groups=["placed_objects", "snap_to_ground"] instance=ExtResource("11_70uel")]
+[node name="CastleRuin" parent="TerrainEdits/Objects/Landmarks" unique_id=1596589445 groups=["placed_objects", "snap_to_ground"] instance=ExtResource("11_70uel")]
 transform = Transform3D(0.5313986, 0, 0.8471219, 0, 1, 0, -0.8471219, 0, 0.5313986, 171.0451, 81.55414, 74.08221)
-metadata/placement_upright = true
-metadata/placement_clear = 34.0
 metadata/placed_category = "Landmarks"
 metadata/placed_upright = true
 metadata/placed_clear = 34.0
 metadata/placed_size = 1.0
 metadata/placed_yaw = 0.0
-metadata/placed_footprint = 28.598232650756838
+metadata/placed_footprint = 28.59823265075684
 metadata/placed_sink = 0.0
 metadata/ground_offset = -0.9420093027244576
 
 [node name="Rocks" type="Node3D" parent="TerrainEdits/Objects" unique_id=2125732880]
 
-[node name="BottomLeftOutcrop" type="StaticBody3D" parent="TerrainEdits/Objects/Rocks" unique_id=999018857 groups=["placed_objects", "snap_to_ground"] instance=ExtResource("12_hiqwa")]
+[node name="BottomLeftOutcrop" parent="TerrainEdits/Objects/Rocks" unique_id=999018857 groups=["placed_objects", "snap_to_ground"] instance=ExtResource("12_hiqwa")]
 transform = Transform3D(-0.72239923, 0, -0.3337953, 0, 0.7957889, 0, 0.3337953, 0, -0.72239923, 164.81215, 80.66101, 55.43513)
-metadata/placement_upright = true
-metadata/placement_sink = Vector2(0.1, 0.2)
-metadata/placement_size = Vector2(0.75, 1.3)
-metadata/placement_clear = 5.72532072643753
 metadata/placed_category = "Rocks"
 metadata/placed_upright = true
 metadata/placed_clear = 4.556146592366462
 metadata/placed_size = 0.7957889
 metadata/placed_yaw = 5.162306369387011
 metadata/placed_footprint = 4.100531997304029
-metadata/placed_sink = 1.3940400103743613
-metadata/ground_offset = -1.8556357830678962
+metadata/placed_sink = 1.394040010374361
+metadata/ground_offset = -1.855635783067896
 
-[node name="BottomLeftOutcrop2" type="StaticBody3D" parent="TerrainEdits/Objects/Rocks" unique_id=1389105474 groups=["placed_objects", "snap_to_ground"] instance=ExtResource("12_hiqwa")]
-transform = Transform3D(-0.95919544, 0, 0.5382754, 0, 1.0999073, 0, -0.5382754, 0, -0.95919544, 194.36176, 76.39284, 49.801273)
-metadata/placement_upright = true
-metadata/placement_sink = Vector2(0.1, 0.2)
-metadata/placement_size = Vector2(0.75, 1.3)
-metadata/placement_clear = 5.72532072643753
+[node name="BottomLeftOutcrop2" parent="TerrainEdits/Objects/Rocks" unique_id=1389105474 groups=["placed_objects", "snap_to_ground"] instance=ExtResource("12_hiqwa")]
+transform = Transform3D(-0.11326671, 0, 1.0940601, 0, 1.0999075, 0, -1.0940601, 0, -0.11326671, 194.56221, 74.342926, 51.37139)
 metadata/placed_category = "Rocks"
 metadata/placed_upright = true
 metadata/placed_clear = 6.297321941701724
@@ -293,12 +269,8 @@ metadata/placed_footprint = 5.667589836230559
 metadata/placed_sink = 2.4700876744063223
 metadata/ground_offset = -3.871380408745253
 
-[node name="CenterOutcrop" type="StaticBody3D" parent="TerrainEdits/Objects/Rocks" unique_id=1689528222 groups=["placed_objects", "snap_to_ground"] instance=ExtResource("13_2u3nc")]
+[node name="CenterOutcrop" parent="TerrainEdits/Objects/Rocks" unique_id=1689528222 groups=["placed_objects", "snap_to_ground"] instance=ExtResource("13_2u3nc")]
 transform = Transform3D(-0.78759986, 0, 0.27273095, 0, 0.83348405, 0, -0.27273095, 0, -0.78759986, 179.02724, 78.84421, 51.020924)
-metadata/placement_upright = true
-metadata/placement_sink = Vector2(0.1, 0.2)
-metadata/placement_size = Vector2(0.75, 1.3)
-metadata/placement_clear = 6.458223216164432
 metadata/placed_category = "Rocks"
 metadata/placed_upright = true
 metadata/placed_clear = 5.382826065338279
@@ -308,12 +280,8 @@ metadata/placed_footprint = 4.844543553869949
 metadata/placed_sink = 2.0112707354409025
 metadata/ground_offset = -3.772164126232809
 
-[node name="TopLeftOutcrop" type="StaticBody3D" parent="TerrainEdits/Objects/Rocks" unique_id=89504485 groups=["placed_objects", "snap_to_ground"] instance=ExtResource("14_udxuc")]
+[node name="TopLeftOutcrop" parent="TerrainEdits/Objects/Rocks" unique_id=89504485 groups=["placed_objects", "snap_to_ground"] instance=ExtResource("14_udxuc")]
 transform = Transform3D(0.7185188, 0, -1.0299726, 0, 1.2558315, 0, 1.0299726, 0, 0.7185188, 161.77211, 78.84956, 58.16215)
-metadata/placement_upright = true
-metadata/placement_sink = Vector2(0.1, 0.2)
-metadata/placement_size = Vector2(0.75, 1.3)
-metadata/placement_clear = 4.975388859870223
 metadata/placed_category = "Rocks"
 metadata/placed_upright = true
 metadata/placed_clear = 6.248249955596914
@@ -323,17 +291,13 @@ metadata/placed_footprint = 5.6234245837168375
 metadata/placed_sink = 1.9763582846861745
 metadata/ground_offset = -3.7574328020429135
 
-[node name="TopLeftOutcrop2" type="StaticBody3D" parent="TerrainEdits/Objects/Rocks" unique_id=1292021307 groups=["placed_objects", "snap_to_ground"] instance=ExtResource("14_udxuc")]
+[node name="TopLeftOutcrop2" parent="TerrainEdits/Objects/Rocks" unique_id=1292021307 groups=["placed_objects", "snap_to_ground"] instance=ExtResource("14_udxuc")]
 transform = Transform3D(0.72000605, 0, -0.5747733, 0, 0.9212888, 0, 0.5747733, 0, 0.72000605, 145.71011, 76.56701, 60.637432)
-metadata/placement_upright = true
-metadata/placement_sink = Vector2(0.1, 0.2)
-metadata/placement_size = Vector2(0.75, 1.3)
-metadata/placement_clear = 4.975388859870223
 metadata/placed_category = "Rocks"
 metadata/placed_upright = true
 metadata/placed_clear = 4.583769974123867
 metadata/placed_size = 0.9212888
-metadata/placed_yaw = 0.9138397492079069
+metadata/placed_yaw = 0.9138397492079068
 metadata/placed_footprint = 4.125392700639606
 metadata/placed_sink = 2.236458195498699
 metadata/ground_offset = -7.385659312621556

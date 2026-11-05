@@ -1,18 +1,19 @@
 @tool
 extends Node3D
-## Reshapes the valley's ground inside a circle. Drop one into the world, move it where you
-## want it, and the Valley applies it when it builds the terrain.
+## Reshapes the valley's ground inside a circle. The marker's position is its control point:
+## move it with the gizmo and the ground follows. X and Z say where it acts; for Flatten and
+## Raise/Lower, Y says how high.
 ##
 ## In the editor, select it to see two rings drawn on the ground: the inner ring is where full
 ## strength ends, the outer ring is where it has faded away to nothing. When it isn't selected
 ## it shows as just a faint little pole. None of it shows in the game.
 
+# (Scenes save these numbers. 0 was a separate Lower mode, before it and Raise became one.)
 enum Mode {
-	LOWER,   ## Digs the ground down by Height meters
-	RAISE,   ## Builds the ground up by Height meters
-	FLATTEN, ## Levels the ground to this marker's own height (or the ground's average, see below)
-	SMOOTH,  ## Softens bumps and sharp edges
-	SQUASH,  ## Shrinks how far the ground rises above a base level: peaks get shorter but keep their shape
+	RAISE_LOWER = 1, ## Moves the ground toward this marker's height: above the ground builds a hill up to it, below digs down to it
+	FLATTEN = 2,     ## Levels the ground to this marker's height (or the ground's average, see below)
+	SMOOTH = 3,      ## Softens bumps and sharp edges, where the marker is
+	SQUASH = 4,      ## Shrinks how far the ground rises above a base level, where the marker is: peaks get shorter but keep their shape
 }
 
 ## What it does to the ground
@@ -37,12 +38,6 @@ enum Mode {
 		falloff = value
 		_changed()
 
-@export_group("Raise and Lower")
-## How many meters it moves the ground at full strength
-@export var height := 3.0:
-	set(value):
-		height = value
-		_changed()
 
 @export_group("Flatten")
 ## Level to the average height of the ground that's already there, instead of this marker's
@@ -70,8 +65,7 @@ enum Mode {
 		_changed()
 
 const MODE_COLORS := {
-	Mode.LOWER: Color(0.3, 0.55, 1.0),
-	Mode.RAISE: Color(1.0, 0.6, 0.25),
+	Mode.RAISE_LOWER: Color(1.0, 0.6, 0.25),
 	Mode.FLATTEN: Color(0.4, 0.95, 0.45),
 	Mode.SMOOTH: Color(0.8, 0.5, 1.0),
 	Mode.SQUASH: Color(1.0, 0.4, 0.6),
@@ -150,6 +144,17 @@ func end_drag(changed: bool) -> void:
 	refresh_rings()
 
 
+## True if the marker's height matters, rather than just where it is on the map
+func uses_height() -> bool:
+	return mode == Mode.RAISE_LOWER or (mode == Mode.FLATTEN and not level_to_ground)
+
+
+## True if this reads the ground at or around its middle before changing it, so redoing part of
+## its circle needs all of it redone
+func reads_ground() -> bool:
+	return mode == Mode.RAISE_LOWER or (mode == Mode.FLATTEN and level_to_ground)
+
+
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSFORM_CHANGED and Engine.is_editor_hint() and not _dragging:
 		var spot := _spot_that_matters()
@@ -163,7 +168,7 @@ func _spot_that_matters() -> Vector3:
 	if not is_inside_tree():
 		return Vector3.INF
 	var p := global_position
-	if mode != Mode.FLATTEN or level_to_ground:
+	if not uses_height():
 		p.y = 0.0
 	return p
 
@@ -171,6 +176,10 @@ func _spot_that_matters() -> Vector3:
 func _changed() -> void:
 	if not _dragging:
 		_ask_for_rebuild()
+	elif is_inside_tree() and _valley():
+		# Being resized: just a quick look at the ground until the mouse is let go
+		_last_area = _last_area.merge(area())
+		_valley().preview_area(_last_area)
 	refresh_rings()
 
 
@@ -180,7 +189,9 @@ func _ask_for_rebuild() -> void:
 	var valley = _valley()
 	if valley:
 		var now := area()
-		valley.request_rebuild_area(now.merge(_last_area) if _last_area.has_area() else now)
+		var touched := now.merge(_last_area) if _last_area.has_area() else now
+		valley.preview_area(touched)
+		valley.request_rebuild_area(touched)
 		_last_area = now
 
 

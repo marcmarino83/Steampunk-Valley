@@ -265,8 +265,12 @@ var _stroke_area := Rect2()
 var _in_stroke := false
 const TerrainSculptScript = preload("res://terrain_sculpt.gd")
 
-# A modifier left out while working out the ground without it (see heights_without)
-var _skip_modifier: Node = null
+# The heights from before a modifier started moving, while the ground is showing a quick
+# preview of where it's going. Empty when there's no preview.
+var _preview_start := PackedFloat32Array()
+var _last_preview_at := 0
+## At most this often the ground follows a moving modifier, in milliseconds
+const PREVIEW_EVERY := 40
 
 # Counts rebuild requests, so a burst of them (like dragging a marker) only rebuilds once
 var _rebuild_ticket := 0
@@ -311,6 +315,7 @@ func request_rebuild_area(area: Rect2) -> void:
 		if ticket == _rebuild_ticket and is_inside_tree():
 			var patch := _dirty_area
 			_dirty_area = Rect2()
+			_end_preview()
 			_rebuild_area(patch))
 
 
@@ -411,6 +416,7 @@ func generate() -> void:
 	_ground = ground_material.duplicate() if ground_material else null
 	_apply_texture_sets()
 	_base_heights = _heights.duplicate()
+	_preview_start = PackedFloat32Array()
 	for layer in [_trail_mask, _trail_cover, _trail_noise, _trail_grass, _forest_floor]:
 		layer.resize(_heights.size())
 		layer.fill(0)
@@ -1091,7 +1097,7 @@ func _apply_modifiers(patch := Rect2i()) -> void:
 	# Sculpting goes on just before the first trail, so trails cut through sculpted ground
 	var sculpted := false
 	for modifier in get_tree().get_nodes_in_group("terrain_modifiers"):
-		if not modifier.is_inside_tree() or modifier == _skip_modifier:
+		if not modifier.is_inside_tree():
 			continue
 		if modifier.has_method("trail_points"):
 			if not sculpted:
@@ -1105,36 +1111,6 @@ func _apply_modifiers(patch := Rect2i()) -> void:
 	if not sculpted:
 		_apply_sculpt(patch)
 	_apply_trails(trails, patch)
-
-
-## The heights of the whole map as they'd be without one modifier, so a Flatten's target can be
-## compared with the ground it's actually cutting into. Nothing about the terrain changes.
-func heights_without(modifier: Node) -> PackedFloat32Array:
-	var heights := _heights
-	var pre_sculpt := _pre_sculpt.duplicate()
-	var mask := _trail_mask.duplicate()
-	var cover := _trail_cover.duplicate()
-	var noise := _trail_noise.duplicate()
-	var grass := _trail_grass.duplicate()
-	var trail_ground := _trail_ground.duplicate()
-	_heights = _base_heights.duplicate()
-	_skip_modifier = modifier
-	_apply_modifiers()
-	_skip_modifier = null
-	var result := _heights
-	_heights = heights
-	_pre_sculpt = pre_sculpt
-	_trail_mask = mask
-	_trail_cover = cover
-	_trail_noise = noise
-	_trail_grass = grass
-	_trail_ground = trail_ground
-	return result
-
-
-## One spot's height in a set of heights like the ones from heights_without
-func height_in(values: PackedFloat32Array, x: float, z: float) -> float:
-	return _height_in(values, x, z)
 
 
 # Shapes a group of trails at once. Each one works from the same ground (as it was before
@@ -1251,6 +1227,11 @@ func _apply_modifier(modifier, patch := Rect2i()) -> void:
 				total += get_height(p.x, p.y)
 				samples += 1
 		level = total / samples
+	# Raise/Lower moves the ground by how far the marker is above or below it at its middle,
+	# keeping the ground's own bumps, so at full strength its middle reaches the marker
+	var lift := 0.0
+	if mode == TerrainModifierScript.Mode.RAISE_LOWER:
+		lift = modifier.global_position.y - get_height(center.x, center.y)
 	# Squash shrinks the ground's height above a base: either a level set by hand, or
 	# (automatically) the ground on the outer ring, measured in every direction. Following
 	# the ring like that means a hill on a slope squashes toward its own hillside, with no
@@ -1274,10 +1255,8 @@ func _apply_modifier(modifier, patch := Rect2i()) -> void:
 				continue
 			var i := gz * _points_x + gx
 			match mode:
-				TerrainModifierScript.Mode.LOWER:
-					_heights[i] -= modifier.height * weight
-				TerrainModifierScript.Mode.RAISE:
-					_heights[i] += modifier.height * weight
+				TerrainModifierScript.Mode.RAISE_LOWER:
+					_heights[i] += lift * weight
 				TerrainModifierScript.Mode.FLATTEN:
 					_heights[i] = lerpf(_heights[i], level, weight)
 				TerrainModifierScript.Mode.SMOOTH:
@@ -1430,18 +1409,80 @@ func _limit_grade(heights: PackedFloat32Array, along: PackedFloat32Array, grade:
 # Redoes one patch of the map after a terrain modifier changed: resets the heights there to
 # the original heightmap, re-applies every modifier, rebuilds just the chunks that patch
 # touches, and moves everything standing in it up or down to the new ground.
-func _rebuild_area(area: Rect2) -> void:
-	if _base_heights.size() != _heights.size() or _heights.is_empty():
-		generate()
-		return
-	# A trail's heights depend on its whole length, so any trail this touches is redone in full
+# The patch needed to redo an area properly. Modifiers that read the ground at their middle
+# are redone whole. So are trails, if asked for, since a trail's heights depend on its length.
+func _with_whole_edits(area: Rect2, with_trails: bool) -> Rect2:
+	# Each one joins once at most, so this always finishes: rounding can leave a merged area never
+	# quite enclosing what it was merged with
+	var joined := {}
 	var grew := true
 	while grew:
 		grew = false
 		for modifier in get_tree().get_nodes_in_group("terrain_modifiers"):
-			if modifier.has_method("trail_points") and modifier.area().intersects(area) and not area.encloses(modifier.area()):
-				area = area.merge(modifier.area())
-				grew = true
+			if joined.has(modifier):
+				continue
+			var whole: bool = with_trails if modifier.has_method("trail_points") else modifier.reads_ground()
+			if whole and modifier.area().intersects(area):
+				joined[modifier] = true
+				if not area.encloses(modifier.area()):
+					area = area.merge(modifier.area())
+					grew = true
+	return area
+
+
+## In the editor: the ground follows a modifier as it moves. This redoes only the patch it
+## touches and redraws those chunks' meshes; the proper rebuild that request_rebuild_area
+## schedules brings trails, collision and everything on the ground up to date when it stops.
+func preview_area(area: Rect2) -> void:
+	if not Engine.is_editor_hint() or not is_inside_tree() or not has_heights() or _in_stroke:
+		return
+	var now := Time.get_ticks_msec()
+	if now - _last_preview_at < PREVIEW_EVERY:
+		return
+	_last_preview_at = now
+	show_preview(area)
+
+
+## Shows the ground as it'll be in a patch, without yet moving what stands on it
+func show_preview(area: Rect2) -> void:
+	if _preview_start.is_empty():
+		_preview_start = _heights.duplicate()
+	var grown := _with_whole_edits(area, false)
+	var patch := _grid_patch(grown.grow(maxf(_cell_x, _cell_z) * 2.0))
+	if not patch.has_area():
+		return
+	for gz in range(patch.position.y, patch.end.y):
+		for gx in range(patch.position.x, patch.end.x):
+			var i := gz * _points_x + gx
+			_heights[i] = _base_heights[i]
+			_trail_mask[i] = 0
+			_trail_cover[i] = 0
+			_trail_noise[i] = 0
+			_trail_grass[i] = 0
+	_apply_modifiers(patch)
+	_redraw_chunks(grown)
+	_refresh_marker_rings(grown)
+
+
+## Back to the heights from before the preview, so the proper rebuild can see how far things
+## need to move
+func _end_preview() -> void:
+	if not _preview_start.is_empty():
+		_heights = _preview_start
+		_preview_start = PackedFloat32Array()
+
+
+## The ground as a new modifier would find it: with the modifiers before it, but no sculpting
+## or trails, which go on after. A marker put at this height starts level with it.
+func modifier_ground_at(x: float, z: float) -> float:
+	return _height_in(_pre_sculpt, x, z) if _pre_sculpt.size() == _heights.size() else get_height(x, z)
+
+
+func _rebuild_area(area: Rect2) -> void:
+	if _base_heights.size() != _heights.size() or _heights.is_empty():
+		generate()
+		return
+	area = _with_whole_edits(area, true)
 	# A little extra margin, so the ground's lighting stays seamless at the patch's edges
 	var patch := _grid_patch(area.grow(maxf(_cell_x, _cell_z) * 2.0))
 	if not patch.has_area():
@@ -1917,6 +1958,10 @@ func sculpt_ramp(a: Vector3, b: Vector3, radius: float, falloff: float) -> void:
 # standing on the ground wait for the end of the stroke.
 func _show_stroke(area: Rect2) -> void:
 	_stroke_area = area if not _stroke_area.has_area() else _stroke_area.merge(area)
+	_redraw_chunks(area)
+
+
+func _redraw_chunks(area: Rect2) -> void:
 	# (one cell further: a chunk's edge lighting depends on the ground just past it)
 	var margin := area.grow(maxf(_cell_x, _cell_z))
 	var first := chunk_at(margin.position.x, margin.position.y)

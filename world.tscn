@@ -87,12 +87,11 @@ strength = 0.3
 falloff = 0.53
 
 [node name="TerrainModifier2" parent="TerrainEdits/Modifiers" unique_id=1589117980 instance=ExtResource("7_pkg7o")]
-transform = Transform3D(1, 0, 0, 0, 0.099319786, -0.99505556, 0, 0.99505556, 0.099319786, 71.74018, 38.97113, 130.69963)
+transform = Transform3D(1, 0, 0, 0, 0.099319786, -0.99505556, 0, 0.99505556, 0.099319786, 71.74018, 46.270634, 130.69963)
 visible = false
 mode = 1
 radius = 13.5
 falloff = 0.45
-height = 8.0
 
 [node name="TerrainModifier3" parent="TerrainEdits/Modifiers" unique_id=2036727006 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 67.44976, 48.806957, 127.407196)
@@ -115,10 +114,9 @@ radius = 22.0
 falloff = 0.16
 
 [node name="TerrainModifier6" parent="TerrainEdits/Modifiers" unique_id=939329846 instance=ExtResource("7_pkg7o")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 84.24348, 34.982197, 64.89062)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 84.24348, 38.974382, 64.89062)
 visible = false
 mode = 1
-height = 8.0
 
 [node name="TerrainModifier7" parent="TerrainEdits/Modifiers" unique_id=2096843272 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 85.617195, 42.80164, 65.520645)
@@ -133,9 +131,9 @@ mode = 3
 radius = 9.5
 
 [node name="TerrainModifier9" parent="TerrainEdits/Modifiers" unique_id=1031173948 instance=ExtResource("7_pkg7o")]
-transform = Transform3D(0.67549, -0.39948365, 0.619779, 0.50904137, 0.86074203, 0, -0.53346986, 0.31549314, 0.7847764, 122.85055, 73.18921, 151.04367)
+transform = Transform3D(0.67549, -0.39948365, 0.619779, 0.50904137, 0.86074203, 0, -0.53346986, 0.31549314, 0.7847764, 122.85055, 64.322696, 151.04367)
 visible = false
-mode = 0
+mode = 1
 radius = 6.5
 strength = 0.15
 

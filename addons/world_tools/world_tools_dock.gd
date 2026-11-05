@@ -10,8 +10,8 @@ extends VBoxContainer
 const MODIFIER_SCENE := "res://terrain_modifier.tscn"
 const PATH_SCENE := "res://terrain_path.tscn"
 const ZONE_SCENE := "res://clear_zone.tscn"
-## The terrain modifier's modes, in the same order as its Mode setting
-const MODES := ["Lower", "Raise", "Flatten", "Smooth", "Squash"]
+## The terrain modifier's modes, by the number its Mode setting saves
+const MODES := {1: "Raise/Lower", 2: "Flatten", 3: "Smooth", 4: "Squash"}
 const FLATTEN := 2
 
 ## Where each kind lives in the world scene, under TerrainEdits. Modifiers come before paths,
@@ -89,7 +89,7 @@ func _init() -> void:
 	var grid := GridContainer.new()
 	grid.columns = 2
 	add_child(grid)
-	for mode in MODES.size():
+	for mode in MODES:
 		var label: String = MODES[mode]
 		_add_button(grid, label, "Add a %s terrain modifier where you next click the ground" % label, _add_modifier.bind(mode))
 	_add_button(grid, "Path", "Add a trail where you next click the ground", _add_path)
@@ -198,10 +198,8 @@ func _add_modifier(mode: int) -> void:
 		return
 	node.mode = mode
 	var label: String = MODES[mode]
-	node.name = label
+	node.name = label.replace("/", "")
 	if mode == FLATTEN:
-		# Level to the ground that's there, so a new Flatten doesn't dig a pit or build a mesa
-		node.level_to_ground = true
 		node.falloff = 0.7
 	_begin_placing(node, "Modifiers", "Add %s modifier" % label)
 
@@ -283,6 +281,10 @@ func _placing_input(camera: Camera3D, event: InputEvent) -> bool:
 				_placing = []
 				_status.text = ""
 				_eat_release = true
+				# A modifier starts level with the ground it acts on, so a Raise/Lower has no effect
+				# until it's moved
+				if waiting[0].has_method("uses_height"):
+					_placing_cursor.y = valley.modifier_ground_at(_placing_cursor.x, _placing_cursor.z)
 				_place(waiting[0], waiting[1], waiting[2], _placing_cursor)
 				_placing_cursor = null
 				redraw_overlay.call()
@@ -416,7 +418,7 @@ func _describe(node: Node) -> String:
 		return "%s   r %.0f m" % [node.name, node.radius]
 	if node.has_method("trail_points"):
 		return "%s   %d points" % [node.name, node.curve.point_count if node.curve else 0]
-	var mode: String = MODES[node.mode] if node.mode >= 0 and node.mode < MODES.size() else "?"
+	var mode: String = MODES.get(node.mode, "?")
 	return "%s   %s, r %.0f m" % [node.name, mode, node.radius]
 
 

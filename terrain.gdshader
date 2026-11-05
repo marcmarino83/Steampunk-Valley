@@ -1,3 +1,7 @@
+// Mountains: a map of where water would drain (baked by the Valley) lays green veins down the
+// real gullies, while ribs running down the faces carve the rock into light and shade, and the
+// rock turns pale higher up.
+//
 // Paints the ground: grass on gentle slopes, light dry soil on worn ground and bare patches,
 // dark damp soil in hollows and where grass gives way to rock, mossy forest floor under the trees,
 // wet mud by the water, sandy and gravel trails with soil along their edges, and on the
@@ -70,6 +74,22 @@ uniform float scree_below_rise = 0.7;
 uniform float scree_gully_depth = 0.8;
 group_uniforms;
 
+group_uniforms mountain_veins;
+// How much water would collect at each spot (the Valley fills this in)
+uniform sampler2D flow_map : hint_default_black, filter_linear, repeat_disable;
+// The green running down the gullies, in shade and in full growth
+uniform vec3 vein_dark : source_color = vec3(0.06, 0.13, 0.03);
+uniform vec3 vein_bright : source_color = vec3(0.34, 0.46, 0.08);
+// How little drainage it takes for green to start (smaller = more, finer veins)
+uniform float vein_from : hint_range(0.0, 1.0) = 0.33;
+// How much the ribs running down the faces darken their grooves and catch the light
+uniform float rib_contrast : hint_range(0.0, 1.0) = 0.95;
+uniform float rib_relief : hint_range(0.0, 3.0) = 1.8;
+// Rock turns pale from this height up, fully by 80 m higher
+uniform vec3 pale_rock : source_color = vec3(0.74, 0.70, 0.62);
+uniform float pale_from = 105.0;
+group_uniforms;
+
 // Height of the water surface; the valley sets this to match
 uniform float water_height = 42.0;
 // How far above the water the ground stays dark and muddy
@@ -108,6 +128,9 @@ uniform vec4 paint_info = vec4(0.0, 0.0, 1.0, 0.0);
 
 varying vec3 world_pos;
 varying vec3 world_normal;
+// How soft height blending is here: softer far away, where a texture's fine bumps average out
+// to nothing and would leave a hard edge between materials
+varying float blend_depth;
 
 // One layer of ground: its color, which way it faces (in the world), how rough and how
 // shadowed in its crevices it is, and how high its surface stands (for height blending)
@@ -122,6 +145,7 @@ struct Ground {
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	blend_depth = mix(height_blend_depth, 0.75, smoothstep(25.0, 160.0, length((VIEW_MATRIX * vec4(world_pos, 1.0)).xyz)));
 }
 
 // How much of `top` shows over `base`, when `amount` of it has been laid on (0 to 1). The
@@ -130,7 +154,7 @@ void vertex() {
 float height_mix(float base_height, float top_height, float amount) {
 	float a = base_height + (1.0 - amount);
 	float b = top_height + amount;
-	float level = max(a, b) - height_blend_depth;
+	float level = max(a, b) - blend_depth;
 	float wa = max(a - level, 0.0);
 	float wb = max(b - level, 0.0);
 	return wb / max(wa + wb, 0.0001);
@@ -265,6 +289,15 @@ vec3 rock_variety(vec3 albedo, float steep_face, float macro) {
 	return mix(albedo, varied, rock_variation);
 }
 
+// Ribs running down a face: sharp crests in a pattern stretched along the slope, at two sizes
+// (1 on a crest, 0 in a groove). Taken from whichever side the slope faces, so they run downhill
+// whichever way that is.
+float ribs(vec3 p, vec2 facing) {
+	float big = texture(detail_noise, vec2(p.z * 0.02, p.y * 0.0016)).r * facing.x + texture(detail_noise, vec2(p.x * 0.02, p.y * 0.0016)).r * facing.y;
+	float fine = texture(detail_noise, vec2(p.z * 0.07 + 0.31, p.y * 0.005)).r * facing.x + texture(detail_noise, vec2(p.x * 0.07 + 0.31, p.y * 0.005)).r * facing.y;
+	return (1.0 - smoothstep(0.0, 0.2, abs(big - 0.5))) * 0.65 + (1.0 - smoothstep(0.0, 0.2, abs(fine - 0.5))) * 0.35;
+}
+
 void fragment() {
 	vec3 n = normalize(world_normal);
 
@@ -274,6 +307,11 @@ void fragment() {
 	float small = texture(detail_noise, world_pos.xz * 0.31).r;
 	float between = texture(detail_noise, world_pos.xz * 0.11 + vec2(0.53, 0.19)).r;
 	float slope = degrees(acos(clamp(n.y, -1.0, 1.0)));
+	// The ribs running down the faces, which most of the mountain's patterns follow
+	vec2 facing = abs(n.xz) + vec2(0.001);
+	facing /= facing.x + facing.y;
+	float rib = ribs(world_pos, facing);
+	float groove = 1.0 - rib;
 
 	// ---- The automatic ground ----
 	Ground g = grass_layer(n, large, medium, small);
@@ -315,8 +353,8 @@ void fragment() {
 	float toward_rock = smoothstep(rock_begin_degrees - 7.0, rock_begin_degrees + 2.0, slope + wobble) * (1.0 - smoothstep(rock_begin_degrees + 4.0, rock_begin_degrees + 14.0, slope + wobble));
 	float in_hollow = smoothstep(0.8, 2.2, hollow) * smoothstep(6.0, 16.0, slope);
 	float by_water = smoothstep(water_height, water_height + 0.6, world_pos.y) * (1.0 - smoothstep(water_height + shore_width, water_height + shore_width + 3.0, world_pos.y));
-	float clumps = smoothstep(0.4, 0.6, texture(detail_noise, world_pos.xz * 0.05 + vec2(0.17, 0.61)).r);
-	float damp = clamp(max(max(toward_rock * 0.75, in_hollow * 0.8), by_water * 0.6) * mix(0.35, 1.2, clumps) + (between - 0.5) * 0.4 + (small - 0.5) * 0.2, 0.0, 1.0);
+	float clumps = smoothstep(0.25, 0.75, groove);
+	float damp = clamp(max(max(toward_rock * 0.6, in_hollow * 0.8), by_water * 0.6) * mix(0.3, 1.1, clumps) + (small - 0.5) * 0.15, 0.0, 1.0);
 	if (damp > 0.01) {
 		Ground dark = dark_soil_set >= 0 ? flat_set(dark_soil_set, n, large, medium) : dirt;
 		g = mix_ground(g, dark, height_mix(g.height, dark.height, damp));
@@ -407,7 +445,33 @@ void fragment() {
 		vec2 big_uv = (aw.y > max(aw.x, aw.z) ? world_pos.xz : (aw.x > aw.z ? world_pos.zy : world_pos.xy)) / (set_scale[big] * 9.0);
 		float macro = dot(texture(set_albedo, vec3(big_uv, float(big))).rgb, vec3(0.33));
 		rock.albedo = rock_variety(rock.albedo, smoothstep(35.0, 60.0, slope), macro);
+		// Ribs: dark grooves and bright crests, and pale stone on the crests higher up
+		float high = smoothstep(pale_from, pale_from + 80.0, world_pos.y + (large - 0.5) * 70.0);
+		rock.albedo *= mix(1.0, mix(0.38, 1.3, rib), rib_contrast);
+		// (keeping the stone's own light and dark, so it stays rock rather than paint)
+		float stone_tone = dot(rock.albedo, vec3(0.3, 0.55, 0.15));
+		rock.albedo = mix(rock.albedo, pale_rock * (0.35 + stone_tone * 1.6), high * smoothstep(0.42, 0.8, rib) * 0.85);
+		// ...and they catch the light, tilting the surface across the slope like real ribs
+		vec3 across = normalize(cross(n, vec3(0.0, 1.0, 0.0)) + vec3(0.0001));
+		float rib_next = ribs(world_pos + across * 2.0, facing);
+		rock.normal = normalize(rock.normal + across * (rib - rib_next) * rib_relief);
 		g = mix_ground(g, rock, height_mix(g.height, rock.height, rockiness));
+	}
+
+	// Green veins down the gullies and across the lower faces, breaking through the rock: where
+	// water collects, and in the grooves between the ribs, thinning out high up
+	float drainage = texture(flow_map, map_uv + (vec2(small, between) - 0.5) * 0.0018).r;
+	float altitude_fade = 1.0 - smoothstep(pale_from + 25.0, pale_from + 110.0, world_pos.y + (large - 0.5) * 60.0);
+	float vein = smoothstep(vein_from, vein_from + 0.3, drainage + hollow * 0.03 + (groove - 0.35) * 0.45) * altitude_fade;
+	// (boulders use this material too, and stand above the ground: they stay bare)
+	vein *= 1.0 - smoothstep(0.25, 0.6, world_pos.y - ground_height(world_pos.xz));
+	vein *= smoothstep(10.0, 22.0, slope) * smoothstep(water_height + 0.5, water_height + 2.5, world_pos.y) * (1.0 - churned) * (1.0 - smoothstep(1.2, 3.0, trail * 4.0));
+	if (vein > 0.01) {
+		// The forest floor's texture gives it detail; its light and dark become the greens
+		Ground veg = forest_set >= 0 ? flat_set(forest_set, n, large, medium) : grass_layer(n, large, medium, small);
+		float leafy = dot(veg.albedo, vec3(0.3, 0.55, 0.15));
+		veg.albedo = mix(vein_dark, vein_bright, smoothstep(0.05, 0.28, leafy + (large - 0.5) * 0.12)) * clamp(leafy / 0.2, 0.55, 1.1);
+		g = mix_ground(g, veg, height_mix(g.height, veg.height, vein));
 	}
 
 	// Trails. Their edges fray (more raggedly with the trail's Edge Noise turned up) through a

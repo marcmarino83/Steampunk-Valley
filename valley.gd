@@ -425,6 +425,7 @@ func generate() -> void:
 	# Reshape the ground with any terrain modifiers, before anything is built on it
 	_apply_modifiers()
 	_update_ground_texture()
+	_update_flow_map()
 	_load_paint()
 	# Set the crash site and other hand-placed things down on the final ground, and note
 	# where the wreck is so trees and boulders can keep clear of it
@@ -1546,6 +1547,7 @@ func _rebuild_area(area: Rect2) -> void:
 	_snap_hand_placed()
 	# Trees a trail cleared away take their forest floor with them
 	refresh_forest_floor()
+	_update_flow_map()
 	_refresh_marker_rings(area)
 
 
@@ -1603,6 +1605,74 @@ func _sample_layer(layer: PackedByteArray, x: float, z: float) -> float:
 	var top := lerpf(layer[i], layer[i + 1], tx)
 	var bottom := lerpf(layer[i + _points_x], layer[i + _points_x + 1], tx)
 	return lerpf(top, bottom, tz) / 255.0
+
+
+# Works out where water would drain across the ground, for the ground's paint: each spot passes
+# everything it collects to its lowest neighbor, highest ground first, so the numbers build up
+# along real gullies. A little noise on the heights lets them branch and wander. Done at half
+# the grid's detail, which is plenty for this and much quicker.
+func _update_flow_map() -> void:
+	if not _ground is ShaderMaterial or _heights.is_empty():
+		return
+	var w := (_points_x + 1) / 2
+	var h := (_points_z + 1) / 2
+	var noise := FastNoiseLite.new()
+	noise.seed = map_seed + 7
+	noise.frequency = 0.03
+	var levels := PackedFloat32Array()
+	levels.resize(w * h)
+	var lowest := INF
+	var highest := -INF
+	for z in h:
+		for x in w:
+			var level := _heights[(z * 2) * _points_x + x * 2] + noise.get_noise_2d(x * 4.0, z * 4.0) * 2.5
+			levels[z * w + x] = level
+			lowest = minf(lowest, level)
+			highest = maxf(highest, level)
+	# Highest first, without a full sort: into bins a quarter of a meter tall
+	var bins := int((highest - lowest) / 0.25) + 1
+	var counts := PackedInt32Array()
+	counts.resize(bins + 1)
+	for level in levels:
+		counts[bins - 1 - int((level - lowest) / 0.25) + 1] += 1
+	for b in bins:
+		counts[b + 1] += counts[b]
+	var order := PackedInt32Array()
+	order.resize(w * h)
+	for i in levels.size():
+		var b := bins - 1 - int((levels[i] - lowest) / 0.25)
+		order[counts[b]] = i
+		counts[b] += 1
+	var flow := PackedFloat32Array()
+	flow.resize(w * h)
+	flow.fill(1.0)
+	var water := water_height()
+	for i in order:
+		if levels[i] < water:
+			continue
+		var x := i % w
+		var z := i / w
+		var low_level := levels[i]
+		var low := -1
+		for dz in range(maxi(z - 1, 0), mini(z + 2, h)):
+			for dx in range(maxi(x - 1, 0), mini(x + 2, w)):
+				var other := dz * w + dx
+				if levels[other] < low_level:
+					low_level = levels[other]
+					low = other
+		if low >= 0:
+			flow[low] += flow[i]
+	# Stored by how many doublings it's collected, since big rivers would swamp small gullies
+	var bytes := PackedByteArray()
+	bytes.resize(w * h)
+	for i in flow.size():
+		bytes[i] = mini(int(log(flow[i]) / log(2.0) * 28.0), 255)
+	var image := Image.create_from_data(w, h, false, Image.FORMAT_R8, bytes)
+	var texture := _ground.get_shader_parameter("flow_map") as ImageTexture
+	if texture and texture.get_width() == w and texture.get_height() == h:
+		texture.update(image)
+	else:
+		_ground.set_shader_parameter("flow_map", ImageTexture.create_from_image(image))
 
 
 # Hands the ground's maps to its material: trail wear, how ragged each trail's edge is,

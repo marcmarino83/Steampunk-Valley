@@ -39,6 +39,7 @@ shader_parameter/gravel_set = -1
 shader_parameter/rock_set = -1
 shader_parameter/mossy_rock_set = -1
 shader_parameter/cliff_rock_set = -1
+shader_parameter/crag_rock_set = 3
 shader_parameter/scree_set = -1
 shader_parameter/path_set = -1
 shader_parameter/light_soil_set = -1

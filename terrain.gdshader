@@ -43,6 +43,7 @@ uniform int gravel_set = -1;
 uniform int rock_set = -1;
 uniform int mossy_rock_set = -1;
 uniform int cliff_rock_set = -1;
+uniform int crag_rock_set = 3;
 uniform int scree_set = -1;
 uniform int path_set = -1;
 uniform int light_soil_set = -1;
@@ -184,7 +185,7 @@ vec3 unpack_normal(vec4 texel) {
 // copy blended in by a slow pattern, and a gentle brightness wander, so the repeats don't
 // line up into a grid
 Ground flat_set(int layer, vec3 n, float large, float medium) {
-	float scale = set_scale[layer];
+	float scale = set_scale[layer] > 0.001 ? set_scale[layer] : 3.0;
 	float l = float(layer);
 	vec2 uv = world_pos.xz / scale;
 	vec2 uv2 = mat2(vec2(0.8, -0.6), vec2(0.6, 0.8)) * world_pos.xz / (scale * 1.7) + vec2(0.37, 0.71);
@@ -207,7 +208,7 @@ Ground triplanar_set(int layer, vec3 n) {
 	vec3 w = pow(abs(n), vec3(4.0));
 	w /= w.x + w.y + w.z;
 	float l = float(layer);
-	float scale = set_scale[layer];
+	float scale = set_scale[layer] > 0.001 ? set_scale[layer] : 4.0;
 	vec3 p = world_pos / scale;
 	vec3 uvx = vec3(p.zy, l);
 	vec3 uvy = vec3(p.xz, l);
@@ -329,7 +330,14 @@ void fragment() {
 	float between = texture(detail_noise, world_pos.xz * 0.11 + vec2(0.53, 0.19)).r;
 	float slope = degrees(acos(clamp(n.y, -1.0, 1.0)));
 
+	// Coordinates for ground and forest maps
+	vec2 map_uv = ((world_pos.xz - ground_map_info.xy) / ground_map_info.zw + 0.5) / vec2(textureSize(ground_map, 0));
+	float trail = texture(ground_map, map_uv).r;
+	float forest_raw = texture(forest_map, map_uv).r;
+	float forest_cover = smoothstep(0.08, 0.35, forest_raw);
+
 	// ---- The automatic ground ----
+	// Lush green grass covers the open valley meadows and rolling hills
 	Ground g = grass_layer(n, large, medium, small);
 	// (the plain dirt color stands in for the soils if their texture sets aren't there)
 	Ground dirt = dirt_layer(n, small);
@@ -354,39 +362,35 @@ void fragment() {
 	// the rock itself both follow this)
 	float wobble = ((medium - 0.5) * 1.2 + (between - 0.5) * 0.8 + (small - 0.5) * 0.3) * rock_edge_noise;
 
-	// Light, dry soil: bare patches in the meadows, and worn, exposed slopes and ridges (not the
-	// hollows, which stay damp). Broken up by multi-scale noise with soft transitions so soil
-	// shows through grass gradually by height rather than in sharp, blotchy shapes.
-	float patch_noise = medium * 0.75 + large * 0.25 + (between - 0.5) * 0.25 + (small - 0.5) * 0.12;
-	float patches = smoothstep(0.52, 0.74, patch_noise) * 0.85;
-	float worn_wobble = ((medium - 0.5) * 0.9 + (between - 0.5) * 0.55 + (small - 0.5) * 0.25) * 12.0;
-	float worn = smoothstep(20.0, 38.0, slope + worn_wobble) * (1.0 - smoothstep(-0.2, 0.6, hollow));
-	float dry = max(patches, worn * 0.85);
-	dry = clamp(dry + (small - 0.5) * 0.12 * smoothstep(0.02, 0.4, dry), 0.0, 1.0);
+	// Light, dry soil: bare dirt patches appear sparingly ONLY within forest areas under the trees.
+	// Open meadows and grassy hillsides stay clean, lush turf without blotchy patches.
+	// Only very steep crests right before bedrock begins show a subtle transition fringe.
+	float forest_patch_noise = texture(detail_noise, world_pos.xz * 0.038 + vec2(0.41, 0.83)).r * 0.65 + medium * 0.35;
+	float forest_dirt = smoothstep(0.68, 0.86, forest_patch_noise) * forest_cover * 0.65;
+	float steep_crest = smoothstep(rock_begin_degrees - 2.0, rock_begin_degrees + 5.0, slope + wobble * 0.5) * (1.0 - smoothstep(rock_begin_degrees + 3.0, rock_begin_degrees + 10.0, slope + wobble * 0.5));
+	float dry = max(forest_dirt, steep_crest * 0.35);
+	dry = clamp(dry + (small - 0.5) * 0.1 * smoothstep(0.02, 0.4, dry), 0.0, 1.0);
 	if (dry > 0.01) {
 		Ground light = light_soil_set >= 0 ? flat_set(light_soil_set, n, large, medium) : dirt;
 		g = mix_ground(g, light, height_mix(g.height, light.height, dry));
 	}
-	// Dark, damp soil: the band where the grass gives way to rock (so rocks rise out of earth,
-	// not straight out of the turf), the hollows and gullies, and the ground just above the
-	// shore. Broken up by multi-scale noise, and height blended, so it comes and goes in soft,
-	// uneven patches.
-	float toward_rock = smoothstep(rock_begin_degrees - 7.0, rock_begin_degrees + 2.0, slope + wobble) * (1.0 - smoothstep(rock_begin_degrees + 4.0, rock_begin_degrees + 14.0, slope + wobble));
-	float in_hollow = smoothstep(0.8, 2.2, hollow) * smoothstep(6.0, 16.0, slope);
-	float by_water = smoothstep(water_height, water_height + 0.6, world_pos.y) * (1.0 - smoothstep(water_height + shore_width, water_height + shore_width + 3.0, world_pos.y));
+
+	// Dark, damp soil: natural mud at the water's edge, shaded drainage hollows, and
+	// a subtle earthy base fringe where rock breaks through the ground.
+	float by_water = smoothstep(water_height, water_height + 0.6, world_pos.y) * (1.0 - smoothstep(water_height + shore_width, water_height + shore_width + 2.5, world_pos.y));
+	float in_hollow = smoothstep(1.2, 2.8, hollow) * smoothstep(8.0, 20.0, slope);
+	float forest_damp = smoothstep(0.6, 1.8, hollow) * forest_cover * 0.6;
+	float rock_base = steep_crest * 0.4;
 	float clump_sample = texture(detail_noise, world_pos.xz * 0.04 + vec2(0.17, 0.61)).r;
-	float clump_noise = clump_sample + (between - 0.5) * 0.35 + (small - 0.5) * 0.2;
-	float clumps = smoothstep(0.36, 0.64, clump_noise);
-	float damp = clamp(max(max(toward_rock * 0.6, in_hollow * 0.8), by_water * 0.6) * mix(0.35, 1.05, clumps) + (small - 0.5) * 0.15, 0.0, 1.0);
+	float clumps = smoothstep(0.38, 0.62, clump_sample + (small - 0.5) * 0.2);
+	float damp = clamp(max(max(by_water * 0.6, in_hollow * 0.75), max(forest_damp, rock_base)) * mix(0.4, 1.0, clumps), 0.0, 1.0);
 	if (damp > 0.01) {
 		Ground dark = dark_soil_set >= 0 ? flat_set(dark_soil_set, n, large, medium) : dirt;
 		g = mix_ground(g, dark, height_mix(g.height, dark.height, damp));
 	}
 
-	// Forest floor under the trees, with a ragged edge where the woods give way to grass
-	vec2 map_uv = ((world_pos.xz - ground_map_info.xy) / ground_map_info.zw + 0.5) / vec2(textureSize(ground_map, 0));
-	float trail = texture(ground_map, map_uv).r;
-	float woods = smoothstep(0.35, 0.8, texture(forest_map, map_uv).r + (medium - 0.5) * 0.3 + (between - 0.5) * 0.45 + (small - 0.5) * 0.15);
+	// Forest floor under the trees, with a soft, natural edge where woods give way to grass
+	float woods = smoothstep(0.20, 0.65, forest_raw + (medium - 0.5) * 0.25 + (between - 0.5) * 0.35 + (small - 0.5) * 0.15);
 	if (woods > 0.001 && forest_set >= 0) {
 		Ground forest = flat_set(forest_set, n, large, medium);
 		g = mix_ground(g, forest, height_mix(g.height, forest.height, woods));
@@ -456,6 +460,28 @@ void fragment() {
 			rock = mix_ground(rock, mossy, height_mix(rock.height, mossy.height, moss * 0.85));
 		}
 
+		// Dark crag rock (Rock006): dark charcoal slate, rugged fracture faces and rocky buttresses
+		// breaking up uniformity across mountain faces
+		int active_crag = crag_rock_set;
+		if (active_crag < 0) {
+			for (int r = 0; r < 16; r++) {
+				if (set_tint[r].a > 0.5 && r != rock_set && r != cliff_rock_set && r != scree_set) {
+					active_crag = r;
+					break;
+				}
+			}
+		}
+		if (active_crag >= 0) {
+			float crag_pat = texture(detail_noise, world_pos.xz * 0.009 + vec2(world_pos.y * 0.02, 0.71)).r;
+			float crag_bands = texture(detail_noise, world_pos.xz * 0.022 + vec2(0.19, world_pos.y * 0.015)).r;
+			float crag_mask = smoothstep(0.48, 0.78, crag_pat * 0.6 + crag_bands * 0.4 + (between - 0.5) * 0.25);
+			float crag_amount = crag_mask * smoothstep(cliff_degrees - 16.0, cliff_degrees + 4.0, slope + wobble * 0.4);
+			if (crag_amount > 0.01) {
+				Ground crag = triplanar_set(active_crag, n);
+				rock = mix_ground(rock, crag, height_mix(rock.height, crag.height, crag_amount * 0.85));
+			}
+		}
+
 		// Sheer cliff rock in swathes, crags, and geological strata across the steeper faces
 		float strata = texture(detail_noise, world_pos.xz * 0.006 + vec2(world_pos.y * 0.015, 0.33)).r;
 		float sheer = smoothstep(cliff_degrees - 14.0, cliff_degrees + 12.0, slope + wobble * 0.5 + (strata - 0.5) * 18.0);
@@ -521,33 +547,67 @@ void fragment() {
 		g = mix_ground(g, veg, height_mix(g.height, veg.height, vein));
 	}
 
-	// Trails. Their edges fray (more raggedly with the trail's Edge Noise turned up) through a
-	// fringe of trodden soil, light with patches of dark, that height blends into the ground
-	// around, so the trail sits in the ground rather than on it. On the trail itself: packed
-	// sandy ground with pebbles worn down the middle, and stony gravel kicked toward the edges
-	// and lying in patches along the way.
+	// Trails. Their edges fray naturally through a soft fringe of trodden soil, needles in forest,
+	// and grass that height blends seamlessly with the surrounding landscape.
+	// On the path itself: packed sandy earth with fine pebbles (path_set / Ground049C) worn down
+	// the center, and stony gravel (gravel_set / Ground108) kicked toward the flanks and scattered
+	// in natural wandering drifts, interlocked together by height blending.
 	if (trail > 0.001) {
 		float ragged = 0.2 + texture(edge_map, map_uv).r * 1.6;
-		float jitter = ((medium - 0.5) * 0.6 + (small - 0.5) * 0.35) * ragged;
-		float fringe = smoothstep(0.03, 0.45, trail + jitter * 0.8);
-		if (fringe > 0.01 && light_soil_set >= 0) {
-			Ground soil = flat_set(light_soil_set, n, large, medium);
-			float darker = smoothstep(0.45, 0.62, between + (large - 0.5) * 0.4);
-			if (darker > 0.01 && dark_soil_set >= 0) {
-				Ground dark = flat_set(dark_soil_set, n, large, medium);
-				soil = mix_ground(soil, dark, height_mix(soil.height, dark.height, darker * 0.7));
+		float edge_jitter = ((medium - 0.5) * 0.55 + (between - 0.5) * 0.35 + (small - 0.5) * 0.2) * ragged;
+
+		// Fringe along the path edges: trodden soil in meadows, forest needles/dark damp earth in woods
+		float fringe = smoothstep(0.02, 0.45, trail + edge_jitter * 0.8);
+		if (fringe > 0.01) {
+			Ground soil;
+			if (forest_cover > 0.2 && forest_set >= 0) {
+				// Woodland trail edges blend with forest floor and dark earth
+				soil = flat_set(forest_set, n, large, medium);
+				if (dark_soil_set >= 0) {
+					Ground dark = flat_set(dark_soil_set, n, large, medium);
+					soil = mix_ground(soil, dark, height_mix(soil.height, dark.height, 0.5));
+				}
+			} else if (light_soil_set >= 0) {
+				soil = flat_set(light_soil_set, n, large, medium);
+				float darker = smoothstep(0.42, 0.68, between + (large - 0.5) * 0.4);
+				if (darker > 0.01 && dark_soil_set >= 0) {
+					Ground dark = flat_set(dark_soil_set, n, large, medium);
+					soil = mix_ground(soil, dark, height_mix(soil.height, dark.height, darker * 0.6));
+				}
+			} else {
+				soil = dirt;
 			}
-			g = mix_ground(g, soil, height_mix(g.height, soil.height, fringe));
+			g = mix_ground(g, soil, height_mix(g.height, soil.height, fringe * 0.85));
 		}
-		float fray = smoothstep(0.3, 0.85, trail + jitter);
+
+		// The walkable path surface: seamlessly blending path_set (Ground049C) and gravel_set (Ground108)
+		float fray = smoothstep(0.18, 0.78, trail + edge_jitter);
 		if (fray > 0.001 && (path_set >= 0 || gravel_set >= 0)) {
-			float scattered = texture(detail_noise, world_pos.xz * 0.06 + vec2(0.29, 0.83)).r;
-			float stones = clamp(1.0 - smoothstep(0.7, 0.97, trail) + (smoothstep(0.4, 0.6, scattered) - 0.5) * 1.1, 0.0, 1.0);
-			Ground surface = path_set >= 0 ? flat_set(path_set, n, large, medium) : flat_set(gravel_set, n, large, medium);
-			if (path_set >= 0 && gravel_set >= 0 && stones > 0.01) {
+			Ground surface;
+			if (path_set >= 0 && gravel_set >= 0) {
+				// Multi-scale natural stone dispersion: broad wandering drifts, gravel clusters, and fine pebble scatter
+				float stone_wander = texture(detail_noise, world_pos.xz * 0.035 + vec2(0.31, 0.77)).r;
+				float stone_clump = texture(detail_noise, world_pos.xz * 0.09 + vec2(0.82, 0.23)).r;
+				float stone_grit = texture(detail_noise, world_pos.xz * 0.26 + vec2(0.14, 0.59)).r;
+				float stone_pattern = stone_wander * 0.45 + stone_clump * 0.40 + (stone_grit - 0.5) * 0.25;
+
+				// Center line wear: walking wears down the loose gravel into packed sandy ground down the center,
+				// while loose stones accumulate naturally towards the edges and in wandering patches
+				float center_wear = smoothstep(0.45, 0.88, trail);
+				float stone_mix = clamp((1.0 - center_wear * 0.65) * 0.65 + (stone_pattern - 0.45) * 0.65, 0.08, 0.92);
+
+				Ground packed = flat_set(path_set, n, large, medium);
 				Ground gravel = flat_set(gravel_set, n, large, medium);
-				surface = mix_ground(surface, gravel, height_mix(surface.height, gravel.height, stones));
+
+				// Physical height blend: the loose gravel stones sit in and poke through the packed sandy earth
+				surface = mix_ground(packed, gravel, height_mix(packed.height, gravel.height, stone_mix));
+			} else if (path_set >= 0) {
+				surface = flat_set(path_set, n, large, medium);
+			} else {
+				surface = flat_set(gravel_set, n, large, medium);
 			}
+
+			// Height-blend the path surface smoothly into the ground fringe and turf
 			g = mix_ground(g, surface, height_mix(g.height, surface.height, fray));
 		}
 	}

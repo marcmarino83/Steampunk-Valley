@@ -13,11 +13,6 @@ const NIGHT_CHILL = 1.5
 const DAY_WARMTH = 0.3
 ## Warmth gained per second standing by a lit campfire
 const FIRE_WARMTH = 6.0
-## Wood it takes to build a campfire
-const CAMPFIRE_COST = 3
-## ...or, with no wood (and no axe yet), sticks and stones to ring it
-const CAMPFIRE_STICKS = 6
-const CAMPFIRE_STONES = 2
 ## Inside a shelter, the cold gets to you only this fast (0.35 = a bit over a third as fast)
 const SHELTER_CHILL = 0.35
 ## What a dowsing rod is made of
@@ -28,22 +23,28 @@ const ROD_FIBER = 1
 const DOWSING_RANGE = 30.0
 const DOWSING_REVEAL = 60.0
 const DOWSING_COOLDOWN = 2.0
+## What a hammer is made of
+const HAMMER_COST := {"Sticks": 2, "Stone": 1, "Plant Fiber": 1}
+const HAMMER_COST_TEXT := "2 Sticks, 1 Stone, 1 Plant Fiber"
 
-const CAMPFIRE_SCENE = preload("res://campfire.tscn")
 const NOTE_PANEL_SCENE = preload("res://note_panel.tscn")
 
 @onready var camera: Camera3D = $Camera3D
 @onready var interact_ray: RayCast3D = $Camera3D/InteractRay
 @onready var prompt_label: Label = $HUD/Prompt
-@onready var inventory_label: Label = $HUD/Inventory
+@onready var held_items: Node3D = $Camera3D/HeldItems
 @onready var hunger_bar: ProgressBar = $HUD/Meters/HungerBar
 @onready var warmth_bar: ProgressBar = $HUD/Meters/WarmthBar
 @onready var status_label: Label = $HUD/Status
 @onready var inventory_screen: Control = $HUD/InventoryScreen
 @onready var hints_label: Label = $HUD/Hints
+@onready var build_menu: Control = $HUD/BuildMenu
+@onready var action_bar: ActionBar = $HUD/ActionBar
 
-## What you're carrying, like {"Scrap": 3, "Coal": 1}
+## Everything you own, like {"Scrap": 3, "Coal": 1}, including tools sitting on the action bar
 var inventory := {}
+## What's in your hand, or an empty string
+var held_item := ""
 ## 100 = full, 0 = starving
 var hunger := 100.0
 ## 100 = toasty, 0 = freezing
@@ -58,6 +59,8 @@ var _note_panel: Control
 var _dowse_wait := 0.0
 # Frames per second, in the top-right corner (F3 shows or hides it)
 var _fps_label: Label
+# Handles putting a building down, once one's been chosen from the build menu
+var _placer: BuildPlacer
 
 
 func _ready() -> void:
@@ -78,6 +81,12 @@ func _ready() -> void:
 	_fps_label.add_theme_constant_override("outline_size", 5)
 	_fps_label.visible = false
 	$HUD.add_child(_fps_label)
+	_placer = BuildPlacer.new()
+	add_child(_placer)
+	build_menu.chosen.connect(_on_buildable_chosen)
+	action_bar.held_changed.connect(_on_held_changed)
+	action_bar.contents_changed.connect(_refresh_inventory_display)
+	inventory_screen.tool_returned.connect(action_bar.remove)
 	_refresh_inventory_display()
 
 
@@ -99,17 +108,28 @@ func _process(delta: float) -> void:
 
 # The key hints in the corner only list what you can actually do right now
 func _update_hints() -> void:
+	if _placer.is_placing():
+		hints_label.text = "\n".join(_placer.hints())
+		return
 	var hints: PackedStringArray = []
 	if inventory.get("Berries", 0) > 0:
 		hints.append("[F] Eat Berries")
-	if inventory.get("Wood", 0) >= CAMPFIRE_COST:
-		hints.append("[B] Build Campfire (%d Wood)" % CAMPFIRE_COST)
-	elif inventory.get("Sticks", 0) >= CAMPFIRE_STICKS and inventory.get("Stone", 0) >= CAMPFIRE_STONES:
-		hints.append("[B] Build Campfire (%d Sticks, %d Stone)" % [CAMPFIRE_STICKS, CAMPFIRE_STONES])
-	if inventory.has("Dowsing Rod"):
+	if held_item == "Hammer":
+		hints.append("[Tab] Build")
+	elif action_bar.has_item("Hammer"):
+		hints.append("[%d] Hold Hammer" % action_bar.key_for("Hammer"))
+	elif not inventory.has("Hammer") and _has_items(HAMMER_COST):
+		hints.append("[H] Craft Hammer (%s)" % HAMMER_COST_TEXT)
+	if held_item == "Dowsing Rod":
 		hints.append("[R] Dowse for buried ore")
-	elif inventory.get("Sticks", 0) >= ROD_STICKS and inventory.get("Plant Fiber", 0) >= ROD_FIBER:
+	elif action_bar.has_item("Dowsing Rod"):
+		hints.append("[%d] Hold Dowsing Rod" % action_bar.key_for("Dowsing Rod"))
+	elif not inventory.has("Dowsing Rod") and inventory.get("Sticks", 0) >= ROD_STICKS and inventory.get("Plant Fiber", 0) >= ROD_FIBER:
 		hints.append("[C] Craft Dowsing Rod (%d Sticks, %d Plant Fiber)" % [ROD_STICKS, ROD_FIBER])
+	for item in inventory:
+		if ToolItem.exists_for(item) and not action_bar.has_item(item):
+			hints.append("[I] Drag tools onto the action bar to use them")
+			break
 	hints_label.text = "\n".join(hints)
 
 
@@ -117,6 +137,7 @@ func _update_hints() -> void:
 func read_note(title: String, text: String) -> void:
 	if inventory_screen.visible:
 		_toggle_inventory()
+	_placer.cancel()
 	_note_panel.open(title, text)
 
 
@@ -127,6 +148,26 @@ func _unhandled_input(event: InputEvent) -> void:
 		if close_key or event.is_action_pressed("ui_cancel"):
 			_note_panel.close()
 		return
+
+	# While the build menu is open, Tab or Esc closes it, and nothing else happens
+	if build_menu.visible:
+		var close_key: bool = event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_TAB
+		if close_key or event.is_action_pressed("ui_cancel"):
+			_close_build_menu()
+		return
+
+	# While placing a building, clicks, R and Esc belong to that
+	if _placer.is_placing() and _placer.handle_input(event):
+		return
+
+	# The mouse wheel moves along the action bar
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			action_bar.cycle(1)
+			return
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			action_bar.cycle(-1)
+			return
 
 	# Moving the mouse turns your body left/right and tilts your head up/down
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -153,16 +194,20 @@ func _unhandled_input(event: InputEvent) -> void:
 					target.interact(self)
 			KEY_F:
 				_eat()
-			KEY_B:
-				_build_campfire()
+			KEY_TAB:
+				_open_build_menu()
+			KEY_H:
+				_craft_hammer()
 			KEY_C:
 				_craft_dowsing_rod()
 			KEY_R:
 				_dowse()
 			KEY_F3:
 				_fps_label.visible = not _fps_label.visible
-			KEY_TAB, KEY_I:
+			KEY_I:
 				_toggle_inventory()
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9:
+				action_bar.press(event.keycode - KEY_1)
 
 
 func _physics_process(delta: float) -> void:
@@ -287,6 +332,58 @@ func _eat() -> void:
 		flash("You have nothing to eat")
 
 
+func _has_items(items: Dictionary) -> bool:
+	for item in items:
+		if inventory.get(item, 0) < items[item]:
+			return false
+	return true
+
+
+func _craft_hammer() -> void:
+	if inventory.has("Hammer"):
+		flash("You already have a hammer")
+		return
+	if not _has_items(HAMMER_COST):
+		flash("A hammer needs %s" % HAMMER_COST_TEXT)
+		return
+	for item in HAMMER_COST:
+		remove_item(item, HAMMER_COST[item])
+	add_item("Hammer", 1)
+	flash("Hammer made. Press I and drag it onto the action bar")
+
+
+# What's in your hand changed: swap the model in front of the view to match
+func _on_held_changed(item: String) -> void:
+	# Whatever you were placing needed the hammer you've just let go of
+	_placer.cancel()
+	held_item = item
+	for model in held_items.get_children():
+		model.queue_free()
+	var tool_item := ToolItem.find(item)
+	if tool_item and tool_item.held_scene:
+		held_items.add_child(tool_item.held_scene.instantiate())
+
+
+func _open_build_menu() -> void:
+	if inventory_screen.visible:
+		return
+	if held_item != "Hammer":
+		flash("Equip a hammer to build")
+		return
+	build_menu.show()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func _close_build_menu() -> void:
+	build_menu.hide()
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _on_buildable_chosen(buildable: Buildable) -> void:
+	_close_build_menu()
+	_placer.begin(buildable)
+
+
 func _craft_dowsing_rod() -> void:
 	if inventory.has("Dowsing Rod"):
 		flash("You already have a dowsing rod")
@@ -297,13 +394,17 @@ func _craft_dowsing_rod() -> void:
 	remove_item("Sticks", ROD_STICKS)
 	remove_item("Plant Fiber", ROD_FIBER)
 	add_item("Dowsing Rod", 1)
-	flash("Dowsing rod made. Press R to search for buried ore")
+	flash("Dowsing rod made. Press I and drag it onto the action bar")
 
 
 # Sends out a pulse from the dowsing rod. Every hidden deposit within range shows itself
 # for a while: a dig spot on the ground with a faint marker floating above it.
 func _dowse() -> void:
-	if not inventory.has("Dowsing Rod") or _dowse_wait > 0.0:
+	if held_item != "Dowsing Rod":
+		if inventory.has("Dowsing Rod"):
+			flash("Equip the dowsing rod to search for buried ore")
+		return
+	if _dowse_wait > 0.0:
 		return
 	_dowse_wait = DOWSING_COOLDOWN
 	var found := 0
@@ -343,49 +444,24 @@ func _show_pulse() -> void:
 	sweep.chain().tween_callback(pulse.queue_free)
 
 
-func _build_campfire() -> void:
-	# Logs if you have them; otherwise a ring of stones with sticks piled inside
-	if inventory.get("Wood", 0) >= CAMPFIRE_COST:
-		remove_item("Wood", CAMPFIRE_COST)
-	elif inventory.get("Sticks", 0) >= CAMPFIRE_STICKS and inventory.get("Stone", 0) >= CAMPFIRE_STONES:
-		remove_item("Sticks", CAMPFIRE_STICKS)
-		remove_item("Stone", CAMPFIRE_STONES)
-	else:
-		flash("A campfire needs %d Wood, or %d Sticks and %d Stone" % [CAMPFIRE_COST, CAMPFIRE_STICKS, CAMPFIRE_STONES])
-		return
-
-	# Set it down on the ground a couple of steps in front of you
-	var spot := global_position - global_basis.z * 2.0
-	var query := PhysicsRayQueryParameters3D.create(spot + Vector3.UP * 3.0, spot + Vector3.DOWN * 5.0)
-	query.exclude = [get_rid()]
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if hit:
-		spot = hit["position"]
-
-	var fire := CAMPFIRE_SCENE.instantiate()
-	get_parent().add_child(fire)
-	fire.global_position = spot
-	flash("Campfire built. Look at it and press E to light it with Plant Fiber")
-
-
 ## Opens the backpack (freeing the mouse) or closes it (grabbing the mouse again).
 ## The game keeps running either way.
 func _toggle_inventory() -> void:
+	_placer.cancel()
 	inventory_screen.visible = not inventory_screen.visible
+	action_bar.set_editing(inventory_screen.visible)
 	if inventory_screen.visible:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	else:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
-## Call this whenever the inventory changes, so the counter and the backpack both stay current
+## Call this whenever the inventory changes, so the action bar, the backpack and the build menu
+## all stay current. The backpack shows only what isn't on the bar.
 func _refresh_inventory_display() -> void:
-	inventory_screen.show_items(inventory)
-
-	if inventory.is_empty():
-		inventory_label.text = "Carrying nothing"
-		return
-	var lines: PackedStringArray = []
-	for item in inventory:
-		lines.append("%s: %d" % [item, inventory[item]])
-	inventory_label.text = "\n".join(lines)
+	action_bar.forget_missing(inventory)
+	var in_backpack := inventory.duplicate()
+	for item in action_bar.items:
+		in_backpack.erase(item)
+	inventory_screen.show_items(in_backpack)
+	build_menu.refresh(inventory)

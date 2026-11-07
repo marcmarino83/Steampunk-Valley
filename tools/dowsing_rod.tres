@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="ToolItem" format=3]
+
+[ext_resource type="Script" path="res://tool_item.gd" id="1_tool"]
+[ext_resource type="PackedScene" path="res://tools/dowsing_rod_held.tscn" id="2_held"]
+
+[resource]
+script = ExtResource("1_tool")
+item_name = "Dowsing Rod"
+held_scene = ExtResource("2_held")

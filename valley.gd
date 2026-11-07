@@ -594,6 +594,8 @@ func _build_chunk(cx: int, cz: int) -> void:
 	var chunk := StaticBody3D.new()
 	chunk.name = "Chunk_%d_%d" % [cx, cz]
 	chunk.position = corner
+	# So placing a building can tell the ground from things standing on it
+	chunk.add_to_group("terrain_ground")
 	add_child(chunk)
 
 	var mesh := MeshInstance3D.new()

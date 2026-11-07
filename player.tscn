@@ -2,6 +2,8 @@
 
 [ext_resource type="Script" uid="uid://desoyuy7a8elk" path="res://player.gd" id="1_4flbx"]
 [ext_resource type="PackedScene" path="res://inventory_screen.tscn" id="2_inv"]
+[ext_resource type="PackedScene" path="res://build_menu.tscn" id="3_build"]
+[ext_resource type="PackedScene" path="res://action_bar.tscn" id="4_bar"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 
@@ -43,6 +45,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
 [node name="InteractRay" type="RayCast3D" parent="Camera3D" unique_id=126087239]
 target_position = Vector3(0, 0, -3)
 
+[node name="HeldItems" type="Node3D" parent="Camera3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, -0.27, -0.55)
+
 [node name="HUD" type="CanvasLayer" parent="." unique_id=1534333101]
 
 [node name="Crosshair" type="Label" parent="HUD" unique_id=886388623]
@@ -73,17 +78,6 @@ theme_override_font_sizes/font_size = 20
 text = "[E] Gather"
 horizontal_alignment = 1
 vertical_alignment = 1
-
-[node name="Inventory" type="Label" parent="HUD" unique_id=158166589]
-offset_left = 16.0
-offset_top = 16.0
-offset_right = 316.0
-offset_bottom = 116.0
-theme_override_colors/font_color = Color(0.94, 0.8, 0.55, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 6
-theme_override_font_sizes/font_size = 22
-text = "Carrying nothing"
 
 [node name="Meters" type="VBoxContainer" parent="HUD"]
 anchors_preset = 2
@@ -141,18 +135,21 @@ anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = -420.0
-offset_top = -70.0
+offset_top = -150.0
 offset_right = -16.0
-offset_bottom = -16.0
+offset_bottom = -96.0
 grow_horizontal = 0
 grow_vertical = 0
 theme_override_colors/font_color = Color(0.94, 0.8, 0.55, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 16
-text = "[F] Eat Berries
-[B] Build Campfire (3 Wood)"
+text = "[F] Eat Berries"
 horizontal_alignment = 2
 vertical_alignment = 2
 
 [node name="InventoryScreen" parent="HUD" instance=ExtResource("2_inv")]
+
+[node name="ActionBar" parent="HUD" instance=ExtResource("4_bar")]
+
+[node name="BuildMenu" parent="HUD" instance=ExtResource("3_build")]

@@ -182,14 +182,18 @@ The first-era survival loop is playable: walk, gather, chop, eat, build a fire, 
 - Day/night cycle with warm sunsets and dark nights
 - Real-world heightmap terrain in chunks, with water filling the low ground
 - Visual pass: slope-based ground coloring, grass, rocks, improved trees, water shader, haze
-- Gathering scrap, coal, and berries with E, with an on-screen counter
+- Gathering scrap, coal, and berries with E
 - Tree chopping: 4 hits, the tree falls, a stump remains, +3 wood
-- Hunger and warmth meters; eat berries with F; build a campfire with B for 3 wood
-- Inventory screen on Tab with 20 slots
+- Hunger and warmth meters; eat berries with F
+- Inventory screen on I with 20 slots
+- Action bar: nine slots along the bottom, selected with 1-9 or the mouse wheel, showing the held item in front of the view. Crafted tools go into the inventory and are dragged onto the bar and back; items on the bar still count as owned. Each tool is a resource file in `tools/` (with a held model), which the bar finds by itself
+- Hammer, crafted with H (2 sticks, 1 stone, 1 plant fiber); dowsing rod, crafted with C, dowses with R while held
+- Build menu on Tab while holding the hammer; each buildable is a resource file in `buildables/`, which the menu lists by itself
+- Placing a building: a see-through preview on the ground, green or red (too steep, in water, or overlapping something); left-click places and pays, R rotates, right-click or Esc cancels
+- Campfire: 3 wood, or 6 sticks and 2 stone
 
 **Known issues**
 
-- Eat and campfire prompts show even when the player has no berries or wood
 - Some rocks float or sit sideways on steep slopes
 - Hills look domed and rocky; try a lower height scale for true rolling hills
 - The near map edge ends in a cut-off wall

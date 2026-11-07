@@ -1,4 +1,8 @@
+class_name InventorySlot
 extends PanelContainer
+
+## A tool from the action bar was dragged back onto this slot
+signal tool_returned(item: String)
 
 ## Placeholder colors for items that don't have an icon image yet.
 ## Anything not listed here shows up gray.
@@ -12,6 +16,7 @@ const ITEM_COLORS := {
 	"Sticks": Color(0.52, 0.37, 0.2),
 	"Tin Ore": Color(0.8, 0.82, 0.86),
 	"Dowsing Rod": Color(0.88, 0.66, 0.28),
+	"Hammer": Color(0.68, 0.7, 0.74),
 	"Iron Ore": Color(0.5, 0.22, 0.12),
 	"Copper Ore": Color(0.2, 0.62, 0.5),
 	"Mushrooms": Color(0.78, 0.6, 0.42),
@@ -29,9 +34,29 @@ const ITEM_ICONS := {
 @onready var name_label: Label = $VBox/NameLabel
 @onready var count_label: Label = $VBox/CountLabel
 
+var _item := ""
+
+
+## What follows the mouse while dragging this item
+static func make_drag_preview(item: String) -> Control:
+	var square: Control
+	if ITEM_ICONS.has(item):
+		square = TextureRect.new()
+		square.texture = ITEM_ICONS[item]
+		square.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	else:
+		square = ColorRect.new()
+		square.color = ITEM_COLORS.get(item, Color(0.6, 0.6, 0.6))
+	square.size = Vector2(40, 40)
+	square.position = -square.size * 0.5
+	var preview := Control.new()
+	preview.add_child(square)
+	return preview
+
 
 ## Shows an item and how many you have in this slot
 func set_item(item: String, count: int) -> void:
+	_item = item
 	name_label.text = item
 	count_label.text = "x%d" % count
 	if ITEM_ICONS.has(item):
@@ -46,9 +71,26 @@ func set_item(item: String, count: int) -> void:
 
 ## Makes this an empty slot
 func clear() -> void:
+	_item = ""
 	name_label.text = ""
 	count_label.text = ""
 	icon.hide()
 	# Keep the (invisible) square so empty slots stay the same size as full ones
 	swatch.color = Color.TRANSPARENT
 	swatch.show()
+
+
+# Only tools can be dragged out of the backpack, onto the action bar
+func _get_drag_data(_at_position: Vector2) -> Variant:
+	if not ToolItem.exists_for(_item):
+		return null
+	set_drag_preview(make_drag_preview(_item))
+	return {"tool_item": _item, "from_bar": false}
+
+
+func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
+	return data is Dictionary and data.get("from_bar", false)
+
+
+func _drop_data(_at_position: Vector2, data: Variant) -> void:
+	tool_returned.emit(data["tool_item"])

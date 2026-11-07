@@ -38,6 +38,10 @@ var _patch_noise := FastNoiseLite.new()
 var _rock_multimesh: MultiMesh
 var _rock_cells := {}
 var _rock_hits := {}
+# Rocks being mined or mined out: how each one stood before the first hit, to come back to
+var _rock_whole := {}
+# Rocks taken away because a building went up over them; these never come back
+var _rock_buried := {}
 
 
 func _ready() -> void:
@@ -227,12 +231,54 @@ func mine_rock(index: int) -> void:
 	var place := _rock_multimesh.get_instance_transform(index)
 	if not _rock_hits.has(index):
 		_rock_hits[index] = mini(2 + int(place.basis.get_scale().x), ROCK_MOST_HITS)
+		_rock_whole[index] = place
 	_rock_hits[index] -= 1
 	if _rock_hits[index] <= 0:
 		_rock_hits.erase(index)
 		_rock_multimesh.set_instance_transform(index, place.scaled_local(Vector3.ZERO))
+		# It comes back whole after the Valley's Boulder Respawn Days
+		valley.scattered_rock_mined(index, to_global(place.origin))
 	else:
 		_rock_multimesh.set_instance_transform(index, place.scaled_local(Vector3.ONE * ROCK_HIT_SHRINK))
+
+
+## A mined-out rock back as it was, unless a building now stands over it. True if it came back.
+func restore_rock(index: int) -> bool:
+	if _rock_multimesh == null or not _rock_whole.has(index):
+		return false
+	var place: Transform3D = _rock_whole[index]
+	if _rock_buried.has(index) or valley.is_under_building(place.origin.x, place.origin.z):
+		return false
+	_rock_whole.erase(index)
+	_rock_multimesh.set_instance_transform(index, place)
+	return true
+
+
+## A scattered rock, mined out (used when loading a save)
+func set_rock_mined(index: int) -> void:
+	if _rock_multimesh == null or index < 0 or index >= _rock_multimesh.instance_count:
+		return
+	var place := _rock_multimesh.get_instance_transform(index)
+	if not _rock_whole.has(index):
+		_rock_whole[index] = place
+	_rock_hits.erase(index)
+	_rock_multimesh.set_instance_transform(index, place.scaled_local(Vector3.ZERO))
+
+
+## Takes away the scattered rocks whose middle is within `reach` of a spot (x, z): a building has
+## gone up over them. They don't come back.
+func hide_rocks_in(middle: Vector2, reach: float) -> void:
+	if _rock_multimesh == null:
+		return
+	var center := _rock_cell(Vector3(middle.x, 0.0, middle.y))
+	var cells := ceili(reach / ROCK_CELL_SIZE) + 1
+	for dz in range(-cells, cells + 1):
+		for dx in range(-cells, cells + 1):
+			for i in _rock_cells.get(center + Vector2i(dx, dz), PackedInt32Array()):
+				var place := _rock_multimesh.get_instance_transform(i)
+				if Vector2(place.origin.x, place.origin.z).distance_to(middle) < reach:
+					_rock_buried[i] = true
+					_rock_multimesh.set_instance_transform(i, place.scaled_local(Vector3.ZERO))
 
 
 func _rock_cell(spot: Vector3) -> Vector2i:

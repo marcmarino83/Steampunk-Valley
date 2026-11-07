@@ -7,12 +7,25 @@ extends ResourceNode
 @export var tree_height := 8.0
 @export var trunk_radius := 0.3
 
+## How big the sapling is, compared to the full tree, while it grows back from the stump
+## (when the sapling appears is the valley's TREE_SAPLING_AT)
+const SAPLING_SIZE := 0.3
+
 @onready var top: Node3D = $Top
 @onready var trunk_collision: CollisionShape3D = $TrunkCollision
+
+# How it stood before it was felled, to grow back to
+var _full_gathers := 0
+var _top_transform := Transform3D.IDENTITY
 
 
 func _init() -> void:
 	required_tool = "Axe"
+
+
+func _ready() -> void:
+	_full_gathers = gathers_left
+	_top_transform = top.transform
 
 
 func get_prompt() -> String:
@@ -48,9 +61,38 @@ func _topple() -> void:
 	# The stump stays solid, but you can walk where the trunk was
 	trunk_collision.set_deferred("disabled", true)
 
-	# Tip over slowly at first, then crash down, lie there a moment, then vanish
+	# Tip over slowly at first, then crash down, lie there a moment, then vanish (kept, hidden, to
+	# grow back from the stump later)
 	_tween.tween_property(top, "rotation:x", deg_to_rad(85), 1.0) \
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	_tween.tween_interval(0.8)
 	_tween.tween_property(top, "scale", Vector3.ZERO, 0.4)
-	_tween.tween_callback(top.queue_free)
+	_tween.tween_callback(_felled)
+
+
+# The stump grows a sapling partway through the Valley's Tree Regrow Days, then a full tree
+func _felled() -> void:
+	top.visible = false
+	var valley = get_tree().get_first_node_in_group("valley")
+	if valley:
+		valley.tree_felled(self)
+
+
+## How far the tree has grown back: "stump" (just felled), "sapling" or "full". The valley calls
+## this as it regrows, and when loading a save.
+func set_stage(stage: String) -> void:
+	match stage:
+		"stump":
+			top.visible = false
+			trunk_collision.set_deferred("disabled", true)
+			gathers_left = 0
+		"sapling":
+			top.transform = Transform3D(_top_transform.basis.scaled(Vector3.ONE * SAPLING_SIZE), _top_transform.origin)
+			top.visible = true
+			trunk_collision.set_deferred("disabled", true)
+			gathers_left = 0
+		"full":
+			top.transform = _top_transform
+			top.visible = true
+			trunk_collision.set_deferred("disabled", false)
+			gathers_left = _full_gathers

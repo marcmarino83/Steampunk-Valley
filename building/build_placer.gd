@@ -16,6 +16,8 @@ const MAX_OVERLAPS := 16
 ## Every building keeps the grass and ferns out of its footprint, plus this much around it (m)
 const CLEAR_MARGIN := 0.5
 const CLEAR_ZONE_SCENE := preload("res://building/clear_zone.tscn")
+# Marks a building with the buildable it was made from (its resource path)
+const BUILDABLE_META := &"buildable"
 
 var _player: CharacterBody3D
 var _buildable: Buildable
@@ -30,6 +32,7 @@ var _problem := ""
 func _ready() -> void:
 	_player = get_parent()
 	set_physics_process(false)
+	add_to_group("saveable")
 
 
 func is_placing() -> bool:
@@ -165,11 +168,7 @@ func _place() -> void:
 	for item in cost:
 		_player.remove_item(item, cost[item])
 
-	var built: Node3D = _buildable.scene.instantiate()
-	_player.get_parent().add_child(built)
-	built.global_position = _preview.global_position
-	built.rotation.y = _turn
-	_clear_plants_under(built, _buildable.footprint_radius + CLEAR_MARGIN)
+	build(_buildable, _preview.global_position, _turn)
 	if not _buildable.placed_message.is_empty():
 		_player.flash(_buildable.placed_message)
 	var built_name := _buildable.display_name
@@ -177,14 +176,66 @@ func _place() -> void:
 	_player.report_progress("Build", built_name)
 
 
-# Puts a Clear Zone under a new building that keeps only grass and ferns out (trees, resources
-# and boulders are left alone), and has the valley regrow the grass around it
+## Puts a building in the world (for placing it, and when loading a save): the scene, where and
+## which way it faces, and the Clear Zone under it. Every building is kept in the "buildings"
+## group, and remembers which buildable it is, so the save can list them.
+func build(buildable: Buildable, where: Vector3, turn: float) -> Node3D:
+	var built: Node3D = buildable.scene.instantiate()
+	built.set_meta(BUILDABLE_META, buildable.resource_path)
+	built.add_to_group("buildings")
+	_player.get_parent().add_child(built)
+	built.global_position = where
+	built.rotation.y = turn
+	_clear_plants_under(built, buildable.footprint_radius + CLEAR_MARGIN)
+	return built
+
+
+func save_key() -> String:
+	return "buildings"
+
+
+func save_priority() -> int:
+	return 30
+
+
+## Every building: which buildable, where, which way, and its own state if it keeps any (a
+## building with save_data() and load_data() of its own, like the campfire, adds what it needs)
+func save_data() -> Dictionary:
+	var list: Array = []
+	for built in get_tree().get_nodes_in_group("buildings"):
+		var entry := {
+			"buildable": built.get_meta(BUILDABLE_META, ""),
+			"position": SaveGame.from_vector(built.global_position),
+			"turn": built.rotation.y,
+		}
+		if built.has_method("save_data"):
+			entry["state"] = built.save_data()
+		list.append(entry)
+	return {"list": list}
+
+
+func load_data(data: Dictionary) -> void:
+	for built in get_tree().get_nodes_in_group("buildings"):
+		built.queue_free()
+	for entry in data.get("list", []):
+		var buildable := load(str(entry.get("buildable", ""))) as Buildable
+		if buildable == null:
+			continue
+		var built := build(buildable, SaveGame.to_vector(entry.get("position")), float(entry.get("turn", 0.0)))
+		if built.has_method("load_data") and entry.has("state"):
+			built.load_data(entry["state"])
+
+
+# Puts a Clear Zone under a new building that keeps grass, ferns, scattered boulders and small
+# painted decorations out (trees and resources are left alone: they're solid, so they'd have
+# stopped the building being placed), and has the valley clear them away. Nothing respawns in it.
 func _clear_plants_under(built: Node3D, radius: float) -> void:
 	var zone: Node3D = CLEAR_ZONE_SCENE.instantiate()
 	zone.clear_trees = false
 	zone.clear_resources = false
-	zone.clear_rocks = false
+	zone.clear_rocks = true
 	zone.clear_plants = true
+	zone.set_meta(&"under_building", true)
 	zone.radius = maxf(radius, 1.0)
 	built.add_child(zone)
 	var valley = get_tree().get_first_node_in_group("valley")

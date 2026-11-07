@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="ToolItem" format=3]
 
-[ext_resource type="Script" path="res://tool_item.gd" id="1_tool"]
+[ext_resource type="Script" path="res://tools/tool_item.gd" id="1_tool"]
 [ext_resource type="PackedScene" path="res://tools/pickaxe_placeholder.tscn" id="2_model"]
 
 [resource]

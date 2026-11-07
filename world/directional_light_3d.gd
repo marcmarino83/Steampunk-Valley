@@ -13,10 +13,36 @@ extends DirectionalLight3D
 
 ## 1 in full daylight, 0 at night. The player reads this to know how cold it is.
 var daylight := 1.0
+## How many midnights have passed since the game began
+var day := 0
 
 
 func _ready() -> void:
 	add_to_group("sun")
+	if not Engine.is_editor_hint():
+		add_to_group("saveable")
+
+
+## Days since the game began, with the part of today that's gone: 2.5 is noon on the third day
+func total_days() -> float:
+	return day + time_of_day
+
+
+func save_key() -> String:
+	return "clock"
+
+
+func save_priority() -> int:
+	return 0
+
+
+func save_data() -> Dictionary:
+	return {"time_of_day": time_of_day, "day": day}
+
+
+func load_data(data: Dictionary) -> void:
+	time_of_day = float(data.get("time_of_day", time_of_day))
+	day = int(data.get("day", day))
 
 
 ## How many real seconds the day lasts (sunrise to sunset)
@@ -38,7 +64,10 @@ func _process(delta: float) -> void:
 	# Move time forward: the half of the clock from sunrise to sunset takes day_minutes, the other
 	# half takes night_minutes. It wraps back to midnight after a full day.
 	var is_day := time_of_day >= 0.25 and time_of_day < 0.75
-	time_of_day = fmod(time_of_day + delta * 0.5 / (day_seconds() if is_day else night_seconds()), 1.0)
+	var later := time_of_day + delta * 0.5 / (day_seconds() if is_day else night_seconds())
+	if later >= 1.0:
+		day += 1
+	time_of_day = fmod(later, 1.0)
 
 	# Swing the sun around: level at sunrise, straight down at noon
 	rotation.x = -(time_of_day - 0.25) * TAU

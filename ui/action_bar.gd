@@ -37,6 +37,29 @@ func _ready() -> void:
 	name_label.modulate.a = 0.0
 	set_editing(false)
 	_update()
+	add_to_group("saveable")
+
+
+func save_key() -> String:
+	return "action_bar"
+
+
+# After the player, so the tools it lists are already back in the inventory
+func save_priority() -> int:
+	return 50
+
+
+func save_data() -> Dictionary:
+	return {"items": Array(items), "selected": selected}
+
+
+func load_data(data: Dictionary) -> void:
+	var saved: Array = data.get("items", [])
+	for i in SLOT_COUNT:
+		items[i] = str(saved[i]) if i < saved.size() else ""
+	selected = clampi(int(data.get("selected", -1)), -1, SLOT_COUNT - 1)
+	_update()
+	contents_changed.emit()
 
 
 ## The item in your hand, or an empty string

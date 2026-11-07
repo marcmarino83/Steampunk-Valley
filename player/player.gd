@@ -34,7 +34,8 @@ const SLEEP_DARK := 0.6
 ## How long a "New blueprint" pop-up stays up before fading, in seconds
 const BLUEPRINT_POPUP_TIME := 3.0
 
-const NOTE_PANEL_SCENE = preload("res://note_panel.tscn")
+const NOTE_PANEL_SCENE = preload("res://ui/note_panel.tscn")
+const PAUSE_MENU_SCENE = preload("res://ui/pause_menu.tscn")
 
 @onready var camera: Camera3D = $Camera3D
 @onready var interact_ray: RayCast3D = $Camera3D/InteractRay
@@ -78,6 +79,10 @@ var _blueprint_tween: Tween
 # Sleeping: the black screen it fades to, and whether you're asleep right now
 var _fade: ColorRect
 var _sleeping := false
+# The titles of notes and logs you've read
+var _notes_read := {}
+# Esc's menu: Resume, Save, Load, Quit
+var _pause_menu: Control
 
 
 func _ready() -> void:
@@ -115,6 +120,8 @@ func _ready() -> void:
 	_fade.modulate.a = 0.0
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	$HUD.add_child(_fade)
+	_pause_menu = PAUSE_MENU_SCENE.instantiate()
+	$HUD.add_child(_pause_menu)
 	_placer = BuildPlacer.new()
 	add_child(_placer)
 	if IronTier.ENABLED:
@@ -126,10 +133,88 @@ func _ready() -> void:
 	inventory_screen.tool_returned.connect(action_bar.remove)
 	inventory_screen.crafting.craft_requested.connect(craft)
 	_refresh_inventory_display()
+	add_to_group("saveable")
+	SaveGame.world_ready()
 
 
 func _exit_tree() -> void:
 	ToolItem.forget_all()
+	SaveGame.world_closed()
+
+
+func save_key() -> String:
+	return "player"
+
+
+# After the world, the respawns and the buildings
+func save_priority() -> int:
+	return 40
+
+
+## Where you are and which way you face, how you're doing, what you carry, the blueprints you've
+## unlocked, the notes you've read, and the tools you've dropped on the ground
+func save_data() -> Dictionary:
+	var dropped: Array = []
+	for tool_on_ground in get_tree().get_nodes_in_group("dropped_tools"):
+		dropped.append({
+			"item": tool_on_ground.item(),
+			"position": SaveGame.from_vector(tool_on_ground.global_position),
+			"turn": tool_on_ground.rotation.y,
+		})
+	return {
+		"position": SaveGame.from_vector(global_position),
+		"turn": rotation.y,
+		"look": camera.rotation.x,
+		"hunger": hunger,
+		"warmth": warmth,
+		"inventory": inventory.duplicate(),
+		"unlocked": _unlocked.keys().map(func(blueprint): return blueprint.resource_path),
+		"notes_read": _notes_read.keys(),
+		"dropped_tools": dropped,
+	}
+
+
+func load_data(data: Dictionary) -> void:
+	global_position = SaveGame.to_vector(data.get("position", SaveGame.from_vector(global_position)))
+	velocity = Vector3.ZERO
+	rotation.y = float(data.get("turn", rotation.y))
+	camera.rotation.x = float(data.get("look", 0.0))
+	hunger = float(data.get("hunger", hunger))
+	warmth = float(data.get("warmth", warmth))
+	inventory.clear()
+	var saved_inventory: Dictionary = data.get("inventory", {})
+	for item in saved_inventory:
+		inventory[item] = int(saved_inventory[item])
+	var unlocked_paths: Array = data.get("unlocked", [])
+	_unlocked.clear()
+	for blueprint in _all_blueprints():
+		if blueprint.resource_path in unlocked_paths:
+			_unlocked[blueprint] = true
+	_notes_read.clear()
+	for title in data.get("notes_read", []):
+		_notes_read[str(title)] = true
+	for tool_on_ground in get_tree().get_nodes_in_group("dropped_tools"):
+		tool_on_ground.queue_free()
+	for entry in data.get("dropped_tools", []):
+		var tool_item := ToolItem.find(str(entry.get("item", "")))
+		if tool_item:
+			var dropped := DroppedTool.create(tool_item)
+			get_parent().add_child(dropped)
+			dropped.global_position = SaveGame.to_vector(entry.get("position"))
+			dropped.rotation.y = float(entry.get("turn", 0.0))
+	_refresh_inventory_display()
+
+
+## True if you've read the note or log with this title
+func has_read(title: String) -> bool:
+	return _notes_read.has(title)
+
+
+func _all_blueprints() -> Array[Blueprint]:
+	var blueprints: Array[Blueprint] = []
+	blueprints.append_array(build_menu.all_buildables())
+	blueprints.append_array(inventory_screen.crafting.all_recipes())
+	return blueprints
 
 
 func _process(delta: float) -> void:
@@ -177,6 +262,7 @@ func read_note(title: String, text: String) -> void:
 	if inventory_screen.visible:
 		_toggle_inventory()
 	_placer.cancel()
+	_notes_read[title] = true
 	_note_panel.open(title, text)
 
 
@@ -224,7 +310,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if inventory_screen.visible:
 			_toggle_inventory()
 		else:
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+			get_viewport().set_input_as_handled()
+			_pause_menu.open()
+			return
 	elif event is InputEventMouseButton and event.pressed and not inventory_screen.visible:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -308,11 +396,8 @@ func is_unlocked(blueprint: Blueprint) -> bool:
 ## Something was crafted, gathered or built ("Craft", "Gather" or "Build", and its name). Unlocks
 ## any blueprint waiting on exactly that, with a pop-up for each.
 func report_progress(action: String, item: String) -> void:
-	var blueprints: Array[Blueprint] = []
-	blueprints.append_array(build_menu.all_buildables())
-	blueprints.append_array(inventory_screen.crafting.all_recipes())
 	var learned: PackedStringArray = []
-	for blueprint in blueprints:
+	for blueprint in _all_blueprints():
 		if not _unlocked.has(blueprint) and blueprint.unlocks_on(action, item):
 			_unlocked[blueprint] = true
 			learned.append(blueprint.display_name)
@@ -354,7 +439,9 @@ func sleep(where: Vector3) -> void:
 		warmth = 100.0 if warm else COLD_WAKE_WARMTH)
 	night.tween_interval(SLEEP_DARK)
 	night.tween_property(_fade, "modulate:a", 0.0, SLEEP_FADE)
-	night.tween_callback(func(): _sleeping = false)
+	night.tween_callback(func():
+		_sleeping = false
+		SaveGame.save_now())
 
 
 ## Takes items out of your pockets. Returns false (and takes nothing) if you don't have enough.

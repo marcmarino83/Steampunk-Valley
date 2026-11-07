@@ -4,21 +4,25 @@ extends StaticBody3D
 ## plant fiber as tinder, then keep it going by feeding it: sticks burn quickly, wood lasts
 ## longer, and coal lasts longest and burns hottest, warming you from further away.
 
-## Seconds of fuel the fire is built with, ready to light
-@export var starting_fuel := 120.0
-## Seconds each piece of fuel adds
-@export var stick_burn := 20.0
-@export var wood_burn := 75.0
-@export var coal_burn := 150.0
-## The most fuel the fire can hold at once, in seconds
-@export var max_fuel := 600.0
+## Burn times are counted in nights, so they follow the sun's Night Minutes: change how long the
+## night lasts and every fire changes with it. With a 12-minute night, 1.0 is 12 minutes.
+## The most fuel the fire can hold: a full fire lasts a little longer than a night
+@export var max_fuel_nights := 1.25
+## The fuel the fire is built with, ready to light
+@export var starting_fuel_nights := 0.25
+## How long each piece of fuel adds
+@export var stick_burn_nights := 0.0417
+@export var wood_burn_nights := 0.156
+@export var coal_burn_nights := 0.3125
 ## How close you need to be to feel the heat, normally and while coal is burning
 @export var warmth_radius := 6.0
 @export var coal_warmth_radius := 10.0
 
 ## Fuel, in the order E reaches for it: wood first, then sticks, and coal last,
 ## since it's precious once the forge needs it
-const FUELS := [["Wood", "wood_burn"], ["Sticks", "stick_burn"], ["Coal", "coal_burn"]]
+const FUELS := [["Wood", "wood_burn_nights"], ["Sticks", "stick_burn_nights"], ["Coal", "coal_burn_nights"]]
+## How long a night is if there's no sun to ask, in seconds
+const FALLBACK_NIGHT_SECONDS := 720.0
 
 @onready var light: OmniLight3D = $Light
 
@@ -37,7 +41,7 @@ var _coal_left := 0.0
 
 func _ready() -> void:
 	add_to_group("campfires")
-	fuel = starting_fuel
+	fuel = _seconds(starting_fuel_nights)
 	_flames = _make_flames()
 	_embers = _make_embers()
 	_smoke = _make_smoke()
@@ -48,6 +52,17 @@ func _ready() -> void:
 
 func is_lit() -> bool:
 	return lit
+
+
+## What a saved game keeps of this fire (the build placer saves where it is)
+func save_data() -> Dictionary:
+	return {"fuel": fuel, "lit": lit, "coal_left": _coal_left}
+
+
+func load_data(data: Dictionary) -> void:
+	fuel = float(data.get("fuel", fuel))
+	lit = bool(data.get("lit", false)) and fuel > 0.0
+	_coal_left = float(data.get("coal_left", 0.0))
 
 
 ## How close you need to be to feel the heat right now
@@ -62,7 +77,7 @@ func can_interact() -> bool:
 func get_prompt() -> String:
 	if lit:
 		var piece := _next_fuel(null)
-		var line := "Add fuel (Wood, Sticks or Coal)" if piece.is_empty() else "Add %s (+%s)" % [piece[0], _clock(get(piece[1]))]
+		var line := "Add fuel (Wood, Sticks or Coal)" if piece.is_empty() else "Add %s (+%s)" % [piece[0], _clock(_seconds(get(piece[1])))]
 		return "%s\nBurning%s: %s" % [line, " hot" if _coal_left > 0.0 else "", _clock(fuel)]
 	if fuel <= 0.0:
 		return "Add fuel (Wood, Sticks or Coal)"
@@ -83,8 +98,8 @@ func interact(player) -> void:
 	if piece.is_empty():
 		player.flash("You have nothing to burn. Sticks, Wood or Coal will do")
 		return
-	var seconds: float = get(piece[1])
-	if fuel + seconds > max_fuel:
+	var seconds := _seconds(get(piece[1]))
+	if fuel + seconds > _seconds(max_fuel_nights):
 		player.flash("The fire can't take any more yet")
 		return
 	player.remove_item(piece[0], 1)
@@ -104,6 +119,12 @@ func _next_fuel(player) -> Array:
 		if player.inventory.get(piece[0], 0) > 0:
 			return piece
 	return []
+
+
+# A share of a night, in real seconds, by the sun's Night Minutes
+func _seconds(nights: float) -> float:
+	var sun = get_tree().get_first_node_in_group("sun") if is_inside_tree() else null
+	return nights * (sun.night_seconds() if sun else FALLBACK_NIGHT_SECONDS)
 
 
 # 150 seconds -> "2:30"

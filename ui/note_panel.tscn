@@ -1,6 +1,6 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://note_panel.gd" id="1_note"]
+[ext_resource type="Script" path="res://ui/note_panel.gd" id="1_note"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_paper"]
 content_margin_left = 44.0

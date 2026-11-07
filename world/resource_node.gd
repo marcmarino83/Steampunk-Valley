@@ -53,8 +53,10 @@ func gather() -> int:
 	_tween = create_tween()
 
 	if gathers_left <= 0:
-		# Used up: stop being solid or lookable, shrink away, then disappear
+		# Used up: stop being solid or lookable, shrink away, then disappear (booking its return
+		# first, if it's a kind that comes back)
 		collision_layer = 0
+		_book_respawn()
 		_tween.tween_property(mesh, "scale", Vector3.ZERO, 0.25)
 		_tween.tween_callback(queue_free)
 	else:
@@ -63,3 +65,10 @@ func gather() -> int:
 		_tween.tween_property(mesh, "scale", Vector3.ONE, 0.12)
 
 	return amount_per_gather
+
+
+# Scattered pickups come back after a while, if the valley gives their kind a respawn time
+func _book_respawn() -> void:
+	var valley = get_tree().get_first_node_in_group("valley")
+	if valley and not Engine.is_editor_hint():
+		valley.pickup_gathered(self)

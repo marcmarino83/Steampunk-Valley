@@ -11,6 +11,7 @@ var _item := ""
 static func create(tool_item: ToolItem) -> DroppedTool:
 	var dropped := DroppedTool.new()
 	dropped._item = tool_item.item_name
+	dropped.add_to_group("dropped_tools")
 	dropped.add_child(tool_item.make_dropped_model())
 	var sphere := SphereShape3D.new()
 	sphere.radius = PICKUP_RADIUS
@@ -19,6 +20,11 @@ static func create(tool_item: ToolItem) -> DroppedTool:
 	collision.position = Vector3.UP * PICKUP_RADIUS * 0.5
 	dropped.add_child(collision)
 	return dropped
+
+
+## Which tool this is
+func item() -> String:
+	return _item
 
 
 func can_interact() -> bool:

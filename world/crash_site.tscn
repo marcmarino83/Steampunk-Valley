@@ -1,7 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://world/crash_site.gd" id="1_site"]
-[ext_resource type="Script" path="res://note.gd" id="2_note"]
+[ext_resource type="Script" path="res://world/note.gd" id="2_note"]
 [ext_resource type="PackedScene" path="res://world/scrap_pile.tscn" id="3_scrap"]
 [ext_resource type="PackedScene" path="res://world/plank_pile.tscn" id="4_planks"]
 [ext_resource type="Material" path="res://assets/crashed_airship/parts/wreck_material.tres" id="5_eswo1"]

@@ -102,6 +102,21 @@ extends StaticBody3D
 @export var starter_sticks := 3
 @export var starter_fiber := 3
 
+@export_group("Respawning")
+## How long until gathered things come back, in in-game days (one day is a day and its night;
+## how long that is depends on the sun's Day Minutes and Night Minutes). 0 means never.
+@export var plant_fiber_respawn_days := 0.5
+@export var sticks_respawn_days := 1.0
+@export var stone_respawn_days := 2.0
+## Picked berry bushes stay, bare, until their berries grow back
+@export var berries_regrow_days := 1.0
+## A felled tree's stump grows a sapling partway through, then a full tree
+@export var tree_regrow_days := 3.0
+## Mined boulders, scattered or placed by hand
+@export var boulder_respawn_days := 3.0
+## Nothing comes back while the player is closer than this (meters) or looking at the spot
+@export var respawn_min_distance := 30.0
+
 @export_group("Underground")
 ## Hidden deposits buried in clusters under the hillsides. They can't be seen or dug
 ## until a dowsing rod reveals them. None are buried while IronTier.ENABLED is false.
@@ -276,6 +291,8 @@ var _deposit_spots := {}
 const TerrainModifierScript = preload("res://world/terrain_modifier.gd")
 # Marks a resource that's seated on the ground by _settle_on_ground(), with what that needs
 const SETTLE_META := &"settle_on_ground"
+# Marks a Clear Zone that sits under a placed building
+const BUILDING_META := &"under_building"
 # How many points around a resource's footprint to check the ground at, on each of two rings
 const SETTLE_SAMPLES := 12
 
@@ -314,6 +331,241 @@ func _ready() -> void:
 	generate()
 	if not Engine.is_editor_hint():
 		_place_player()
+		var respawner := Respawner.new()
+		respawner.name = "Respawner"
+		respawner.min_distance = respawn_min_distance
+		respawner.handler = _on_respawn_due
+		add_child(respawner)
+		add_to_group("saveable")
+
+
+# ---- What's been gathered, felled and mined, and bringing it back ----
+#
+# Everything scattered is placed the same way every time from the map seed, so a save only needs
+# what's changed since: which things are gone, bare, felled or mined (by id), and where respawned
+# pickups ended up. The respawner keeps when each comes back.
+
+# Labels each scattered thing with an id that's the same every time the valley is built
+const ID_META := &"save_id"
+# How far through the regrowing time a felled tree's stump grows a sapling
+const TREE_SAPLING_AT := 0.4
+
+# Scattered things by id
+var _by_id := {}
+# How to put each scattered pickup back: id -> {"scene": path, "settle": Dictionary, "spot": Vector3}
+var _pickup_specs := {}
+# id -> what's happened to it: "gone" (a pickup), "empty" (a berry bush), "stump" or "sapling"
+# (a tree), "mined" (a boulder; scattered ones are "rock:<number>")
+var _changes := {}
+# Respawned pickups that came back somewhere else: id -> [x, z]
+var _moved := {}
+
+
+## The id of something in the world: its label if the valley scattered it, otherwise its path
+## from here (for things placed by hand in the world scene, which are always in the same place)
+func id_of(node: Node) -> String:
+	if node.has_meta(ID_META):
+		return node.get_meta(ID_META)
+	return "path:" + str(get_path_to(node))
+
+
+func _node_for(id: String) -> Node:
+	if id.begins_with("path:"):
+		return get_node_or_null(NodePath(id.substr(5)))
+	var node = _by_id.get(id)
+	return node if is_instance_valid(node) else null
+
+
+# Numbers everything scattered, in the order it was made (the same order every time)
+func _assign_ids() -> void:
+	_by_id.clear()
+	_pickup_specs.clear()
+	var count := 0
+	for child in get_children():
+		if not child.has_method("gather"):
+			continue
+		var id := "n%d" % count
+		count += 1
+		child.set_meta(ID_META, id)
+		_by_id[id] = child
+		if child.has_meta(SETTLE_META):
+			_pickup_specs[id] = {"scene": child.scene_file_path, "settle": child.get_meta(SETTLE_META), "spot": child.position}
+
+
+func _respawner() -> Node:
+	return get_node_or_null("Respawner")
+
+
+## A scattered pickup has been gathered up: it's gone, and comes back after its kind's respawn time
+func pickup_gathered(item: Node3D) -> void:
+	var id := id_of(item)
+	var days := respawn_days_for(item.get("resource_name"))
+	if not _pickup_specs.has(id) or days <= 0.0 or _respawner() == null:
+		return
+	_changes[id] = "gone"
+	_respawner().schedule(days, item.global_position, "pickup", id)
+
+
+## A berry bush has been picked clean; its berries grow back
+func bush_emptied(bush: Node3D) -> void:
+	var id := id_of(bush)
+	_changes[id] = "empty"
+	if berries_regrow_days > 0.0 and _respawner():
+		_respawner().schedule(berries_regrow_days, bush.global_position, "berries", id)
+
+
+## A tree has been felled; its stump grows a sapling, then a full tree
+func tree_felled(tree: Node3D) -> void:
+	var id := id_of(tree)
+	_changes[id] = "stump"
+	if tree_regrow_days > 0.0 and _respawner():
+		_respawner().schedule(tree_regrow_days * TREE_SAPLING_AT, tree.global_position, "sapling", id)
+		_respawner().schedule(tree_regrow_days, tree.global_position, "tree", id)
+
+
+## A boulder placed by hand has been mined out; it comes back
+func rock_mined(rock: Node3D) -> void:
+	var id := id_of(rock)
+	_changes[id] = "mined"
+	if boulder_respawn_days > 0.0 and _respawner():
+		_respawner().schedule(boulder_respawn_days, rock.global_position, "rock", id)
+
+
+## One of the scattered rocks has been mined out; it comes back
+func scattered_rock_mined(index: int, where: Vector3) -> void:
+	_changes["rock:%d" % index] = "mined"
+	if boulder_respawn_days > 0.0 and _respawner():
+		_respawner().schedule(boulder_respawn_days, where, "scattered_rock", str(index))
+
+
+# A booking came due and the player is away: bring that thing back
+func _on_respawn_due(kind: String, id: String) -> void:
+	if kind == "scattered_rock":
+		var foliage = get_node_or_null("Foliage")
+		if foliage and foliage.restore_rock(int(id)):
+			_changes.erase("rock:" + id)
+		return
+	if kind == "pickup":
+		_respawn_pickup(id)
+		return
+	var node := _node_for(id)
+	if node == null:
+		return
+	match kind:
+		"berries":
+			node.regrow()
+			_changes.erase(id)
+		"sapling":
+			node.set_stage("sapling")
+			_changes[id] = "sapling"
+		"tree":
+			node.set_stage("full")
+			_changes.erase(id)
+		"rock":
+			if node.come_back():
+				_changes.erase(id)
+
+
+## How many in-game days until a gathered pickup of this kind comes back (0 = never)
+func respawn_days_for(resource: String) -> float:
+	match resource:
+		"Plant Fiber":
+			return plant_fiber_respawn_days
+		"Sticks":
+			return sticks_respawn_days
+		"Stone":
+			return stone_respawn_days
+	return 0.0
+
+
+# Puts a gathered pickup back: at its old spot if that's still good, or a good one close by
+# (dry, off trails, clear of buildings), seated on the ground as before, with the same id
+func _respawn_pickup(id: String) -> void:
+	if not _pickup_specs.has(id):
+		return
+	var spec: Dictionary = _pickup_specs[id]
+	var spot: Vector3 = spec["spot"]
+	var water := water_height()
+	var radius: float = spec["settle"]["radius"]
+	for attempt in 24:
+		var x := spot.x
+		var z := spot.z
+		if attempt > 0:
+			var nudge := Vector2.from_angle(randf() * TAU) * randf_range(1.0, 5.0)
+			x += nudge.x
+			z += nudge.y
+		if get_height(x, z) < water + 0.2 or is_on_trail(x, z, 1.0) or is_under_building(x, z, radius):
+			continue
+		var item: Node3D = (load(spec["scene"]) as PackedScene).instantiate()
+		item.position = Vector3(x, get_height(x, z), z)
+		item.set_meta(SETTLE_META, spec["settle"])
+		item.set_meta(ID_META, id)
+		_settle_on_ground(item)
+		add_child(item)
+		_by_id[id] = item
+		_changes.erase(id)
+		if attempt == 0:
+			_moved.erase(id)
+		else:
+			_moved[id] = [x, z]
+		return
+	# Nowhere good nearby right now: try again a little later
+	if _respawner():
+		_respawner().schedule(0.1, to_global(spot), "pickup", id)
+
+
+func save_key() -> String:
+	return "world"
+
+
+func save_priority() -> int:
+	return 10
+
+
+func save_data() -> Dictionary:
+	return {"changes": _changes.duplicate(), "moved": _moved.duplicate(true)}
+
+
+func load_data(data: Dictionary) -> void:
+	_changes = Dictionary(data.get("changes", {})).duplicate()
+	_moved = Dictionary(data.get("moved", {})).duplicate(true)
+	var foliage = get_node_or_null("Foliage")
+	for id in _moved:
+		var node := _node_for(id) as Node3D
+		var spot: Array = _moved[id]
+		if node and spot.size() >= 2:
+			node.position = Vector3(float(spot[0]), 0.0, float(spot[1]))
+			_settle_on_ground(node)
+	for id in _changes:
+		var state: String = _changes[id]
+		if id.begins_with("rock:"):
+			if foliage:
+				foliage.set_rock_mined(int(id.substr(5)))
+			continue
+		var node := _node_for(id)
+		if node == null:
+			continue
+		match state:
+			"gone":
+				remove_child(node)
+				node.queue_free()
+				_by_id.erase(id)
+			"empty":
+				node.set_empty()
+			"stump", "sapling":
+				node.set_stage(state)
+			"mined":
+				node.set_mined()
+
+
+## True if a placed building's footprint (its Clear Zone) reaches within `margin` of (x, z)
+func is_under_building(x: float, z: float, margin := 0.0) -> bool:
+	for zone in _clear_zones:
+		if is_instance_valid(zone) and zone.is_inside_tree() and zone.has_meta(BUILDING_META):
+			var middle := Vector2(zone.global_position.x, zone.global_position.z)
+			if Vector2(x, z).distance_to(middle) < zone.radius + margin:
+				return true
+	return false
 
 
 ## In the editor: rebuild the terrain shortly after the last change (a terrain modifier was
@@ -526,6 +778,7 @@ func generate() -> void:
 	foliage.build_rocks(_ground)
 	_heights = final_heights
 	_lift_onto_ridges()
+	_assign_ids()
 	# Mossy forest floor under all the trees, scattered and placed alike
 	refresh_forest_floor()
 	_refresh_marker_rings(map_rect())
@@ -1182,14 +1435,29 @@ func _scatter_starter_kit() -> void:
 			placed += 1
 
 
-## Adds a Clear Zone while the game is running (one goes under each building that's placed), and
-## regrows the grass and ferns around it so they keep out of it
+## Adds a Clear Zone while the game is running (one goes under each building that's placed):
+## regrows the grass and ferns around it so they keep out, and if it clears rocks, takes away the
+## scattered boulders and the small decorations painted by hand (ones with nothing solid to them)
+## inside it
 func add_clear_zone(zone: Node3D) -> void:
 	_clear_zones.append(zone)
+	var reach: float = zone.radius
+	var middle := Vector2(zone.global_position.x, zone.global_position.z)
 	var foliage = get_node_or_null("Foliage")
+	if foliage and zone.clear_plants:
+		foliage.regrow_plants_in(Rect2(middle.x - reach, middle.y - reach, reach * 2.0, reach * 2.0))
+	if not zone.clear_rocks:
+		return
 	if foliage:
-		var reach: float = zone.radius
-		foliage.regrow_plants_in(Rect2(zone.global_position.x - reach, zone.global_position.z - reach, reach * 2.0, reach * 2.0))
+		foliage.hide_rocks_in(middle, reach)
+	for holder in get_tree().get_nodes_in_group("placed_objects"):
+		for decoration in holder.find_children("*", "Node3D", true, false):
+			if decoration.get_parent() == holder or decoration.get_parent().get_parent() != holder:
+				continue
+			if decoration is PhysicsBody3D or not decoration.visible:
+				continue
+			if Vector2(decoration.global_position.x, decoration.global_position.z).distance_to(middle) < reach:
+				decoration.visible = false
 
 
 # Seats a resource on the ground around it: tilts it with the slope as far as its lean says, then

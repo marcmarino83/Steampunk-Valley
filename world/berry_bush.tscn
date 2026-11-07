@@ -1,6 +1,6 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://world/resource_node.gd" id="1_res"]
+[ext_resource type="Script" path="res://world/berry_bush.gd" id="1_res"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_bush"]
 size = Vector3(1.4, 1.0, 1.4)

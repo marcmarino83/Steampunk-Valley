@@ -1,7 +1,11 @@
 extends DirectionalLight3D
+## The sun, and the clock it keeps. Select DirectionalLight3D in the world scene to set how long
+## day and night last.
 
-## How many real seconds one full day lasts
-@export var day_length := 120.0
+## How many real minutes the day lasts, from sunrise to sunset (dawn and dusk included)
+@export var day_minutes := 28.0
+## How many real minutes the night lasts, from sunset to sunrise
+@export var night_minutes := 12.0
 ## Where the day starts: 0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset
 @export_range(0.0, 1.0) var time_of_day := 0.3
 ## The sky, so it can dim at night
@@ -15,9 +19,26 @@ func _ready() -> void:
 	add_to_group("sun")
 
 
+## How many real seconds the day lasts (sunrise to sunset)
+func day_seconds() -> float:
+	return maxf(day_minutes, 0.1) * 60.0
+
+
+## How many real seconds the night lasts (sunset to sunrise)
+func night_seconds() -> float:
+	return maxf(night_minutes, 0.1) * 60.0
+
+
+## How many real seconds a whole day and night take
+func cycle_seconds() -> float:
+	return day_seconds() + night_seconds()
+
+
 func _process(delta: float) -> void:
-	# Move time forward, wrapping back to midnight after a full day
-	time_of_day = fmod(time_of_day + delta / day_length, 1.0)
+	# Move time forward: the half of the clock from sunrise to sunset takes day_minutes, the other
+	# half takes night_minutes. It wraps back to midnight after a full day.
+	var is_day := time_of_day >= 0.25 and time_of_day < 0.75
+	time_of_day = fmod(time_of_day + delta * 0.5 / (day_seconds() if is_day else night_seconds()), 1.0)
 
 	# Swing the sun around: level at sunrise, straight down at noon
 	rotation.x = -(time_of_day - 0.25) * TAU

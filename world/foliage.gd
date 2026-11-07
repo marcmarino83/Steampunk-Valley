@@ -79,6 +79,15 @@ func _process(_delta: float) -> void:
 			_patches.erase(chunk)
 
 
+## Throws away the grass and ferns of every chunk that overlaps this area (x, z), so they grow
+## again over the next frames, keeping out of any Clear Zone added since
+func regrow_plants_in(area: Rect2) -> void:
+	for chunk in _patches.keys():
+		if valley.chunk_rect(chunk).intersects(area):
+			_patches[chunk].queue_free()
+			_patches.erase(chunk)
+
+
 func _distance_to_chunk(chunk: Vector2i, here: Vector2) -> float:
 	var rect: Rect2 = valley.chunk_rect(chunk)
 	var nearest := Vector2(clampf(here.x, rect.position.x, rect.end.x), clampf(here.y, rect.position.y, rect.end.y))

@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://building/buildable.gd" id="1_buildable"]
 [ext_resource type="PackedScene" path="res://building/lean_to.tscn" id="2_scene"]
+[ext_resource type="Texture2D" path="res://assets/buildables/lean_to/icon.png" id="3_icon"]
 
 [resource]
 script = ExtResource("1_buildable")
@@ -16,6 +17,7 @@ costs = Array[Dictionary]([{
 "Plant Fiber": 6
 }])
 icon_color = Color(0.55, 0.42, 0.26, 1)
+icon = ExtResource("3_icon")
 max_slope_degrees = 15.0
 footprint_radius = 2.0
 footprint_height = 2.5

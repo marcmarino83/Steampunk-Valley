@@ -4,13 +4,18 @@ const WALK_SPEED = 5.0
 const JUMP_VELOCITY = 4.5
 const MOUSE_SENSITIVITY = 0.002
 
-## Hunger lost per second. A full belly lasts about 4 in-game days.
-const HUNGER_DRAIN = 0.2
+## Hunger and warmth follow the sun's clock (its Day Minutes and Night Minutes), so they stay fair
+## however long the day is. A full belly lasts this many whole days (a day and its night).
+const FULL_BELLY_DAYS := 1.0
 ## How much hunger one berry fills back up
 const BERRY_FOOD = 15.0
-## Warmth lost per second in the dead of night, and gained back at midday
-const NIGHT_CHILL = 1.5
-const DAY_WARMTH = 0.3
+## Out in the open with no fire: how much warmth a whole night costs at the cold of deep night, and
+## how much a whole day gives back at the warmth of midday (dawn and dusk sit in between)
+const NIGHT_CHILL_PER_NIGHT := 90.0
+const DAY_WARMTH_PER_DAY := 18.0
+## If there's no sun to ask, these day and night lengths are used, in seconds
+const FALLBACK_DAY_SECONDS := 1680.0
+const FALLBACK_NIGHT_SECONDS := 720.0
 ## Warmth gained per second standing by a lit campfire
 const FIRE_WARMTH = 6.0
 ## Inside a shelter, the cold gets to you only this fast (0.35 = a bit over a third as fast)
@@ -391,14 +396,21 @@ func _scattered_rock_looked_at() -> Object:
 
 
 func _update_survival(delta: float) -> void:
-	hunger = maxf(hunger - HUNGER_DRAIN * delta, 0.0)
-
-	# Chilly at night, slowly warming by day, and quickly warming by a fire
 	var daylight := 1.0
+	var day_seconds := FALLBACK_DAY_SECONDS
+	var night_seconds := FALLBACK_NIGHT_SECONDS
 	var sun = get_tree().get_first_node_in_group("sun")
 	if sun:
 		daylight = sun.daylight
-	var warmth_change := lerpf(-NIGHT_CHILL, DAY_WARMTH, daylight)
+		day_seconds = sun.day_seconds()
+		night_seconds = sun.night_seconds()
+
+	hunger = maxf(hunger - 100.0 / (FULL_BELLY_DAYS * (day_seconds + night_seconds)) * delta, 0.0)
+
+	# Chilly at night, slowly warming by day, and quickly warming by a fire
+	var night_chill := NIGHT_CHILL_PER_NIGHT / night_seconds
+	var day_warmth := DAY_WARMTH_PER_DAY / day_seconds
+	var warmth_change := lerpf(-night_chill, day_warmth, daylight)
 	# Out of the wind, the cold creeps in much more slowly
 	var sheltered := is_sheltered()
 	if sheltered and warmth_change < 0.0:

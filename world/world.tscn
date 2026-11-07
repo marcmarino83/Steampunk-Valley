@@ -5,7 +5,6 @@
 [ext_resource type="Script" uid="uid://ot3536xogk55" path="res://world/valley.gd" id="5_dwbse"]
 [ext_resource type="PackedScene" uid="uid://chlsvu01bkeuv" path="res://world/tree.tscn" id="6_pkg7o"]
 [ext_resource type="PackedScene" path="res://world/terrain_modifier.tscn" id="7_pkg7o"]
-[ext_resource type="Script" uid="uid://tfmmljfyf6ih" path="res://world/terrain_modifier.gd" id="8_70uel"]
 [ext_resource type="PackedScene" path="res://world/terrain_path.tscn" id="8_gbfbk"]
 [ext_resource type="Material" uid="uid://bm46i82rjv7ap" path="res://world/terrain_material.tres" id="8_terrain"]
 [ext_resource type="PackedScene" path="res://world/crash_site.tscn" id="9_crash"]
@@ -213,16 +212,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 195.81392, 83.008575, 61.1172
 visible = false
 falloff = 0.7
 
-[node name="RaiseLower8" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1511769531 instance=ExtResource("7_pkg7o")]
+[node name="RaiseLower8" parent="TerrainEdits/Modifiers" unique_id=1511769531 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.024653435, 26.681532, 119.45758)
 visible = false
-script = ExtResource("8_70uel")
 mode = 1
 
-[node name="Smooth" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=947633621 instance=ExtResource("7_pkg7o")]
+[node name="Smooth" parent="TerrainEdits/Modifiers" unique_id=947633621 instance=ExtResource("7_pkg7o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.985469, 27.32971, 135.8482)
 visible = false
-script = ExtResource("8_70uel")
 mode = 3
 
 [node name="Paths" type="Node3D" parent="TerrainEdits" unique_id=1597188750]

@@ -7,18 +7,6 @@
 height = 0.3
 radius = 0.6
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_flame"]
-shading_mode = 0
-albedo_color = Color(1, 0.55, 0.15, 1)
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_flame"]
-material = SubResource("StandardMaterial3D_flame")
-top_radius = 0.0
-bottom_radius = 0.25
-height = 0.7
-radial_segments = 8
-rings = 1
-
 [node name="Campfire" type="StaticBody3D"]
 script = ExtResource("1_fire")
 
@@ -28,11 +16,6 @@ shape = SubResource("CylinderShape3D_fire")
 
 [node name="Model" parent="." instance=ExtResource("2_model")]
 transform = Transform3D(0.635, 0, 0, 0, 0.635, 0, 0, 0, 0.635, -0.00125, 0.22139, 0.0017)
-
-[node name="Flame" type="MeshInstance3D" parent="."]
-visible = false
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, -0.03)
-mesh = SubResource("CylinderMesh_flame")
 
 [node name="Light" type="OmniLight3D" parent="."]
 visible = false

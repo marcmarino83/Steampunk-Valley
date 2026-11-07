@@ -179,18 +179,19 @@ The first-era survival loop is playable: walk, gather, chop, eat, build a fire, 
 **Working**
 
 - First-person movement, mouse look, and jumping
-- Day/night cycle with warm sunsets and dark nights
+- Day/night cycle with warm sunsets and dark nights: 28 minutes of day (dawn and dusk included) and 12 of night, set by Day Minutes and Night Minutes on the DirectionalLight3D in the world scene
 - Real-world heightmap terrain in chunks, with water filling the low ground
 - Visual pass: slope-based ground coloring, grass, rocks, improved trees, water shader, haze
 - Gathering sticks, stone, plant fiber, scrap and berries by hand with E. Stone, sticks and plant fiber use Meshy models (`assets/rocks/stone/`, `assets/sticks/`, `assets/bushes/plant_fiber/`), each scattered with its own turn and size (85 to 115%), seated against the drawn ground so no edge floats, with a small box to gather by. The models are low-poly GLBs (`stone.glb`, `sticks.glb`, `plant_fiber.glb`, about 400 to 480 triangles each); their textures are capped by import settings at 1024 (stone, sticks) and 512 (plant fiber)
 - Tree chopping with the axe in hand: 4 hits, the tree falls, a stump remains, +3 wood
-- Hunger and warmth meters; eat berries with F
+- Hunger and warmth meters; eat berries with F. Both follow the sun's clock: a full belly lasts one whole day and night, and a night in the open with no fire costs most of your warmth however long the night is set to last
+- Plenty to gather: about 675 stones, 525 stick piles, 480 plant fiber clumps and 150 berry bushes, plus a few stones, sticks and plant fiber laid out near the start point, enough for the hammer and axe straight away
 - Inventory screen on I with 20 slots, and a Crafting tab: a list of recipes, each one's details and have / need costs, and a Craft button. Each recipe is a resource file in `crafting/`, listed by itself, with a station field: "hand" for now, and `nearby_stations()` in `player/player.gd` is where a workbench or forge would add theirs
 - Action bar: nine slots along the bottom, selected with 1-9 or the mouse wheel, showing the held item in front of the view. Crafted tools go into the inventory and are dragged onto the bar and back; items on the bar still count as owned. Each tool is a resource file in `tools/` (with its model), which the bar finds by itself. G drops the held tool on the ground and E picks it back up
 - Stone tools: hammer (build menu), axe (chops trees), pickaxe (mines rocks and boulders for stone), knife (double plant fiber per harvest). Their models and textures are in `assets/tier_1_tools/` (one folder per tool), with a simple placeholder used if a model is ever missing. Each tool's file in `tools/` sets its model, size, and how it sits in the hand and on the ground; its material is `tools/<name>_material.tres`. The models are very detailed (over 500,000 triangles each) and will need reducing at some point
 - Build menu on Tab while holding the hammer; each buildable is a resource file in `buildables/`, which the menu lists by itself
-- Placing a building: a see-through preview on the ground, green or red (too steep, in water, or overlapping something); left-click places and pays, R rotates, right-click or Esc cancels
-- Campfire: 3 wood, or 6 sticks and 2 stone. Meshy model (`assets/buildables/campfire/`) of stones and logs; the flame and its light show only while it's lit
+- Placing a building: a see-through preview on the ground, green or red (too steep, in water, or overlapping something); left-click places and pays, R rotates, right-click or Esc cancels. Each building keeps grass and ferns out of its footprint plus half a meter (a Clear Zone placed under it). The build menu's icons are `icon.png` in each buildable's asset folder
+- Campfire: 3 wood, or 6 sticks and 2 stone. Meshy model (`assets/buildables/campfire/`) of stones and logs; its flames, rising embers, thin smoke and flickering light (all particles but the light) show only while it's lit
 - Lean-to: 8 sticks, 4 wood, 6 plant fiber; unlocked by crafting the hammer. Meshy model (`assets/buildables/lean_to/`); only its two front posts and roof are solid, so you can walk under it. Look at the mat and press E to sleep: at night only, it fades to black and skips to just after sunrise, costs a quarter of your hunger, and you wake warm only if a lit campfire is within 5 m (otherwise cold)
 - Unlocks: any buildable or recipe can start locked, and its file says what unlocks it (crafting, gathering or building something named). Unlocking shows "New blueprint: ...". Locked buildables show in the build menu as dark slots with a hint ("Craft a hammer to unlock"); locked recipes stay out of the Crafting tab. Unlocks aren't saved yet (there's no save system)
 

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bo2uxqbjtdd6n"
-path="res://.godot/imported/Gemini_Generated_Image_n8xmvnn8xmvnn8xm.jpg-cf7f69cde90b1c8cb9706169ecf662e5.ctex"
+uid="uid://bhq5i4lbffm13"
+path="res://.godot/imported/icon.png-f10795bd7e1205b274374163a14ecf87.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/Gemini_Generated_Image_n8xmvnn8xmvnn8xm.jpg"
-dest_files=["res://.godot/imported/Gemini_Generated_Image_n8xmvnn8xmvnn8xm.jpg-cf7f69cde90b1c8cb9706169ecf662e5.ctex"]
+source_file="res://assets/buildables/campfire/icon.png"
+dest_files=["res://.godot/imported/icon.png-f10795bd7e1205b274374163a14ecf87.ctex"]
 
 [params]
 

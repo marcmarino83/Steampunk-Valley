@@ -13,6 +13,9 @@ const BAD_COLOR := Color(1.0, 0.2, 0.15, 0.45)
 const BLOCKED := "Something's in the way"
 ## How many things a spot's overlap check can report. Terrain chunks use up to four of them.
 const MAX_OVERLAPS := 16
+## Every building keeps the grass and ferns out of its footprint, plus this much around it (m)
+const CLEAR_MARGIN := 0.5
+const CLEAR_ZONE_SCENE := preload("res://building/clear_zone.tscn")
 
 var _player: CharacterBody3D
 var _buildable: Buildable
@@ -166,11 +169,27 @@ func _place() -> void:
 	_player.get_parent().add_child(built)
 	built.global_position = _preview.global_position
 	built.rotation.y = _turn
+	_clear_plants_under(built, _buildable.footprint_radius + CLEAR_MARGIN)
 	if not _buildable.placed_message.is_empty():
 		_player.flash(_buildable.placed_message)
 	var built_name := _buildable.display_name
 	cancel()
 	_player.report_progress("Build", built_name)
+
+
+# Puts a Clear Zone under a new building that keeps only grass and ferns out (trees, resources
+# and boulders are left alone), and has the valley regrow the grass around it
+func _clear_plants_under(built: Node3D, radius: float) -> void:
+	var zone: Node3D = CLEAR_ZONE_SCENE.instantiate()
+	zone.clear_trees = false
+	zone.clear_resources = false
+	zone.clear_rocks = false
+	zone.clear_plants = true
+	zone.radius = maxf(radius, 1.0)
+	built.add_child(zone)
+	var valley = get_tree().get_first_node_in_group("valley")
+	if valley:
+		valley.add_clear_zone(zone)
 
 
 # Copies just the visible meshes of a scene. The scene itself is never added to the world, so

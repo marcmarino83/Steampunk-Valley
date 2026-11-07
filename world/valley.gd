@@ -72,13 +72,13 @@ extends StaticBody3D
 ## Each kind has its own scene, so a real model can replace the placeholder later.
 @export var stone_scene: PackedScene = preload("res://world/stone.tscn")
 ## Loose stones: everywhere, more on steep slopes
-@export var stone_count := 450
+@export var stone_count := 675
 @export var fiber_scene: PackedScene = preload("res://world/plant_fiber.tscn")
 ## Tall grass and reed clumps, in meadows and along the water's edge
-@export var fiber_count := 320
+@export var fiber_count := 480
 @export var stick_scene: PackedScene = preload("res://world/sticks.tscn")
 ## Little piles of fallen branches on the forest floor
-@export var stick_count := 350
+@export var stick_count := 525
 @export var copper_scene: PackedScene = preload("res://world/copper_ore.tscn")
 ## Green- and orange-flecked rock on the hillsides
 @export var copper_count := 130
@@ -93,9 +93,14 @@ extends StaticBody3D
 @export var herb_count := 150
 @export var berry_scene: PackedScene = preload("res://world/berry_bush.tscn")
 ## Bushes at the edges of woods and out in meadows
-@export var berry_count := 120
+@export var berry_count := 150
 ## Nothing gets scattered closer than this to the crash site (its own salvage is already there)
 @export var crash_site_gap := 20.0
+## A few of each laid out near where the player starts, beside the wreck: enough to craft the
+## hammer and the axe straight away. (How many piles of each.)
+@export var starter_stone := 2
+@export var starter_sticks := 3
+@export var starter_fiber := 3
 
 @export_group("Underground")
 ## Hidden deposits buried in clusters under the hillsides. They can't be seen or dug
@@ -510,6 +515,7 @@ func generate() -> void:
 	_scatter_trees()
 	_scatter_feature_trees()
 	_scatter_resources()
+	_scatter_starter_kit()
 	_bury_deposits()
 
 	# Grass, ferns and boulders
@@ -1105,11 +1111,7 @@ func _scatter_resources() -> void:
 			var size := rng.randf_range(sizes.x, sizes.y)
 			var turn := Basis(Vector3.UP, rng.randf() * TAU)
 			if kinds[k].size() > 9:
-				item.position = Vector3(x, h, z)
-				item.set_meta(SETTLE_META, {"turn": turn, "size": size, "lean": lean, "radius": footprint * size, "press": kinds[k][9] * size})
-				_settle_on_ground(item)
-				add_child(item)
-				_remember_spot(spot, _taken_spots)
+				_place_seated(item, kinds[k], x, z, size, turn)
 				placed += 1
 				continue
 			if lean > 0.0:
@@ -1129,6 +1131,65 @@ func _scatter_resources() -> void:
 			if scene == copper_scene:
 				_remember_spot(spot, _copper_spots)
 			placed += 1
+
+
+# Puts down one resource of a kind that's seated on the ground (one with a press value in
+# _resource_kinds()), at this spot, size and turn, and notes the spot as taken
+func _place_seated(item: Node3D, kind: Array, x: float, z: float, size: float, turn: Basis) -> void:
+	item.position = Vector3(x, get_height(x, z), z)
+	item.set_meta(SETTLE_META, {"turn": turn, "size": size, "lean": kind[6], "radius": kind[8] * size, "press": kind[9] * size})
+	_settle_on_ground(item)
+	add_child(item)
+	_remember_spot(Vector2(x, z), _taken_spots)
+
+
+# Lays out a few stones, sticks and plant fiber near where the player starts, on the side of the
+# start point away from the wreck. Same placement rules as everywhere else (dry ground, seated,
+# off trails, not on top of anything), with its own random numbers from the map seed.
+func _scatter_starter_kit() -> void:
+	var site = get_node_or_null(crash_site_path)
+	if site == null or _crash_radius <= 0.0:
+		return
+	var start: Vector3 = to_local(site.spawn_point())
+	var start_spot := Vector2(start.x, start.z)
+	var away := start_spot - _crash_center
+	away = away.normalized() if away.length() > 0.1 else Vector2.RIGHT
+	var water := water_height()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = map_seed * 3000 + 7
+	var kinds := _resource_kinds()
+	for wanted in [[stone_scene, starter_stone], [stick_scene, starter_sticks], [fiber_scene, starter_fiber]]:
+		var kind: Array = []
+		for row in kinds:
+			if row[0] == wanted[0] and row.size() > 9:
+				kind = row
+		if kind.is_empty():
+			continue
+		var placed := 0
+		var tries := 0
+		while placed < wanted[1] and tries < 300:
+			tries += 1
+			# Somewhere 4 to 12 m from the start point, out on the side away from the wreck
+			var angle := away.angle() + rng.randf_range(-1.4, 1.4)
+			var spot := start_spot + Vector2.from_angle(angle) * rng.randf_range(4.0, 12.0)
+			var h := get_height(spot.x, spot.y)
+			if h < water + 0.2 or get_slope(spot.x, spot.y) > 25.0 or is_on_trail(spot.x, spot.y, 1.0):
+				continue
+			if _distance_to_nearest(spot, _taken_spots, 1.8) < 1.8:
+				continue
+			var size := rng.randf_range(kind[5].x, kind[5].y)
+			_place_seated(wanted[0].instantiate(), kind, spot.x, spot.y, size, Basis(Vector3.UP, rng.randf() * TAU))
+			placed += 1
+
+
+## Adds a Clear Zone while the game is running (one goes under each building that's placed), and
+## regrows the grass and ferns around it so they keep out of it
+func add_clear_zone(zone: Node3D) -> void:
+	_clear_zones.append(zone)
+	var foliage = get_node_or_null("Foliage")
+	if foliage:
+		var reach: float = zone.radius
+		foliage.regrow_plants_in(Rect2(zone.global_position.x - reach, zone.global_position.z - reach, reach * 2.0, reach * 2.0))
 
 
 # Seats a resource on the ground around it: tilts it with the slope as far as its lean says, then

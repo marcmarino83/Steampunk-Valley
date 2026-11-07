@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Recipe" format=3]
+
+[ext_resource type="Script" path="res://crafting/recipe.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+display_name = "Spear"
+description = "A stone point lashed to a long shaft."
+used_for = "Hunting and defence, once there's something to hunt."
+costs = {
+"Sticks": 3,
+"Stone": 1,
+"Rope": 1
+}
+result = "Spear"
+result_amount = 1
+station = "workbench"

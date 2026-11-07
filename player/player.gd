@@ -33,6 +33,14 @@ const SLEEP_FADE := 1.0
 const SLEEP_DARK := 0.6
 ## How long a "New blueprint" pop-up stays up before fading, in seconds
 const BLUEPRINT_POPUP_TIME := 3.0
+## How close a crafting station (like the workbench) must be for its recipes, in meters
+const STATION_RANGE := 3.0
+## An open chest closes once you're this far from it, in meters
+const CHEST_RANGE := 4.0
+## A torch burns for this share of a night while held, and while held the cold gets to you only
+## this fast (0.75 = three quarters as fast)
+const TORCH_NIGHTS := 0.5
+const TORCH_CHILL := 0.75
 
 const NOTE_PANEL_SCENE = preload("res://ui/note_panel.tscn")
 const PAUSE_MENU_SCENE = preload("res://ui/pause_menu.tscn")
@@ -83,6 +91,15 @@ var _sleeping := false
 var _notes_read := {}
 # Esc's menu: Resume, Save, Load, Quit
 var _pause_menu: Control
+# Everything you've ever crafted, gathered or built, as "Craft:Axe", "Build:Workbench" and so on,
+# for blueprints that unlock once several things have been done
+var _done := {}
+# The chest that's open beside the inventory, if any
+var _open_chest: Node3D
+# The crafting stations in reach last time the Crafting tab was brought up to date
+var _last_stations: PackedStringArray = []
+# Seconds left on the torch in your hand (0 = a fresh one is lit when you next hold one)
+var _torch_left := 0.0
 
 
 func _ready() -> void:
@@ -131,6 +148,7 @@ func _ready() -> void:
 	action_bar.held_changed.connect(_on_held_changed)
 	action_bar.contents_changed.connect(_refresh_inventory_display)
 	inventory_screen.tool_returned.connect(action_bar.remove)
+	inventory_screen.item_moved.connect(_move_item)
 	inventory_screen.crafting.craft_requested.connect(craft)
 	_refresh_inventory_display()
 	add_to_group("saveable")
@@ -171,6 +189,8 @@ func save_data() -> Dictionary:
 		"unlocked": _unlocked.keys().map(func(blueprint): return blueprint.resource_path),
 		"notes_read": _notes_read.keys(),
 		"dropped_tools": dropped,
+		"done": _done.keys(),
+		"torch_left": _torch_left,
 	}
 
 
@@ -193,6 +213,10 @@ func load_data(data: Dictionary) -> void:
 	_notes_read.clear()
 	for title in data.get("notes_read", []):
 		_notes_read[str(title)] = true
+	_done.clear()
+	for entry in data.get("done", []):
+		_done[str(entry)] = true
+	_torch_left = float(data.get("torch_left", 0.0))
 	for tool_on_ground in get_tree().get_nodes_in_group("dropped_tools"):
 		tool_on_ground.queue_free()
 	for entry in data.get("dropped_tools", []):
@@ -219,6 +243,19 @@ func _all_blueprints() -> Array[Blueprint]:
 
 func _process(delta: float) -> void:
 	_update_survival(delta)
+	_burn_torch(delta)
+
+	# The Crafting tab follows you toward and away from crafting stations while it's open
+	if inventory_screen.visible:
+		var stations := nearby_stations()
+		if stations != _last_stations:
+			_refresh_inventory_display()
+	# An open chest closes once you walk away from it
+	if _open_chest and (not is_instance_valid(_open_chest) or global_position.distance_to(_open_chest.global_position) > CHEST_RANGE):
+		if inventory_screen.visible:
+			_toggle_inventory()
+		else:
+			_close_chest()
 
 	# Show "[E] ..." while you're looking at something you can use
 	var target = null if _note_panel.is_open() or _sleeping else _looked_at()
@@ -393,12 +430,13 @@ func is_unlocked(blueprint: Blueprint) -> bool:
 	return not blueprint.starts_locked or _unlocked.has(blueprint)
 
 
-## Something was crafted, gathered or built ("Craft", "Gather" or "Build", and its name). Unlocks
-## any blueprint waiting on exactly that, with a pop-up for each.
+## Something was crafted, gathered or built ("Craft", "Gather" or "Build", and its name). It's
+## remembered, and any blueprint whose conditions are now all met unlocks, with a pop-up for each.
 func report_progress(action: String, item: String) -> void:
+	_done["%s:%s" % [action, item]] = true
 	var learned: PackedStringArray = []
 	for blueprint in _all_blueprints():
-		if not _unlocked.has(blueprint) and blueprint.unlocks_on(action, item):
+		if blueprint.starts_locked and not _unlocked.has(blueprint) and blueprint.is_met(_done):
 			_unlocked[blueprint] = true
 			learned.append(blueprint.display_name)
 	if learned.is_empty():
@@ -502,6 +540,9 @@ func _update_survival(delta: float) -> void:
 	var sheltered := is_sheltered()
 	if sheltered and warmth_change < 0.0:
 		warmth_change *= SHELTER_CHILL
+	# A lit torch in your hand keeps a little of the cold off
+	if held_item == "Torch" and warmth_change < 0.0:
+		warmth_change *= TORCH_CHILL
 	if _near_lit_fire():
 		warmth_change = FIRE_WARMTH
 	warmth = clampf(warmth + warmth_change * delta, 0.0, 100.0)
@@ -549,17 +590,76 @@ func _eat() -> void:
 		flash("You have nothing to eat")
 
 
-## Where you can craft right now. Everything can be made by hand; when there are workbenches
-## and forges, add "workbench" or "forge" here while you're near one, and the recipes with
-## that station will show up by themselves.
+## Where you can craft right now: by hand anywhere, plus every crafting station within reach
+## (anything in the "crafting_stations" group, like the workbench, naming its station)
 func nearby_stations() -> PackedStringArray:
-	return ["hand"]
+	var stations: PackedStringArray = ["hand"]
+	for station in get_tree().get_nodes_in_group("crafting_stations"):
+		if global_position.distance_to(station.global_position) <= STATION_RANGE and not stations.has(station.station):
+			stations.append(station.station)
+	return stations
+
+
+## Opens the inventory on its Crafting tab (the workbench does this)
+func open_crafting() -> void:
+	if not inventory_screen.visible:
+		_toggle_inventory()
+	inventory_screen.show_tab(true)
+
+
+## Opens a chest beside the inventory
+func open_chest(chest: Node3D) -> void:
+	_open_chest = chest
+	if not inventory_screen.visible:
+		_toggle_inventory()
+	inventory_screen.show_chest(chest.contents)
+
+
+func _close_chest() -> void:
+	_open_chest = null
+	inventory_screen.hide_chest()
+
+
+# A whole stack moving between the backpack and the open chest, if there's room for it
+func _move_item(item: String, from: String) -> void:
+	if _open_chest == null or not is_instance_valid(_open_chest):
+		return
+	if from == "chest":
+		if _backpack_contents().size() >= inventory_screen.slot_count and not inventory.has(item):
+			flash("Inventory full")
+			return
+		add_item(item, _open_chest.take_all(item))
+	else:
+		if not _open_chest.can_take(item):
+			flash("The chest is full")
+			return
+		var amount: int = inventory.get(item, 0)
+		if remove_item(item, amount):
+			_open_chest.put(item, amount)
+	_refresh_inventory_display()
+
+
+# A torch in your hand burns down; when it's out, it's gone and the next one is ready to light
+func _burn_torch(delta: float) -> void:
+	if held_item != "Torch":
+		return
+	var burn_time := TORCH_NIGHTS * FALLBACK_NIGHT_SECONDS
+	var sun = get_tree().get_first_node_in_group("sun")
+	if sun:
+		burn_time = TORCH_NIGHTS * sun.night_seconds()
+	if _torch_left <= 0.0:
+		_torch_left = burn_time
+	_torch_left -= delta
+	if _torch_left <= 0.0:
+		_torch_left = 0.0
+		remove_item("Torch", 1)
+		flash("Your torch burned out")
 
 
 ## Makes a recipe: takes the resources and puts the result in the backpack. If there's no room,
 ## says so and spends nothing.
 func craft(recipe: Recipe) -> void:
-	if not recipe.can_craft(inventory):
+	if not recipe.can_craft(inventory) or not nearby_stations().has(recipe.station):
 		return
 	var crafting: Control = inventory_screen.crafting
 	if _backpack_contents().size() >= inventory_screen.slot_count and not inventory.has(recipe.result):
@@ -632,6 +732,8 @@ func _toggle_inventory() -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	else:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		# Closing the inventory closes any chest that was open beside it
+		_close_chest()
 
 
 ## Call this whenever the inventory changes, so the action bar, the backpack and the build menu
@@ -639,8 +741,11 @@ func _toggle_inventory() -> void:
 func _refresh_inventory_display() -> void:
 	action_bar.forget_missing(inventory)
 	inventory_screen.show_items(_backpack_contents())
-	inventory_screen.crafting.refresh(inventory, nearby_stations(), is_unlocked)
+	_last_stations = nearby_stations()
+	inventory_screen.crafting.refresh(inventory, _last_stations, is_unlocked)
 	build_menu.refresh(inventory, is_unlocked)
+	if _open_chest and is_instance_valid(_open_chest):
+		inventory_screen.show_chest(_open_chest.contents)
 
 
 # Everything you own, minus whatever's on the action bar

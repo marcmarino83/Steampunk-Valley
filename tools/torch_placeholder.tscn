@@ -1,0 +1,56 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="Mat_handle"]
+albedo_color = Color(0.45, 0.3, 0.18, 1)
+roughness = 0.9
+
+[sub_resource type="CylinderMesh" id="Mesh_handle"]
+material = SubResource("Mat_handle")
+top_radius = 0.018
+bottom_radius = 0.015
+height = 0.42
+radial_segments = 8
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_wrap"]
+albedo_color = Color(0.32, 0.27, 0.16, 1)
+roughness = 1.0
+
+[sub_resource type="CylinderMesh" id="Mesh_wrap"]
+material = SubResource("Mat_wrap")
+top_radius = 0.035
+bottom_radius = 0.026
+height = 0.1
+radial_segments = 8
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_flame"]
+shading_mode = 0
+albedo_color = Color(2, 1.1, 0.35, 1)
+
+[sub_resource type="CylinderMesh" id="Mesh_flame"]
+material = SubResource("Mat_flame")
+top_radius = 0.0
+bottom_radius = 0.04
+height = 0.12
+radial_segments = 8
+rings = 1
+
+[node name="TorchPlaceholder" type="Node3D"]
+
+[node name="Handle" type="MeshInstance3D" parent="."]
+mesh = SubResource("Mesh_handle")
+
+[node name="Wrap" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.23, 0)
+mesh = SubResource("Mesh_wrap")
+
+[node name="Flame" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.33, 0)
+mesh = SubResource("Mesh_flame")
+
+[node name="Light" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.36, 0)
+light_color = Color(1, 0.65, 0.35, 1)
+light_energy = 1.6
+omni_range = 9.0

@@ -21,6 +21,9 @@ const TIER_FOLDER := "res://iron_tier/tools"
 ## up at +Y, its working edge toward -Z, and its flat side facing +X and -X. Doesn't apply to the
 ## placeholder, which is already built that way.
 @export var model_rotation_degrees := Vector3.ZERO
+## Off for tools you keep (you only ever need one); on for ones you use up and carry several of,
+## like torches
+@export var stackable := false
 
 @export_group("In the hand")
 ## Added to where the hand is, in meters (+X is right, +Y is up, -Z is away from you)

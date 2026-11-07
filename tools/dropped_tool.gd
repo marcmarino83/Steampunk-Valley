@@ -12,7 +12,12 @@ static func create(tool_item: ToolItem) -> DroppedTool:
 	var dropped := DroppedTool.new()
 	dropped._item = tool_item.item_name
 	dropped.add_to_group("dropped_tools")
-	dropped.add_child(tool_item.make_dropped_model())
+	var model := tool_item.make_dropped_model()
+	# Anything a tool shows only while in use (a torch's flame and light) stays out on the ground
+	for part in model.find_children("*", "Node3D", true, false):
+		if part.name in ["Flame", "Light"]:
+			part.visible = false
+	dropped.add_child(model)
 	var sphere := SphereShape3D.new()
 	sphere.radius = PICKUP_RADIUS
 	var collision := CollisionShape3D.new()
@@ -36,7 +41,8 @@ func get_prompt() -> String:
 
 
 func interact(player) -> void:
-	if player.inventory.has(_item):
+	var tool_item := ToolItem.find(_item)
+	if player.inventory.has(_item) and not (tool_item and tool_item.stackable):
 		player.flash("You already have one")
 		return
 	player.add_item(_item, 1)

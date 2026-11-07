@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Recipe" format=3]
+
+[ext_resource type="Script" path="res://crafting/recipe.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+display_name = "Torch"
+description = "A stick with a fiber head that burns for about half a night."
+used_for = "Light when held; it also keeps the cold off a little."
+costs = {
+"Sticks": 1,
+"Plant Fiber": 1
+}
+result = "Torch"
+result_amount = 1
+station = "workbench"

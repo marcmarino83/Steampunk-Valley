@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="Buildable" format=3]
+
+[ext_resource type="Script" path="res://building/buildable.gd" id="1_buildable"]
+[ext_resource type="PackedScene" path="res://building/storage_chest.tscn" id="2_scene"]
+[ext_resource type="Texture2D" path="res://assets/buildables/storage_chest/icon.png" id="3_icon"]
+
+[resource]
+script = ExtResource("1_buildable")
+display_name = "Storage Chest"
+starts_locked = true
+unlocked_by = "Build"
+unlock_item = "Workbench"
+scene = ExtResource("2_scene")
+costs = Array[Dictionary]([{
+"Planks": 6,
+"Rope": 1
+}])
+icon_color = Color(0.5, 0.38, 0.24, 1)
+icon = ExtResource("3_icon")
+max_slope_degrees = 20.0
+footprint_radius = 0.65
+footprint_height = 0.9
+placed_message = "Chest built. Look at it and press E to open it"

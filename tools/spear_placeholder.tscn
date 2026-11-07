@@ -1,0 +1,46 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="Mat_shaft"]
+albedo_color = Color(0.45, 0.3, 0.18, 1)
+roughness = 0.9
+
+[sub_resource type="CylinderMesh" id="Mesh_shaft"]
+material = SubResource("Mat_shaft")
+top_radius = 0.016
+bottom_radius = 0.018
+height = 1.5
+radial_segments = 8
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_tip"]
+albedo_color = Color(0.45, 0.46, 0.48, 1)
+roughness = 0.75
+
+[sub_resource type="PrismMesh" id="Mesh_tip"]
+material = SubResource("Mat_tip")
+size = Vector3(0.06, 0.16, 0.02)
+
+[sub_resource type="StandardMaterial3D" id="Mat_lash"]
+albedo_color = Color(0.6, 0.52, 0.32, 1)
+roughness = 1.0
+
+[sub_resource type="CylinderMesh" id="Mesh_lash"]
+material = SubResource("Mat_lash")
+top_radius = 0.024
+bottom_radius = 0.024
+height = 0.06
+radial_segments = 8
+rings = 1
+
+[node name="SpearPlaceholder" type="Node3D"]
+
+[node name="Shaft" type="MeshInstance3D" parent="."]
+mesh = SubResource("Mesh_shaft")
+
+[node name="Lashing" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.73, 0)
+mesh = SubResource("Mesh_lash")
+
+[node name="Tip" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.83, 0)
+mesh = SubResource("Mesh_tip")

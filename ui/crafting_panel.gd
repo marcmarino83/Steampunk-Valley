@@ -11,6 +11,14 @@ const ROW_BORDER := Color(0.45, 0.28, 0.16)
 const ROW_SELECTED_BORDER := Color(0.98, 0.78, 0.32)
 ## How dark a recipe's row goes when you can't make it right now
 const UNAVAILABLE_TINT := Color(0.6, 0.6, 0.6)
+## The little picture on the row of a recipe that needs a crafting station, and what to call the
+## station when you're not near one. A new station (a forge, say) adds a line to each.
+const STATION_ICONS := {
+	"workbench": preload("res://assets/buildables/workbench/icon.png"),
+}
+const STATION_NAMES := {
+	"workbench": "a workbench",
+}
 
 @onready var list: VBoxContainer = $ListScroll/List
 @onready var large_icon: TextureRect = $Details/LargeIcon
@@ -25,6 +33,8 @@ var _recipes: Array[Recipe] = []
 var _rows: Array[Button] = []
 var _selected: Recipe
 var _inventory := {}
+# The crafting stations within reach right now ("hand" is always there)
+var _stations: PackedStringArray = ["hand"]
 
 
 func _ready() -> void:
@@ -39,16 +49,18 @@ func _ready() -> void:
 	craft_button.pressed.connect(func(): craft_requested.emit(_selected))
 
 
-## Brings the list and details up to date. Recipes only show at a station you're near, and once
-## they're unlocked.
+## Brings the list and details up to date. Unlocked recipes all show; ones that need a station
+## you're not near are greyed out, saying which station they need.
 func refresh(inventory: Dictionary, stations: PackedStringArray, is_unlocked: Callable) -> void:
 	_inventory = inventory
+	_stations = stations
 	var first_shown: Recipe
 	var selected_shown := false
 	for i in _recipes.size():
-		var shown: bool = stations.has(_recipes[i].station) and is_unlocked.call(_recipes[i])
+		var shown: bool = is_unlocked.call(_recipes[i])
 		_rows[i].visible = shown
-		_rows[i].modulate = Color.WHITE if _recipes[i].can_craft(inventory) else UNAVAILABLE_TINT
+		var makeable := stations.has(_recipes[i].station) and _recipes[i].can_craft(inventory)
+		_rows[i].modulate = Color.WHITE if makeable else UNAVAILABLE_TINT
 		if shown and first_shown == null:
 			first_shown = _recipes[i]
 		if shown and _recipes[i] == _selected:
@@ -123,8 +135,11 @@ func _show_details() -> void:
 		if slot.visible:
 			slot.set_cost(items[i], _inventory.get(items[i], 0), _selected.costs[items[i]])
 
-	craft_button.disabled = not _selected.can_craft(_inventory)
-	if _selected.already_owned(_inventory):
+	var at_station := _stations.has(_selected.station)
+	craft_button.disabled = not (at_station and _selected.can_craft(_inventory))
+	if not at_station:
+		show_status("Requires %s." % STATION_NAMES.get(_selected.station, _selected.station), true)
+	elif _selected.already_owned(_inventory):
 		show_status("You already have one", false)
 
 
@@ -145,6 +160,22 @@ func _make_row(recipe: Recipe) -> Button:
 	row.add_theme_stylebox_override("hover", _row_style(ROW_COLOR.lightened(0.08), ROW_BORDER))
 	row.add_theme_stylebox_override("pressed", _row_style(ROW_SELECTED_COLOR, ROW_SELECTED_BORDER))
 	row.add_theme_stylebox_override("hover_pressed", _row_style(ROW_SELECTED_COLOR, ROW_SELECTED_BORDER))
+	# Recipes made at a station carry its picture, small, at the right-hand end of the row
+	if STATION_ICONS.has(recipe.station):
+		var mark := TextureRect.new()
+		mark.texture = STATION_ICONS[recipe.station]
+		mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.anchor_left = 1.0
+		mark.anchor_right = 1.0
+		mark.anchor_top = 0.5
+		mark.anchor_bottom = 0.5
+		mark.offset_left = -32
+		mark.offset_right = -6
+		mark.offset_top = -13
+		mark.offset_bottom = 13
+		row.add_child(mark)
 	return row
 
 

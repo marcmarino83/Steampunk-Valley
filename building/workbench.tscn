@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://building/workbench.gd" id="1_bench"]
+[ext_resource type="PackedScene" path="res://assets/buildables/workbench/workbench.fbx" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="Shape_bench"]
+size = Vector3(1.6, 1.0, 0.85)
+
+[node name="Workbench" type="StaticBody3D"]
+script = ExtResource("1_bench")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+shape = SubResource("Shape_bench")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(0.84266, 0, 0, 0, 0.84266, 0, 0, 0, 0.84266, -0.00054, 0.6013, -0.01111)

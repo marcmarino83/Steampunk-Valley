@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ToolItem" format=3]
+
+[ext_resource type="Script" path="res://tools/tool_item.gd" id="1_tool"]
+[ext_resource type="PackedScene" path="res://tools/spear_placeholder.tscn" id="2_model"]
+
+[resource]
+script = ExtResource("1_tool")
+item_name = "Spear"
+placeholder_scene = ExtResource("2_model")
+length = 1.6
+held_position = Vector3(0.05, 0.15, -0.1)
+held_rotation_degrees = Vector3(-62, 8, 6)

@@ -30,9 +30,10 @@ func can_afford(inventory: Dictionary) -> bool:
 	return true
 
 
-## You only ever need one of each tool
+## You only ever need one of each tool (except ones you use up, like torches, which stack)
 func already_owned(inventory: Dictionary) -> bool:
-	return ToolItem.exists_for(result) and inventory.has(result)
+	var tool_item := ToolItem.find(result)
+	return tool_item != null and not tool_item.stackable and inventory.has(result)
 
 
 func can_craft(inventory: Dictionary) -> bool:

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Recipe" format=3]
+
+[ext_resource type="Script" path="res://crafting/recipe.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+display_name = "Planks"
+description = "Two flat boards split from a log."
+used_for = "An ingredient for chests and building pieces."
+costs = {
+"Wood": 1
+}
+result = "Planks"
+result_amount = 2
+station = "workbench"

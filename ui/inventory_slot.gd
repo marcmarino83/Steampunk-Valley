@@ -3,6 +3,15 @@ extends PanelContainer
 
 ## A tool from the action bar was dragged back onto this slot
 signal tool_returned(item: String)
+## An item was dragged here from the other container ("backpack" or "chest")
+signal item_moved(item: String, from: String)
+## Shift-click: move this slot's whole stack to the other container
+signal quick_move(item: String, from: String)
+
+## Which container this slot belongs to: "backpack" or "chest"
+var container := "backpack"
+## When a chest is open, anything can be moved between it and the backpack, not just tools
+var trading := false
 
 ## Placeholder colors for items that don't have an icon image yet.
 ## Anything not listed here shows up gray.
@@ -20,6 +29,10 @@ const ITEM_COLORS := {
 	"Copper Ore": Color(0.2, 0.62, 0.5),
 	"Mushrooms": Color(0.78, 0.6, 0.42),
 	"Herbs": Color(0.36, 0.66, 0.26),
+	"Rope": Color(0.66, 0.56, 0.36),
+	"Planks": Color(0.7, 0.52, 0.3),
+	"Torch": Color(0.95, 0.55, 0.2),
+	"Spear": Color(0.56, 0.44, 0.3),
 }
 
 ## Real icon images. When you have one, add a line like:
@@ -104,17 +117,42 @@ func clear() -> void:
 	swatch.show()
 
 
-# Only tools can be dragged out of the backpack, onto the action bar
+# Tools can always be dragged out of the backpack (onto the action bar); with a chest open, any
+# stack can be dragged across to the other container
 func _get_drag_data(_at_position: Vector2) -> Variant:
-	if not ToolItem.exists_for(_item):
+	if _item.is_empty():
+		return null
+	var is_tool := container == "backpack" and ToolItem.exists_for(_item)
+	if not is_tool and not trading:
 		return null
 	set_drag_preview(make_drag_preview(_item))
-	return {"tool_item": _item, "from_bar": false}
+	var data := {"item": _item, "from": container, "from_bar": false}
+	if is_tool:
+		data["tool_item"] = _item
+	return data
 
 
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
-	return data is Dictionary and data.get("from_bar", false)
+	if not data is Dictionary:
+		return false
+	# A tool from the action bar: back to the backpack, or across into an open chest
+	if data.get("from_bar", false):
+		return container == "backpack" or trading
+	return trading and data.has("item") and data.get("from", "") != container
 
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
-	tool_returned.emit(data["tool_item"])
+	if data.get("from_bar", false):
+		if container == "backpack":
+			tool_returned.emit(data["tool_item"])
+		else:
+			item_moved.emit(data["tool_item"], "backpack")
+		return
+	item_moved.emit(data["item"], data["from"])
+
+
+func _gui_input(event: InputEvent) -> void:
+	if trading and not _item.is_empty() and event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_LEFT and event.shift_pressed:
+		accept_event()
+		quick_move.emit(_item, container)

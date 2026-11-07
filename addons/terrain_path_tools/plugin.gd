@@ -9,7 +9,7 @@ extends EditorPlugin
 ## Points are drawn as big round handles, and a short hint sits in the corner of the view.
 
 ## Trails are recognized by their script's path, so this plugin loads even if that script has a problem
-const TERRAIN_PATH_SCRIPT := "res://terrain_path.gd"
+const TERRAIN_PATH_SCRIPT := "res://world/terrain_path.gd"
 ## How close (on screen, in pixels) the mouse must be to grab a point or the trail
 const POINT_GRAB := 20.0
 const TRAIL_GRAB := 14.0

@@ -1,0 +1,26 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_grip"]
+albedo_color = Color(0.45, 0.3, 0.18, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_grip"]
+material = SubResource("StandardMaterial3D_grip")
+size = Vector3(0.03, 0.11, 0.025)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_blade"]
+albedo_color = Color(0.45, 0.46, 0.48, 1)
+roughness = 0.75
+
+[sub_resource type="PrismMesh" id="PrismMesh_blade"]
+material = SubResource("StandardMaterial3D_blade")
+size = Vector3(0.04, 0.16, 0.012)
+
+[node name="KnifePlaceholder" type="Node3D"]
+
+[node name="Grip" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_grip")
+
+[node name="Blade" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.135, 0)
+mesh = SubResource("PrismMesh_blade")

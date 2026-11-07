@@ -1,0 +1,28 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://world/resource_node.gd" id="1_res"]
+[ext_resource type="PackedScene" path="res://assets/rocks/stone/stone.glb" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="Shape_pickup"]
+size = Vector3(0.5, 0.4, 0.5)
+
+[node name="Stone" type="StaticBody3D"]
+script = ExtResource("1_res")
+resource_name = "Stone"
+amount_per_gather = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+shape = SubResource("Shape_pickup")
+
+[node name="MeshInstance3D" type="Node3D" parent="."]
+
+[node name="Model" parent="MeshInstance3D" instance=ExtResource("2_model")]
+transform = Transform3D(0.36784, 0, 0, 0, 0.36784, 0, 0, 0, 0.36784, 0.000494, 0.227180, 0.000427)
+
+[node name="output_unwrapped" parent="MeshInstance3D/Model" index="0"]
+visibility_range_end = 150.0
+visibility_range_end_margin = 10.0
+visibility_range_fade_mode = 1
+
+[editable path="MeshInstance3D/Model"]

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Recipe" format=3]
+
+[ext_resource type="Script" path="res://recipe.gd" id="1_recipe"]
+[ext_resource type="Texture2D" path="res://assets/tier_1_tools/icons/knife.png" id="2_icon"]
+
+[resource]
+script = ExtResource("1_recipe")
+display_name = "Knife"
+description = "A sharp stone flake with a bound grip."
+used_for = "Gathering more plant fiber per harvest while held."
+icon = ExtResource("2_icon")
+costs = {
+"Sticks": 1,
+"Stone": 1,
+"Plant Fiber": 1
+}
+result = "Knife"
+station = "hand"

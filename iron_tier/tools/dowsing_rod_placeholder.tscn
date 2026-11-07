@@ -1,0 +1,27 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rod"]
+albedo_color = Color(0.52, 0.37, 0.2, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_stem"]
+material = SubResource("StandardMaterial3D_rod")
+size = Vector3(0.025, 0.2, 0.025)
+
+[sub_resource type="BoxMesh" id="BoxMesh_prong"]
+material = SubResource("StandardMaterial3D_rod")
+size = Vector3(0.02, 0.2, 0.02)
+
+[node name="DowsingRodPlaceholder" type="Node3D"]
+
+[node name="Stem" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
+mesh = SubResource("BoxMesh_stem")
+
+[node name="ProngLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.87, -0.5, 0, 0.5, 0.87, 0, 0, 0, 1, -0.05, 0.23, 0)
+mesh = SubResource("BoxMesh_prong")
+
+[node name="ProngRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.87, 0.5, 0, -0.5, 0.87, 0, 0, 0, 1, 0.05, 0.23, 0)
+mesh = SubResource("BoxMesh_prong")

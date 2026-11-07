@@ -1,0 +1,63 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://world/resource_node.gd" id="1_res"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pile"]
+size = Vector3(2.1, 0.5, 1.0)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_plank"]
+albedo_color = Color(0.4, 0.28, 0.16, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_plank_burnt"]
+albedo_color = Color(0.16, 0.11, 0.07, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="BoxMesh_plank"]
+material = SubResource("StandardMaterial3D_plank")
+size = Vector3(2.0, 0.07, 0.25)
+
+[sub_resource type="BoxMesh" id="BoxMesh_plank_burnt"]
+material = SubResource("StandardMaterial3D_plank_burnt")
+size = Vector3(1.6, 0.07, 0.25)
+
+[node name="PlankPile" type="StaticBody3D"]
+script = ExtResource("1_res")
+resource_name = "Wood"
+amount_per_gather = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+shape = SubResource("BoxShape3D_pile")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.04, 0)
+mesh = SubResource("BoxMesh_plank")
+
+[node name="Plank2" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(0.05, 0, 0.27)
+mesh = SubResource("BoxMesh_plank")
+
+[node name="Plank3" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(-0.1, 0, -0.27)
+mesh = SubResource("BoxMesh_plank_burnt")
+
+[node name="Plank4" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(0, 0.07, -0.13)
+rotation_degrees = Vector3(0, 9, 0)
+mesh = SubResource("BoxMesh_plank")
+
+[node name="Plank5" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(0.1, 0.07, 0.15)
+rotation_degrees = Vector3(0, 5, 0)
+mesh = SubResource("BoxMesh_plank")
+
+[node name="Plank6" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(0, 0.14, 0)
+rotation_degrees = Vector3(0, -14, 0)
+mesh = SubResource("BoxMesh_plank_burnt")
+
+[node name="Plank7" type="MeshInstance3D" parent="MeshInstance3D"]
+position = Vector3(0.3, 0.2, 0.2)
+rotation_degrees = Vector3(0, 32, 6)
+mesh = SubResource("BoxMesh_plank")

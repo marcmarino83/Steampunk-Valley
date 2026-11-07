@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Recipe" format=3]
+
+[ext_resource type="Script" path="res://recipe.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+display_name = "Dowsing Rod"
+description = "A forked stick that tugs toward what's buried."
+used_for = "Reveals buried iron and coal nearby (R while held)."
+costs = {
+"Plant Fiber": 1,
+"Sticks": 2
+}
+result = "Dowsing Rod"
+station = "hand"

@@ -24,6 +24,9 @@ extends RefCounted
 
 const CATEGORIES := ["Trees", "Rocks", "Bushes", "Landmarks"]
 const MODEL_TYPES := ["glb", "gltf", "fbx", "obj", "blend"]
+## Folders whose models are only for the game's own pickups (scattered by the valley, gathered
+## with E), so they never show in the palette, even inside a category folder
+const NOT_IN_PALETTE := ["res://assets/rocks/stone", "res://assets/sticks", "res://assets/bushes/plant_fiber", "res://assets/buildables"]
 ## How close (on the ground, in meters, beyond its own size) the mouse must be to grab a
 ## placed object
 const GRAB_MARGIN := 0.6
@@ -88,6 +91,8 @@ func scan_palette() -> void:
 
 
 func _scan_folder(folder: String, found_category: String, ignored: Array) -> void:
+	if NOT_IN_PALETTE.has(folder):
+		return
 	var dir := DirAccess.open(folder)
 	if dir == null:
 		return
@@ -605,7 +610,7 @@ func _objects_node(make: bool) -> Node3D:
 	if holder == null and make:
 		holder = Node3D.new()
 		holder.name = "Objects"
-		holder.set_script(load("res://placed_objects.gd"))
+		holder.set_script(load("res://world/placed_objects.gd"))
 		edits.add_child(holder, true)
 		holder.owner = root
 		if scene_root == null:

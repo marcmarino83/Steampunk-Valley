@@ -1,6 +1,6 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://tree.gd" id="1_e07nl"]
+[ext_resource type="Script" path="res://world/tree.gd" id="1_e07nl"]
 [ext_resource type="Material" path="res://assets/trees/pine_pack/materials/bark_mat.tres" id="2_t5m8s"]
 [ext_resource type="ArrayMesh" path="res://assets/trees/pine_pack/meshes/pine_small_3_lod0_bark.res" id="3_8jsto"]
 [ext_resource type="Material" path="res://assets/trees/pine_pack/materials/clusters_mat.tres" id="4_ek1p0"]

@@ -7,9 +7,9 @@ extends VBoxContainer
 # The scenes the buttons add. They're loaded when a button is pressed, not when this script
 # is read, so a moved or broken scene shows up as a message in the panel instead of stopping
 # the whole plugin from loading.
-const MODIFIER_SCENE := "res://terrain_modifier.tscn"
-const PATH_SCENE := "res://terrain_path.tscn"
-const ZONE_SCENE := "res://clear_zone.tscn"
+const MODIFIER_SCENE := "res://world/terrain_modifier.tscn"
+const PATH_SCENE := "res://world/terrain_path.tscn"
+const ZONE_SCENE := "res://building/clear_zone.tscn"
 ## The terrain modifier's modes, by the number its Mode setting saves
 const MODES := {1: "Raise/Lower", 2: "Flatten", 3: "Smooth", 4: "Squash"}
 const FLATTEN := 2

@@ -1,0 +1,38 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://iron_tier/hidden_deposit.gd" id="1_deposit"]
+[ext_resource type="PackedScene" path="res://iron_tier/dig_spot.tscn" id="2_dig"]
+
+[sub_resource type="BoxShape3D" id="Shape_dig"]
+size = Vector3(2.0, 0.6, 2.0)
+
+[sub_resource type="SphereMesh" id="Mesh_marker"]
+radius = 0.22
+height = 0.55
+radial_segments = 4
+rings = 2
+
+[sub_resource type="CylinderMesh" id="Mesh_beam"]
+top_radius = 0.025
+bottom_radius = 0.06
+height = 2.3
+radial_segments = 6
+rings = 1
+
+[node name="HiddenDeposit" type="StaticBody3D"]
+script = ExtResource("1_deposit")
+resource_name = "Ore"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.2, 0)
+shape = SubResource("Shape_dig")
+
+[node name="MeshInstance3D" parent="." instance=ExtResource("2_dig")]
+
+[node name="Marker" type="MeshInstance3D" parent="."]
+position = Vector3(0, 2.6, 0)
+mesh = SubResource("Mesh_marker")
+
+[node name="Beam" type="MeshInstance3D" parent="Marker"]
+position = Vector3(0, -1.35, 0)
+mesh = SubResource("Mesh_beam")

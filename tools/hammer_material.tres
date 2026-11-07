@@ -1,0 +1,15 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/tier_1_tools/hammer/Meshy_AI_Tool_2_Stone_Hammer_20261107_image-to-3d-texture.png" id="1_albedo"]
+[ext_resource type="Texture2D" path="res://assets/tier_1_tools/hammer/Meshy_AI_Tool_2_Stone_Hammer_20261107_image-to-3d-texture_metallic.png" id="2_metallic"]
+[ext_resource type="Texture2D" path="res://assets/tier_1_tools/hammer/Meshy_AI_Tool_2_Stone_Hammer_20261107_image-to-3d-texture_roughness.png" id="3_roughness"]
+[ext_resource type="Texture2D" path="res://assets/tier_1_tools/hammer/Meshy_AI_Tool_2_Stone_Hammer_20261107_image-to-3d-texture_normal.png" id="4_normal"]
+
+[resource]
+resource_name = "Hammer"
+albedo_texture = ExtResource("1_albedo")
+metallic = 1.0
+metallic_texture = ExtResource("2_metallic")
+roughness_texture = ExtResource("3_roughness")
+normal_enabled = true
+normal_texture = ExtResource("4_normal")

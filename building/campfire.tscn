@@ -1,0 +1,42 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://building/campfire.gd" id="1_fire"]
+[ext_resource type="PackedScene" path="res://assets/buildables/campfire/campfire.fbx" id="2_model"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_fire"]
+height = 0.3
+radius = 0.6
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_flame"]
+shading_mode = 0
+albedo_color = Color(1, 0.55, 0.15, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_flame"]
+material = SubResource("StandardMaterial3D_flame")
+top_radius = 0.0
+bottom_radius = 0.25
+height = 0.7
+radial_segments = 8
+rings = 1
+
+[node name="Campfire" type="StaticBody3D"]
+script = ExtResource("1_fire")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+shape = SubResource("CylinderShape3D_fire")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(0.635, 0, 0, 0, 0.635, 0, 0, 0, 0.635, -0.00125, 0.22139, 0.0017)
+
+[node name="Flame" type="MeshInstance3D" parent="."]
+visible = false
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, -0.03)
+mesh = SubResource("CylinderMesh_flame")
+
+[node name="Light" type="OmniLight3D" parent="."]
+visible = false
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, -0.03)
+light_color = Color(1, 0.62, 0.32, 1)
+light_energy = 2.0
+omni_range = 9.0

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="Buildable" format=3]
+
+[ext_resource type="Script" path="res://building/buildable.gd" id="1_buildable"]
+[ext_resource type="PackedScene" path="res://building/lean_to.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_buildable")
+display_name = "Lean-to"
+starts_locked = true
+unlocked_by = "Craft"
+unlock_item = "Hammer"
+scene = ExtResource("2_scene")
+costs = Array[Dictionary]([{
+"Sticks": 8,
+"Wood": 4,
+"Plant Fiber": 6
+}])
+icon_color = Color(0.55, 0.42, 0.26, 1)
+max_slope_degrees = 15.0
+footprint_radius = 2.0
+footprint_height = 2.5
+placed_message = "Lean-to built. Look at the mat and press E to sleep, at night"

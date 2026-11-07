@@ -1,0 +1,30 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_handle"]
+albedo_color = Color(0.45, 0.3, 0.18, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_handle"]
+material = SubResource("StandardMaterial3D_handle")
+size = Vector3(0.03, 0.46, 0.03)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_head"]
+albedo_color = Color(0.45, 0.46, 0.48, 1)
+roughness = 0.75
+
+[sub_resource type="PrismMesh" id="PrismMesh_tip"]
+material = SubResource("StandardMaterial3D_head")
+size = Vector3(0.05, 0.15, 0.04)
+
+[node name="PickaxePlaceholder" type="Node3D"]
+
+[node name="Handle" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_handle")
+
+[node name="TipLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, -0.08, 0.2, 0)
+mesh = SubResource("PrismMesh_tip")
+
+[node name="TipRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.08, 0.2, 0)
+mesh = SubResource("PrismMesh_tip")

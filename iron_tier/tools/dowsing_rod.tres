@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ToolItem" format=3]
+
+[ext_resource type="Script" path="res://tool_item.gd" id="1_tool"]
+[ext_resource type="PackedScene" path="res://iron_tier/tools/dowsing_rod_placeholder.tscn" id="2_model"]
+
+[resource]
+script = ExtResource("1_tool")
+item_name = "Dowsing Rod"
+placeholder_scene = ExtResource("2_model")
+length = 0.42
+held_rotation_degrees = Vector3(-40, 0, 0)

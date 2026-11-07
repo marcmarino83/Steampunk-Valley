@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Recipe" format=3]
+
+[ext_resource type="Script" path="res://recipe.gd" id="1_recipe"]
+[ext_resource type="Texture2D" path="res://assets/tier_1_tools/icons/pickaxe.png" id="2_icon"]
+
+[resource]
+script = ExtResource("1_recipe")
+display_name = "Pickaxe"
+description = "A pointed stone head on a long handle."
+used_for = "Mining rocks and boulders for stone."
+icon = ExtResource("2_icon")
+costs = {
+"Sticks": 2,
+"Stone": 3,
+"Plant Fiber": 2
+}
+result = "Pickaxe"
+station = "hand"

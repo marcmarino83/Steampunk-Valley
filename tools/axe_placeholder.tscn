@@ -1,0 +1,26 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_handle"]
+albedo_color = Color(0.45, 0.3, 0.18, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_handle"]
+material = SubResource("StandardMaterial3D_handle")
+size = Vector3(0.03, 0.4, 0.03)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_blade"]
+albedo_color = Color(0.45, 0.46, 0.48, 1)
+roughness = 0.75
+
+[sub_resource type="PrismMesh" id="PrismMesh_blade"]
+material = SubResource("StandardMaterial3D_blade")
+size = Vector3(0.11, 0.15, 0.03)
+
+[node name="AxePlaceholder" type="Node3D"]
+
+[node name="Handle" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_handle")
+
+[node name="Blade" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, -0.06, 0.15, 0)
+mesh = SubResource("PrismMesh_blade")

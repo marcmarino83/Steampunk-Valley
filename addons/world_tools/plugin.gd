@@ -9,7 +9,7 @@ extends EditorPlugin
 
 const PANEL_PATH := "res://addons/world_tools/world_tools_dock.gd"
 const MENU_ITEM := "Show World Tools"
-const MODIFIER_SCRIPT := "res://terrain_modifier.gd"
+const MODIFIER_SCRIPT := "res://world/terrain_modifier.gd"
 
 var _dock: EditorDock
 var _panel: Control

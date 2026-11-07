@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Recipe" format=3]
+
+[ext_resource type="Script" path="res://recipe.gd" id="1_recipe"]
+[ext_resource type="Texture2D" path="res://assets/tier_1_tools/icons/axe.png" id="2_icon"]
+
+[resource]
+script = ExtResource("1_recipe")
+display_name = "Axe"
+description = "A sharpened stone blade bound to a handle."
+used_for = "Chopping trees. They can't be felled without one."
+icon = ExtResource("2_icon")
+costs = {
+"Sticks": 2,
+"Stone": 2,
+"Plant Fiber": 2
+}
+result = "Axe"
+station = "hand"

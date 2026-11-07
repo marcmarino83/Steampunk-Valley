@@ -1,0 +1,60 @@
+[gd_resource type="ShaderMaterial" format=4 uid="uid://bm46i82rjv7ap"]
+
+[ext_resource type="Shader" uid="uid://ii1qdvoc6vmk" path="res://world/terrain.gdshader" id="1_shader"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_detail"]
+frequency = 0.008
+fractal_octaves = 6
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_detail"]
+noise = SubResource("FastNoiseLite_detail")
+seamless = true
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/detail_noise = SubResource("NoiseTexture2D_detail")
+shader_parameter/grass_dark = Color(0.13, 0.2, 0.06, 1)
+shader_parameter/grass_light = Color(0.3, 0.34, 0.12, 1)
+shader_parameter/grass_dry = Color(0.4, 0.36, 0.19, 1)
+shader_parameter/dirt_color = Color(0.28, 0.24, 0.17, 1)
+shader_parameter/normal_strength = 1.0
+shader_parameter/height_blend_depth = 0.2
+shader_parameter/water_height = 27.3
+shader_parameter/shore_width = 1.5
+shader_parameter/mud_center = Vector2(0, 0)
+shader_parameter/mud_radius = 0.0
+shader_parameter/scorch_center = Vector2(0, 0)
+shader_parameter/scorch_radius = 0.0
+shader_parameter/slope_view = false
+shader_parameter/walk_limit_degrees = 45.0
+shader_parameter/ground_map_info = Vector4(0, 0, 1, 1)
+shader_parameter/paint_channel = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/paint_info = Vector4(0, 0, 1, 0)
+shader_parameter/set_scale = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/set_tint = PackedVector4Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/set_has_ao = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/forest_set = -1
+shader_parameter/gravel_set = -1
+shader_parameter/rock_set = -1
+shader_parameter/mossy_rock_set = -1
+shader_parameter/cliff_rock_set = -1
+shader_parameter/crag_rock_set = 3
+shader_parameter/scree_set = -1
+shader_parameter/path_set = -1
+shader_parameter/light_soil_set = -1
+shader_parameter/dark_soil_set = -1
+shader_parameter/rock_begin_degrees = 30.0
+shader_parameter/rock_full_degrees = 52.0
+shader_parameter/rock_edge_noise = 12.0
+shader_parameter/cliff_degrees = 48.0
+shader_parameter/moss_facing = Vector2(0, -1)
+shader_parameter/rock_variation = 0.7
+shader_parameter/scree_below_rise = 0.7
+shader_parameter/scree_gully_depth = 0.8
+shader_parameter/vein_dark = Color(0.06, 0.13, 0.03, 1)
+shader_parameter/vein_bright = Color(0.34, 0.46, 0.08, 1)
+shader_parameter/vein_from = 0.42
+shader_parameter/hollow_shade = 0.5
+shader_parameter/pale_rock = Color(0.74, 0.7, 0.62, 1)
+shader_parameter/pale_from = 105.0

@@ -1,8 +1,11 @@
 class_name PieceRegistry
 extends Node
 ## Every building piece in the world, by id: makes them, takes them away, and saves them.
-## Pieces get ids that stay the same across saves, and an owner plot (empty for now), so the plot
-## system can later find, count and move the pieces it owns.
+## Pieces get ids that stay the same across saves, and an owner plot (empty for none), so the plot
+## system can find, count and move the pieces it owns.
+
+## A piece was added or taken away (plots check their requirements again)
+signal changed
 
 const CLEAR_ZONE_SCENE := preload("res://building/clear_zone.tscn")
 
@@ -64,6 +67,7 @@ func spawn(piece: PieceBuildable, where: Transform3D, paid: Dictionary, id := 0,
 	built.load_state(state)
 	_pieces[id] = built
 	_clear_grass_under(built)
+	changed.emit()
 	return built
 
 
@@ -75,6 +79,7 @@ func remove(piece: BuildPiece) -> void:
 	if zone and valley:
 		valley.remove_clear_zone(zone)
 	piece.queue_free()
+	changed.emit()
 
 
 func find(id: int) -> BuildPiece:

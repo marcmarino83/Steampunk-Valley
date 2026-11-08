@@ -5,7 +5,9 @@
 [ext_resource type="PackedScene" path="res://ui/build_menu.tscn" id="3_build"]
 [ext_resource type="PackedScene" path="res://ui/action_bar.tscn" id="4_bar"]
 
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_body"]
+height = 2.0
+radius = 0.4
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
 
@@ -13,7 +15,7 @@
 script = ExtResource("1_4flbx")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1201679049]
-shape = SubResource("CapsuleShape3D_body")
+shape = SubResource("CylinderShape3D_body")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=277965845]
 mesh = SubResource("CapsuleMesh_body")

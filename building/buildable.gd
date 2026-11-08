@@ -23,6 +23,8 @@ extends Blueprint
 ## How much room it needs, in meters. Anything solid inside this makes the spot invalid.
 @export var footprint_radius := 1.0
 @export var footprint_height := 2.0
+## On a floor with snapping on, it backs up flush against a wall it's close to (its back is -Z)
+@export var backs_to_wall := false
 ## Shown once it's been placed (optional)
 @export_multiline var placed_message := ""
 

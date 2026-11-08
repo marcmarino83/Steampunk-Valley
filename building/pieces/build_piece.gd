@@ -3,8 +3,8 @@ extends StaticBody3D
 ## One placed building piece. It builds its look, collision and snap points from its shape
 ## (PieceShapes) when the piece registry makes it. Doors open and close with E.
 ##
-## For plots (coming later): every piece has an id that stays the same across saves, and the
-## plot that owns it (empty for none). The registry lists them all.
+## Every piece has an id that stays the same across saves, and the plot that owns it (empty for
+## none; see PlotRegistry). The registry lists them all.
 
 ## How far a door swings open, in degrees
 const DOOR_OPEN_DEGREES := 95.0
@@ -44,6 +44,8 @@ func setup(piece: PieceBuildable, def: Dictionary, material: Material) -> void:
 		panel.material_override = material
 		add_child(panel)
 		_door_parts.append({"node": panel, "rest": Transform3D.IDENTITY})
+	if def.get("hearth", false):
+		_make_hearth_fire()
 	for part in def["collision"]:
 		var solid := CollisionShape3D.new()
 		solid.shape = part["shape"]
@@ -77,6 +79,84 @@ func is_roof() -> bool:
 ## A floor or round floor wedge
 func is_floor() -> bool:
 	return _def.get("floor", false)
+
+
+## Furniture (a bed, a shelf...): counts toward a plot's requirements by its name
+func is_furniture() -> bool:
+	return _def.get("furniture", false)
+
+
+## Furniture that backs up flush against a wall when placed near one (bed, shelves, tool rack)
+func backs_to_wall() -> bool:
+	return _def.get("backs_to_wall", false)
+
+
+# ---- The fireplace ----
+#
+# It burns all the time (no fuel yet) and warms you like a campfire: it's in the "campfires"
+# group, so the player's warmth and a warm night's sleep count it.
+
+const HEARTH_HEAT_RADIUS := 6.0
+const HEARTH_FIRE := Vector3(0, 0.42, -0.1)
+
+var _hearth_light: OmniLight3D
+var _hearth_flame: MeshInstance3D
+
+
+## A fire that's burning (only the fireplace, which always is)
+func is_lit() -> bool:
+	return _def.get("hearth", false)
+
+
+## How close you need to be to feel its heat
+func heat_radius() -> float:
+	return HEARTH_HEAT_RADIUS
+
+
+func _make_hearth_fire() -> void:
+	add_to_group("campfires")
+	_hearth_light = OmniLight3D.new()
+	_hearth_light.light_color = Color(1.0, 0.62, 0.3)
+	_hearth_light.light_energy = 1.8
+	_hearth_light.omni_range = 7.0
+	_hearth_light.shadow_enabled = true
+	_hearth_light.position = HEARTH_FIRE + Vector3(0, 0.15, 0.35)
+	add_child(_hearth_light)
+	# A plain glowing flame in the hearth, flickering with the light
+	_hearth_flame = MeshInstance3D.new()
+	var flame := PrismMesh.new()
+	flame.size = Vector3(0.36, 0.42, 0.16)
+	_hearth_flame.mesh = flame
+	var glow := StandardMaterial3D.new()
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.albedo_color = Color(1.0, 0.55, 0.15)
+	glow.emission_enabled = true
+	glow.emission = Color(1.0, 0.45, 0.1)
+	glow.emission_energy_multiplier = 2.5
+	_hearth_flame.material_override = glow
+	_hearth_flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_hearth_flame.position = HEARTH_FIRE + Vector3(0, 0.21, 0)
+	add_child(_hearth_flame)
+
+
+func _process(_delta: float) -> void:
+	if _hearth_light == null:
+		set_process(false)
+		return
+	var t := Time.get_ticks_msec() * 0.001 + float(piece_id)
+	var flicker := sin(t * 11.0) * 0.5 + sin(t * 6.7) * 0.5
+	_hearth_light.light_energy = 1.8 + flicker * 0.35
+	_hearth_flame.scale = Vector3(1.0, 1.0 + flicker * 0.12, 1.0)
+
+
+## The middle of its solid parts, in the world: a plot owns it if this is inside the plot
+func center() -> Vector3:
+	return global_transform * PieceShapes.bounds_of(_def).get_center()
+
+
+## Its shape's look, collision and snap points (see PieceShapes.build)
+func shape_def() -> Dictionary:
+	return _def
 
 
 ## Lays a glow over the piece (the hammer's demolish target shows red), or takes it off (null)

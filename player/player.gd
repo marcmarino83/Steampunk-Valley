@@ -2,6 +2,12 @@ extends CharacterBody3D
 
 const WALK_SPEED = 5.0
 const JUMP_VELOCITY = 4.5
+## Sprinting (hold Shift, going forward): how much faster than walking, how many degrees wider
+## the view gets and how quickly it eases there, and how much faster hunger drains
+const SPRINT_MULTIPLIER := 1.7
+const SPRINT_FOV := 7.0
+const SPRINT_FOV_EASE := 8.0
+const SPRINT_HUNGER := 1.5
 const MOUSE_SENSITIVITY = 0.002
 
 ## Hunger and warmth follow the sun's clock (its Day Minutes and Night Minutes), so they stay fair
@@ -33,6 +39,8 @@ const SLEEP_FADE := 1.0
 const SLEEP_DARK := 0.6
 ## How long a "New blueprint" pop-up stays up before fading, in seconds
 const BLUEPRINT_POPUP_TIME := 3.0
+## In plot view, how far ahead E finds the plot whose ground you're aiming at
+const PLOT_REACH := 10.0
 ## More new blueprints than this at once are summed up in the pop-up instead of listed
 const BLUEPRINT_POPUP_LINES := 3
 ## How close a crafting station (like the workbench) must be for its recipes, in meters
@@ -47,6 +55,16 @@ const TORCH_CHILL := 0.75
 ## rays look, in meters, and how many go round the room
 ## Climbing a ladder: how fast (m/s), and how close it must be in front of you
 const CLIMB_SPEED := 2.5
+## Stepping: the highest ledge you walk up onto without jumping (a floor laid on the ground, a low
+## foundation; not a full-height foundation), the smallest rise that counts as a step, how far
+## ahead a ledge is felt for, and how quickly the camera catches up after a step
+const STEP_HEIGHT := 0.45
+const STEP_MIN := 0.02
+const STEP_PROBE := 0.06
+const STEP_CAMERA_EASE := 14.0
+## A drop this big in one frame is a ledge stepped off, not a slope walked down (at walking speed
+## even a 45° slope drops less): only then does the camera ease down after it
+const STEP_SMOOTH_DROP := 0.12
 const LADDER_REACH := 0.9
 const SHELTER_CHECK_SECONDS := 0.4
 const SHELTER_REACH := 14.0
@@ -77,6 +95,20 @@ var _message := ""
 var _message_time := 0.0
 # The parchment page that notes and logs open on
 var _note_panel: Control
+# The plot panel (E aimed inside a plot in plot view), which also asks plots' yes/no questions
+var _plot_panel: PlotPanel
+# What was being placed when the build menu opened, to go back to if nothing else is picked
+var _build_resume: Buildable
+# Plot view switched on with P (it only shows with the hammer out)
+var _plot_view := false
+# The camera's usual height on the body, and how far it lags behind after a step (eases to 0)
+var _camera_height := 0.0
+var _step_offset := 0.0
+# Half the body's height: its origin is its middle, so your feet are this far below it
+var _half_height := 1.0
+# Sprinting right now (Shift held, going forward, started on the ground), and the usual view angle
+var _sprinting := false
+var _base_fov := 75.0
 # The dowsing rod's pulse, which only exists while the iron tier is switched on
 var _dowsing: Node
 # The grass, ferns and scattered rocks, found the first time a pickaxe needs them
@@ -119,6 +151,11 @@ var _shelter_check_in := 0.0
 
 
 func _ready() -> void:
+	# Walking off a low ledge keeps you on the ground (no hop); a jump still lifts you off
+	floor_snap_length = STEP_HEIGHT
+	_camera_height = camera.position.y
+	_base_fov = camera.fov
+	_half_height = ($CollisionShape3D.shape as CylinderShape3D).height / 2.0
 	# Hide the mouse and lock it to the window so it can steer the camera
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	# The look ray starts inside your own body, so tell it to ignore you
@@ -163,6 +200,17 @@ func _ready() -> void:
 	_fade.color = Color.BLACK
 	_fade.modulate.a = 0.0
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Above the HUD and menus, under the black of sleep
+	_plot_panel = PlotPanel.new()
+	$HUD.add_child(_plot_panel)
+	_plot_panel.closed.connect(func(): Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
+	_plot_panel.move_requested.connect(func(plot):
+		_plot_panel.close()
+		_placer.move_plot(plot))
+	_plot_panel.remove_confirmed.connect(func(plot):
+		var plot_name: String = plot.plot_name
+		_placer.plots.remove_plot(plot)
+		flash("Removed %s. Its pieces stay standing" % plot_name))
 	$HUD.add_child(_fade)
 	_pause_menu = PAUSE_MENU_SCENE.instantiate()
 	$HUD.add_child(_pause_menu)
@@ -247,6 +295,11 @@ func load_data(data: Dictionary) -> void:
 	_done.clear()
 	for entry in data.get("done", []):
 		_done[str(entry)] = true
+	# Blueprints added since this save was made (like plots, or new furniture) unlock quietly if
+	# what they need was already done
+	for blueprint in _all_blueprints():
+		if blueprint.starts_locked and blueprint.is_met(_done):
+			_unlocked[blueprint] = true
 	_torch_left = float(data.get("torch_left", 0.0))
 	for tool_on_ground in get_tree().get_nodes_in_group("dropped_tools"):
 		tool_on_ground.queue_free()
@@ -300,9 +353,12 @@ func _process(delta: float) -> void:
 			_close_chest()
 
 
-	# With the hammer out: in demolish mode (middle-click, see _unhandled_input) or while X is
-	# held, the building piece under the crosshair glows red, ready to demolish
+	# With the hammer out: while the middle button (see _unhandled_input) or X is held, the
+	# building piece that would come down glows red
 	_placer.update_demolish(delta, _can_demolish(), Input.is_key_pressed(KEY_X))
+	# Plot view, with the hammer out: P toggles it, and it's on anyway while the build menu's Plots
+	# tab is open and while a plot is being drawn, moved or resized
+	_placer.update_plot_view(_plot_view_on())
 
 	if _fps_label.visible:
 		var triangles := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
@@ -320,7 +376,7 @@ func _update_hud() -> void:
 	var facing := -global_basis.z
 	var sun = get_tree().get_first_node_in_group("sun")
 	_instruments.update_instruments(atan2(facing.x, -facing.z), sun.time_of_day if sun else 0.5, action_bar.first_slot_rect(), bar.end.y, _hud.row_rect())
-	var covered: bool = _note_panel.is_open() or _sleeping or inventory_screen.visible or build_menu.visible
+	var covered: bool = _note_panel.is_open() or _plot_panel.is_open() or _sleeping or inventory_screen.visible or build_menu.visible
 	_instruments.show_crosshair(not covered)
 	if covered:
 		_hud.set_prompts([])
@@ -334,13 +390,13 @@ func _update_hud() -> void:
 		if target is ResourceNode and target.needs_tool(self):
 			what += " (equip the %s)" % target.required_tool
 		prompts.append(["E", what])
-	if inventory.get("Berries", 0) > 0:
-		prompts.append(["F", "Eat Berries"])
 	_hud.set_prompts(prompts)
 
+	# Eating isn't aimed at anything, so it goes in the controls row, not under the crosshair
+	var eat := [["Eat Berries", "F"]] if inventory.get("Berries", 0) > 0 else []
 	if held_item == "Hammer":
 		var state: Dictionary = _placer.hud_state()
-		_hud.set_controls(state["controls"])
+		_hud.set_controls(state["controls"] + eat)
 		_hud.set_info(state["info"])
 		return
 	var controls := []
@@ -355,8 +411,25 @@ func _update_hud() -> void:
 			if ToolItem.exists_for(item) and not action_bar.has_item(item):
 				controls.append(["Put tools on the bar", "I"])
 				break
-	_hud.set_controls(controls)
+	_hud.set_controls(controls + eat)
 	_hud.set_info({})
+
+
+## Opens the plot panel (E aimed inside a plot in plot view calls this)
+func open_plot_panel(plot: Plot) -> void:
+	if inventory_screen.visible:
+		_toggle_inventory()
+	_placer.cancel()
+	_placer.plots.check(plot)
+	_plot_panel.open(plot, held_item == "Hammer")
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+## Asks a yes/no question on the plot panel (shrinking a plot that would lose pieces); one of the
+## two is called after
+func ask_confirm(question: String, on_yes: Callable, on_no: Callable) -> void:
+	_plot_panel.ask(question, on_yes, on_no)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 ## Opens a note, journal or log on the parchment panel. Anything readable calls this.
@@ -371,6 +444,14 @@ func read_note(title: String, text: String) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	# Asleep: nothing until you wake
 	if _sleeping:
+		return
+
+	# The plot panel: E or Esc closes it (or cancels its question), unless you're typing its name
+	if _plot_panel.is_open():
+		var key: bool = event is InputEventKey and event.pressed and not event.echo
+		if not _plot_panel.is_typing() and ((key and event.keycode == KEY_E) or event.is_action_pressed("ui_cancel")):
+			get_viewport().set_input_as_handled()
+			_plot_panel.dismiss()
 		return
 
 	# While reading, E or Esc puts the page away, and nothing else happens
@@ -391,12 +472,22 @@ func _unhandled_input(event: InputEvent) -> void:
 			_close_build_menu()
 		return
 
-	# With the hammer out, middle-click turns demolish mode on (or off again), placing or not
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_MIDDLE and _can_demolish():
-		_placer.toggle_demolish_mode()
+	# With the hammer out, placing or not: holding the middle button picks the piece under the
+	# crosshair (it glows red), and letting go takes it down
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
+		if event.pressed and _can_demolish():
+			_placer.press_demolish()
+		elif not event.pressed:
+			_placer.release_demolish(_can_demolish())
 		return
 
 	# While placing a building, clicks, R and Esc belong to that
+	# In plot view, left-click on a plot's edge or corner starts dragging it
+	if held_item == "Hammer" and not _placer.is_placing() and event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED \
+			and _plot_view_on() and _placer.try_grab_plot():
+		return
+
 	if _placer.is_placing() and _placer.handle_input(event):
 		return
 
@@ -438,6 +529,17 @@ func _unhandled_input(event: InputEvent) -> void:
 				_eat()
 			KEY_TAB:
 				_open_build_menu()
+			KEY_P:
+				# Plot view on or off (it shows with the hammer out)
+				if held_item == "Hammer":
+					_plot_view = not _plot_view
+					flash("Plot view on" if _plot_view else "Plot view off")
+				else:
+					flash("Equip a hammer to see your plots")
+			KEY_Z:
+				# Snapping on or off for every piece, until pressed again
+				if held_item == "Hammer":
+					flash("Snapping on" if _placer.toggle_snapping() else "Snapping off")
 			KEY_G:
 				_drop_held_tool()
 			KEY_R:
@@ -462,16 +564,27 @@ func _physics_process(delta: float) -> void:
 
 	# WASD to walk (but stand still while reading or asleep)
 	var input_dir := Vector2.ZERO
-	if not _note_panel.is_open() and not _sleeping:
+	if not _note_panel.is_open() and not _plot_panel.is_open() and not _sleeping:
 		if Input.is_key_pressed(KEY_W): input_dir.y -= 1
 		if Input.is_key_pressed(KEY_S): input_dir.y += 1
 		if Input.is_key_pressed(KEY_A): input_dir.x -= 1
 		if Input.is_key_pressed(KEY_D): input_dir.x += 1
 
+	# Shift sprints, moving forward or diagonally forward only. It starts only on the ground; a
+	# running jump keeps its speed through the air as long as you keep going forward.
+	var forward := input_dir.y < 0.0
+	if is_on_floor():
+		_sprinting = forward and Input.is_key_pressed(KEY_SHIFT) and not _facing_ladder()
+	elif not forward:
+		_sprinting = false
+
 	# Starving or freezing slows you to a trudge
 	var speed := WALK_SPEED
+	if _sprinting:
+		speed *= SPRINT_MULTIPLIER
 	if hunger <= 0.0 or warmth <= 0.0:
 		speed *= 0.5
+	_ease_sprint_fov(delta)
 
 	# Turn the key presses into movement in the direction you're facing
 	var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
@@ -479,10 +592,108 @@ func _physics_process(delta: float) -> void:
 	velocity.z = direction.z * speed
 
 	# W on a ladder you're facing climbs it; carrying on forward at the top steps you off
-	if input_dir.y < 0.0 and _facing_ladder():
+	var climbing := input_dir.y < 0.0 and _facing_ladder()
+	if climbing:
 		velocity.y = CLIMB_SPEED
 
-	move_and_slide()
+	# Walking into a low ledge (a floor's edge, a low foundation, a stair step) steps up onto it.
+	# That move already covers this frame's walking, so the slide only carries the rest.
+	var was_on_floor := is_on_floor()
+	var height_before := global_position.y
+	if was_on_floor and not climbing and velocity.y <= 0.0 and _try_step_up(delta):
+		var walking := velocity
+		velocity.x = 0.0
+		velocity.z = 0.0
+		move_and_slide()
+		velocity.x = walking.x
+		velocity.z = walking.z
+	else:
+		move_and_slide()
+		# Walked off a low ledge: straight down onto the ground below instead of a short fall. (Floor
+		# snapping alone can't: the body's edge, still brushing the ledge's side, stops its sweep.)
+		if was_on_floor and not is_on_floor() and not climbing and velocity.y <= 0.0:
+			_step_down()
+		# The camera follows the drop smoothly rather than all at once
+		var drop := height_before - global_position.y
+		if was_on_floor and is_on_floor() and drop > STEP_SMOOTH_DROP:
+			_step_offset = minf(_step_offset + drop, STEP_HEIGHT)
+	_ease_camera_step(delta)
+
+
+# Steps up onto a ledge ahead, if it's low enough (STEP_HEIGHT) to walk onto: there's room to
+# rise, nothing in the way once risen, and walkable ground on top. A wall too tall to step onto,
+# or ground too steep to stand on, stays a wall. True if it stepped.
+func _try_step_up(delta: float) -> bool:
+	var walking := Vector3(velocity.x, 0, velocity.z)
+	if walking.length() < 0.1:
+		return false
+	# How far this frame's walking goes (at least a little, to feel the ledge while pressed to it)
+	var motion := walking * delta
+	if motion.length() < STEP_PROBE:
+		motion = walking.normalized() * STEP_PROBE
+	var start := global_transform
+	var blocked := KinematicCollision3D.new()
+	if not test_move(start, motion, blocked):
+		return false
+	# A walkable slope ahead isn't a ledge: walking handles that
+	if blocked.get_normal().y >= cos(floor_max_angle):
+		return false
+	var rise := Vector3.UP * STEP_HEIGHT
+	if test_move(start, rise):
+		return false
+	var raised := start.translated(rise)
+	if test_move(raised, motion):
+		return false
+	# Down onto the ledge's top: it must be there, and flat enough to stand on
+	var ahead := raised.translated(motion)
+	var landing := KinematicCollision3D.new()
+	if not test_move(ahead, -rise, landing):
+		return false
+	if landing.get_normal().y < cos(floor_max_angle):
+		return false
+	var spot := ahead.origin + landing.get_travel()
+	var up := spot.y - start.origin.y
+	if up < STEP_MIN:
+		return false
+	global_position = spot
+	velocity.y = 0.0
+	# The camera stays where it was and catches up over a few frames, so the step is smooth
+	_step_offset = maxf(_step_offset - up, -STEP_HEIGHT)
+	return true
+
+
+# Just walked off something: if walkable ground is no more than STEP_HEIGHT below your feet
+# (found straight down from the body's middle), stand on it now rather than falling
+func _step_down() -> void:
+	var from := global_position
+	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * (_half_height + STEP_HEIGHT + 0.05))
+	query.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty() or (hit["normal"] as Vector3).y < cos(floor_max_angle):
+		return
+	var drop: float = (from.y - _half_height) - hit["position"].y
+	if drop <= 0.0 or drop > STEP_HEIGHT + 0.01:
+		return
+	global_position.y -= drop
+	velocity.y = 0.0
+	apply_floor_snap()
+
+
+# Widens the view a little while sprinting, easing in and out
+func _ease_sprint_fov(delta: float) -> void:
+	var target := _base_fov + (SPRINT_FOV if _sprinting else 0.0)
+	if not is_equal_approx(camera.fov, target):
+		camera.fov = lerpf(camera.fov, target, 1.0 - exp(-SPRINT_FOV_EASE * delta))
+
+
+# Eases the camera back to its usual height after a step up or down
+func _ease_camera_step(delta: float) -> void:
+	if is_zero_approx(_step_offset):
+		return
+	_step_offset = lerpf(_step_offset, 0.0, 1.0 - exp(-STEP_CAMERA_EASE * delta))
+	if absf(_step_offset) < 0.002:
+		_step_offset = 0.0
+	camera.position.y = _camera_height + _step_offset
 
 
 # True if a ladder is right in front of you: what you're looking at, or (looking up past its top
@@ -493,7 +704,8 @@ func _facing_ladder() -> bool:
 		if target is BuildPiece and target.is_ladder() and interact_ray.get_collision_point().distance_to(camera.global_position) < LADDER_REACH + 0.4:
 			return true
 	for height in [0.3, 1.0]:
-		var from: Vector3 = global_position + Vector3.UP * height
+		# Measured up from your feet (the body's origin is its middle)
+		var from: Vector3 = global_position + Vector3.UP * (height - _half_height)
 		var query := PhysicsRayQueryParameters3D.create(from, from - global_basis.z * LADDER_REACH)
 		query.exclude = [get_rid()]
 		var hit := get_world_3d().direct_space_state.intersect_ray(query)
@@ -537,8 +749,9 @@ func give_or_drop(items: Dictionary, spot: Vector3) -> Dictionary:
 
 # The hammer is out and nothing else is in the way (no menu, page or sleep), so demolishing works
 func _can_demolish() -> bool:
-	return held_item == "Hammer" and not _sleeping and not _note_panel.is_open() \
-			and not inventory_screen.visible and not build_menu.visible and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	return held_item == "Hammer" and not _sleeping and not _note_panel.is_open() and not _plot_panel.is_open() \
+			and not _placer.is_plot_mode() and not inventory_screen.visible and not build_menu.visible \
+			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 
 
 ## Something gathered from the world (picked, chopped, mined): into your pockets, and it counts
@@ -624,14 +837,38 @@ func remove_item(item: String, amount: int) -> bool:
 
 ## The thing in front of you (within reach) that E would use, or null
 func _looked_at() -> Object:
-	if interact_ray.is_colliding():
-		var target = interact_ray.get_collider()
-		# Stumps and emptied piles are still there, but have nothing left
-		if target and target.has_method("interact") and target.can_interact():
-			return target
+	var target = interact_ray.get_collider() if interact_ray.is_colliding() else null
+	# In plot view, the ground or a building piece inside a plot opens that plot
+	if _plot_view_on() and not _placer.is_placing() and (target == null or target is BuildPiece or not target.has_method("interact")):
+		var plot := _plot_looked_at()
+		if plot:
+			return plot
+	# Stumps and emptied piles are still there, but have nothing left
+	if target and target.has_method("interact") and target.can_interact():
+		return target
 	if held_item == MineableRock.TOOL:
 		return _scattered_rock_looked_at()
 	return null
+
+
+## True while plot view shows: the hammer is out, and P has switched it on, or the build menu's
+## Plots tab is open, or a plot is being drawn, moved or resized
+func _plot_view_on() -> bool:
+	if held_item != "Hammer":
+		return false
+	return _plot_view or (build_menu.visible and build_menu.current_tab_name() == "Plots") or _placer.is_plot_mode()
+
+
+# The plot whose ground the crosshair points at (within PLOT_REACH): of overlapping plots, the one
+# whose middle is nearest you
+func _plot_looked_at() -> Plot:
+	var from := camera.global_position
+	var query := PhysicsRayQueryParameters3D.create(from, from - camera.global_basis.z * PLOT_REACH)
+	query.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return null
+	return _placer.plots.find(_placer.plots.owner_for(hit["position"], global_position))
 
 
 # The valley's scattered rocks have no collision, so the look ray can't see them. Check for one
@@ -659,7 +896,9 @@ func _update_survival(delta: float) -> void:
 		day_seconds = sun.day_seconds()
 		night_seconds = sun.night_seconds()
 
-	hunger = maxf(hunger - 100.0 / (FULL_BELLY_DAYS * (day_seconds + night_seconds)) * delta, 0.0)
+	# Sprinting works up an appetite
+	var appetite := SPRINT_HUNGER if _sprinting and velocity.length() > 0.1 else 1.0
+	hunger = maxf(hunger - 100.0 / (FULL_BELLY_DAYS * (day_seconds + night_seconds)) * appetite * delta, 0.0)
 
 	# Chilly at night, slowly warming by day, and quickly warming by a fire
 	var night_chill := NIGHT_CHILL_PER_NIGHT / night_seconds
@@ -893,24 +1132,39 @@ func _drop_held_tool() -> void:
 	remove_item(held_item, 1)
 
 
+# Opens the build menu. While placing something, what you were placing is put aside: picking
+# something else switches to it (keeping the height and turn), closing the menu goes back to it.
 func _open_build_menu() -> void:
 	if inventory_screen.visible:
 		return
 	if held_item != "Hammer":
 		flash("Equip a hammer to build")
 		return
+	if _placer.is_placing():
+		_build_resume = _placer.current_buildable()
+		# Moving or resizing a plot: finish that first
+		if _build_resume == null:
+			return
+		_placer.cancel()
 	build_menu.show()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
+# Closes the build menu without picking anything: back to whatever was being placed
 func _close_build_menu() -> void:
 	build_menu.hide()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if _build_resume:
+		var resume := _build_resume
+		_build_resume = null
+		_placer.begin(resume, true)
 
 
 func _on_buildable_chosen(buildable: Buildable) -> void:
+	var switching := _build_resume != null
+	_build_resume = null
 	_close_build_menu()
-	_placer.begin(buildable)
+	_placer.begin(buildable, switching)
 
 
 ## Opens the backpack (freeing the mouse) or closes it (grabbing the mouse again).

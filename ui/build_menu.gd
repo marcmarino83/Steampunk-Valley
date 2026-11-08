@@ -8,7 +8,7 @@ signal chosen(buildable: Buildable)
 const SLOT_SCENE = preload("res://ui/build_slot.tscn")
 const BUILDABLES_FOLDER := "res://buildables"
 ## The tabs in order. A buildable with no section (or one not listed) goes under "Other".
-const TABS := ["Foundations", "Floors", "Walls", "Roofs", "Beams & Pillars", "Stairs & Doors", "Round", "Other"]
+const TABS := ["Foundations", "Floors", "Walls", "Roofs", "Beams & Pillars", "Stairs & Doors", "Round", "Furniture", "Other", "Plots"]
 const FALLBACK_TAB := "Other"
 const COLUMNS := 6
 ## Room kept free above and below the list, so a short screen scrolls it instead of cutting it off
@@ -90,6 +90,11 @@ func show_tab(index: int) -> void:
 	_hovered = null
 	_update_detail()
 	_fit_to_screen.call_deferred()
+
+
+## The name of the tab showing ("Plots"...)
+func current_tab_name() -> String:
+	return TABS[_tab]
 
 
 ## Moves to the next tab (+1) or the one before (-1), going round
@@ -183,6 +188,10 @@ func _update_detail() -> void:
 		detail_label.text = ""
 	elif not _is_unlocked.call(_hovered):
 		detail_label.text = _hovered.unlock_hint_text()
+	elif _hovered is PlotType:
+		var plot_type := _hovered as PlotType
+		var housing := "  ·  One settler per bed" if not plot_type.houses_per.is_empty() else ""
+		detail_label.text = "Click to mark out a %s plot (free)  ·  Needs %s%s" % [plot_type.display_name, plot_type.requirements_text(), housing]
 	elif _hovered.can_afford(_inventory):
 		detail_label.text = "Click to place a %s" % _hovered.display_name
 	else:

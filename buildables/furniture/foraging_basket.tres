@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="PieceBuildable" format=3]
+
+[ext_resource type="Script" path="res://building/pieces/piece_buildable.gd" id="1_piece"]
+[ext_resource type="PackedScene" path="res://building/pieces/build_piece.tscn" id="2_scene"]
+[ext_resource type="Texture2D" path="res://assets/icons/build/foraging_basket.png" id="3_icon"]
+
+[resource]
+script = ExtResource("1_piece")
+shape = "foraging_basket"
+display_name = "Foraging Basket"
+starts_locked = true
+unlocked_by = "Craft"
+unlock_item = "Planks"
+unlock_hint = "Craft planks to unlock"
+scene = ExtResource("2_scene")
+section = "Furniture"
+menu_order = 11
+costs = Array[Dictionary]([{
+"Plant Fiber": 4,
+"Sticks": 2
+}])
+icon_color = Color(0.74, 0.6, 0.37, 1)
+icon = ExtResource("3_icon")

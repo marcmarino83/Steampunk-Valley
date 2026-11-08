@@ -8,7 +8,7 @@
 script = ExtResource("1_buildable")
 display_name = "Campfire"
 scene = ExtResource("2_scene")
-section = "Other"
+section = "Furniture"
 menu_order = 1
 costs = Array[Dictionary]([{
 "Wood": 3

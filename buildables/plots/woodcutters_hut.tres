@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="PlotType" format=3]
+
+[ext_resource type="Script" path="res://building/plots/plot_type.gd" id="1_plot"]
+
+[resource]
+script = ExtResource("1_plot")
+min_size = Vector2i(6, 6)
+needs_roof = true
+needs_door = false
+furniture = Array[Dictionary]([{
+"count": 1,
+"items": ["Chopping Block"],
+"label": "Chopping block"
+}, {
+"count": 1,
+"items": ["Tool Rack"],
+"label": "Tool rack"
+}])
+houses_per = ""
+plot_color = Color(0.86, 0.6, 0.36, 1)
+display_name = "Woodcutter's Hut"
+starts_locked = true
+unlocked_by = "Craft"
+unlock_item = "Hammer"
+unlock_hint = "Craft a hammer to unlock"
+section = "Plots"
+menu_order = 3
+icon_color = Color(0.86, 0.6, 0.36, 1)

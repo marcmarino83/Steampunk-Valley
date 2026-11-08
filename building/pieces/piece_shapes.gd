@@ -19,8 +19,10 @@ const WALL_THICKNESS := 0.2
 const FLOOR_THICKNESS := 0.2
 const ROOF_RISE := 1.0
 const ROOF_THICKNESS := 0.15
-const DOOR_WIDTH := 1.0
-const DOOR_HEIGHT := 2.1
+## The doorway: wide and tall enough for the player (a body 0.8 m across and 2 m tall) to walk
+## through, door open, without catching
+const DOOR_WIDTH := 1.2
+const DOOR_HEIGHT := 2.2
 const WINDOW_WIDTH := 1.0
 const WINDOW_BOTTOM := 1.1
 const WINDOW_TOP := 1.9
@@ -97,8 +99,9 @@ const SNAP_RULES := {
 	"ridge_cap_26": {"roof_high_26": [0.0]},
 	"ridge_cap_45": {"roof_high_45": [0.0]},
 	"stairs_foot": {"floor_center": QUARTER_TURNS},
-	"stairs_bottom": {"floor_edge": [PI]},
-	"stairs_top": {"floor_edge": [PI]},
+	# Stairs: the bottom on a floor or foundation edge, the top on one a level up, and end to end
+	"stairs_bottom": {"floor_edge": [PI], "stairs_top": [PI]},
+	"stairs_top": {"floor_edge": [PI], "stairs_bottom": [PI]},
 	"ladder_base": {"floor_edge": [0.0, PI], "half_edge": [0.0, PI], "ladder_top": [0.0]},
 	"ladder_top": {"floor_edge": [0.0, PI]},
 	"railing_base": {"floor_edge": [0.0, PI], "wall_top": [0.0, PI]},
@@ -130,11 +133,12 @@ const SNAP_RULES := {
 
 ## Everything about one shape: {"mesh": ArrayMesh, "door_mesh": ArrayMesh or null, "collision":
 ## [{"shape", "transform", "door"}], "sockets": [{"position", "yaw", "type"}], "roof": bool,
-## "floor": bool, "clear_center": Vector3, "clear_radius": float (0 = leaves the grass)}
+## "floor": bool, "furniture": bool, "clear_center": Vector3, "clear_radius": float (0 = leaves
+## the grass)}
 static func build(shape: String) -> Dictionary:
 	var d := {
 		"surface": _new_surface(), "door_surface": null, "collision": [], "sockets": [],
-		"roof": false, "floor": false, "clear_center": Vector3.ZERO, "clear_radius": 0.0,
+		"roof": false, "floor": false, "furniture": false, "clear_center": Vector3.ZERO, "clear_radius": 0.0,
 	}
 	match shape:
 		"floor":
@@ -226,6 +230,8 @@ static func build(shape: String) -> Dictionary:
 			_foundation(d, shape == "foundation_stone")
 		"round_foundation_wood", "round_foundation_stone":
 			_round_foundation(d, shape == "round_foundation_stone")
+		"bed", "foraging_basket", "chopping_block", "tool_rack", "sorting_table", "storage_shelf", "fireplace":
+			_furniture(d, shape)
 		_:
 			push_error("PieceShapes: no shape called %s" % shape)
 	# Turning a symmetric piece by this much looks the same, so those turns aren't offered twice
@@ -884,6 +890,131 @@ static func _fence(d: Dictionary) -> void:
 	_socket(d, Vector3.ZERO, 0.0, "railing_base")
 	_socket(d, Vector3(half, 0, 0), PI / 2.0, "wall_end")
 	_socket(d, Vector3(-half, 0, 0), -PI / 2.0, "wall_end")
+
+
+# ---- Furniture ----
+#
+# Simple placeholder shapes standing on their bottom middle, front toward +Z. Each is solid as one
+# box (its overall size), rests on the floor or ground under it (see PiecePlacer), and counts toward
+# plot requirements by its name.
+
+const BED_SIZE := Vector3(1.0, 0.6, 2.0)
+const BLANKET_COLOR := Color(0.5, 0.24, 0.2)
+const LINEN_COLOR := Color(0.86, 0.82, 0.7)
+const WICKER_COLOR := Color(0.74, 0.6, 0.37)
+const BARK_COLOR := Color(0.36, 0.25, 0.16)
+const IRON_COLOR := Color(0.32, 0.32, 0.34)
+const SOOT_COLOR := Color(0.08, 0.07, 0.06)
+
+
+static func _furniture(d: Dictionary, shape: String) -> void:
+	var st: SurfaceTool = d["surface"]
+	var size := Vector3.ONE
+	match shape:
+		"bed":
+			size = BED_SIZE
+			_box_mesh(st, Vector3(1.0, 0.3, 2.0), _at(0, 0.15, 0), LOG_COLOR)
+			_box_mesh(st, Vector3(1.0, 0.85, 0.08), _at(0, 0.425, -0.96), LOG_COLOR.darkened(0.1))
+			_box_mesh(st, Vector3(0.9, 0.14, 1.88), _at(0, 0.37, 0.02), LINEN_COLOR)
+			_box_mesh(st, Vector3(0.94, 0.08, 1.2), _at(0, 0.47, 0.34), BLANKET_COLOR)
+			_box_mesh(st, Vector3(0.6, 0.1, 0.32), _at(0, 0.49, -0.7), LINEN_COLOR.lightened(0.1))
+		"foraging_basket":
+			size = Vector3(0.62, 0.5, 0.62)
+			for k in 3:
+				_box_mesh(st, Vector3(0.6 - k * 0.02, 0.15, 0.6 - k * 0.02), _at(0, 0.075 + k * 0.15, 0), _board_color(WICKER_COLOR, k * 5 + 1))
+			_box_mesh(st, Vector3(0.64, 0.05, 0.64), _at(0, 0.475, 0), WICKER_COLOR.darkened(0.2))
+			for p in [Vector3(-0.12, 0.47, 0.08), Vector3(0.1, 0.48, -0.06), Vector3(0.02, 0.5, 0.14)]:
+				_box_mesh(st, Vector3(0.12, 0.08, 0.12), _at(p.x, p.y, p.z), Color(0.62, 0.12, 0.14))
+		"chopping_block":
+			size = Vector3(0.6, 0.55, 0.6)
+			_box_mesh(st, Vector3(0.56, 0.48, 0.56), _at(0, 0.24, 0), BARK_COLOR)
+			_box_mesh(st, Vector3(0.5, 0.04, 0.5), _at(0, 0.5, 0), Color(0.78, 0.64, 0.44))
+			# An axe stuck in the top
+			var tilt := Transform3D(Basis(Vector3.BACK, 0.5), Vector3(0.08, 0.72, 0))
+			_box_mesh(st, Vector3(0.05, 0.5, 0.05), tilt, WALL_COLOR)
+			_box_mesh(st, Vector3(0.18, 0.1, 0.03), tilt * Transform3D(Basis.IDENTITY, Vector3(-0.05, -0.22, 0)), IRON_COLOR)
+		"tool_rack":
+			size = Vector3(1.3, 1.6, 0.4)
+			for x in [-0.6, 0.6]:
+				_box_mesh(st, Vector3(0.08, 1.6, 0.08), _at(x, 0.8, 0), LOG_COLOR)
+				_box_mesh(st, Vector3(0.1, 0.06, 0.4), _at(x, 0.03, 0), LOG_COLOR.darkened(0.15))
+			for y in [0.6, 1.3]:
+				_box_mesh(st, Vector3(1.3, 0.06, 0.06), _at(0, y, 0.05), WALL_COLOR)
+			# Tools hanging from the top bar
+			for i in 4:
+				var x := -0.42 + i * 0.28
+				_box_mesh(st, Vector3(0.04, 0.7, 0.04), _at(x, 0.95, 0.1), WALL_COLOR.darkened(0.1))
+				_box_mesh(st, Vector3(0.16 if i % 2 == 0 else 0.08, 0.1, 0.04), _at(x, 1.25, 0.1), IRON_COLOR)
+		"sorting_table":
+			size = Vector3(1.6, 0.9, 0.8)
+			_box_mesh(st, Vector3(1.6, 0.08, 0.8), _at(0, 0.76, 0), WALL_COLOR)
+			for x in [-0.72, 0.72]:
+				for z in [-0.32, 0.32]:
+					_box_mesh(st, Vector3(0.08, 0.72, 0.08), _at(x, 0.36, z), LOG_COLOR)
+			# Stones sorted into piles on top
+			var piles := [Vector3(-0.5, 0, 0), Vector3(0.0, 0, 0.1), Vector3(0.5, 0, -0.05)]
+			for i in piles.size():
+				for k in 3:
+					var p: Vector3 = piles[i] + Vector3((k - 1) * 0.09, 0.84 + (k % 2) * 0.03, (k % 2) * 0.08)
+					var s := 0.16 - i * 0.03
+					_box_mesh(st, Vector3(s, s * 0.7, s), _at(p.x, p.y, p.z), _board_color(STONE_COLOR, i * 7 + k))
+		"storage_shelf":
+			size = Vector3(1.25, 1.8, 0.5)
+			for x in [-0.6, 0.6]:
+				_box_mesh(st, Vector3(0.05, 1.8, 0.5), _at(x, 0.9, 0), LOG_COLOR)
+			_box_mesh(st, Vector3(1.2, 1.8, 0.03), _at(0, 0.9, -0.235), WALL_COLOR.darkened(0.2))
+			for y in [0.04, 0.62, 1.2, 1.78]:
+				_box_mesh(st, Vector3(1.2, 0.04, 0.48), _at(0, y, 0), WALL_COLOR)
+			# Crates and sacks on the shelves
+			for y in [0.06, 0.64, 1.22]:
+				_box_mesh(st, Vector3(0.36, 0.3, 0.36), _at(-0.3, y + 0.15, 0), _board_color(FLOOR_COLOR, int(y * 10)))
+				_box_mesh(st, Vector3(0.3, 0.26, 0.3), _at(0.28, y + 0.13, 0.02), LINEN_COLOR.darkened(0.25))
+		"fireplace":
+			size = Vector3(1.4, 2.4, 0.9)
+			_box_mesh(st, Vector3(1.4, 0.15, 0.9), _at(0, 0.075, 0), _board_color(STONE_COLOR, 2))
+			for x in [-0.55, 0.55]:
+				_box_mesh(st, Vector3(0.3, 0.9, 0.8), _at(x, 0.6, -0.05), _board_color(STONE_COLOR, 5 if x < 0.0 else 9))
+			_box_mesh(st, Vector3(1.4, 0.3, 0.85), _at(0, 1.2, -0.025), _board_color(STONE_COLOR, 13))
+			_box_mesh(st, Vector3(0.8, 0.9, 0.1), _at(0, 0.6, -0.4), SOOT_COLOR)
+			_box_mesh(st, Vector3(0.8, 0.05, 0.6), _at(0, 0.175, -0.1), SOOT_COLOR.lightened(0.05))
+			_box_mesh(st, Vector3(0.8, 1.05, 0.55), _at(0, 1.875, -0.15), _board_color(STONE_COLOR, 21))
+			# A few logs in the hearth
+			_box_mesh(st, Vector3(0.6, 0.1, 0.12), _at(0, 0.25, -0.05), BARK_COLOR)
+			_box_mesh(st, Vector3(0.12, 0.1, 0.5), _at(0.1, 0.33, -0.08), BARK_COLOR.lightened(0.1))
+	var solid := BoxShape3D.new()
+	solid.size = size
+	_collision(d, solid, _at(0, size.y / 2.0, 0))
+	d["furniture"] = true
+	# These back up flush against a wall when placed near one (their back is -Z)
+	d["backs_to_wall"] = shape in ["bed", "storage_shelf", "tool_rack"]
+	# The fireplace burns and warms like a campfire (see BuildPiece)
+	d["hearth"] = shape == "fireplace"
+
+
+static func _at(x: float, y: float, z: float) -> Transform3D:
+	return Transform3D(Basis.IDENTITY, Vector3(x, y, z))
+
+
+## The box round every solid part of a shape (from build()), in the piece's own space
+static func bounds_of(def: Dictionary) -> AABB:
+	var box := AABB()
+	var first := true
+	for part in def["collision"]:
+		var shape: Shape3D = part["shape"]
+		var local := AABB()
+		if shape is BoxShape3D:
+			local = AABB(-(shape as BoxShape3D).size / 2.0, (shape as BoxShape3D).size)
+		elif shape is ConvexPolygonShape3D:
+			var pts: PackedVector3Array = (shape as ConvexPolygonShape3D).points
+			local = AABB(pts[0], Vector3.ZERO)
+			for p in pts:
+				local = local.expand(p)
+		else:
+			continue
+		local = (part["transform"] as Transform3D) * local
+		box = local if first else box.merge(local)
+		first = false
+	return box
 
 
 # One solid box, drawn in a single colour, with matching collision

@@ -11,7 +11,7 @@ starts_locked = true
 unlocked_by = "Build"
 unlock_item = "Workbench"
 scene = ExtResource("2_scene")
-section = "Other"
+section = "Furniture"
 menu_order = 4
 costs = Array[Dictionary]([{
 "Planks": 6,

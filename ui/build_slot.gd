@@ -51,6 +51,12 @@ func show_buildable(buildable: Buildable, affordable: bool, locked: bool) -> voi
 			icon.hide()
 		return
 	cost_label.text = buildable.cost_text()
+	if buildable is PlotType:
+		# A plot: its size range, then what it needs
+		var needs := (buildable as PlotType).requirements_text()
+		cost_label.text += "\n" + needs.left(1).to_upper() + needs.substr(1)
+		cost_label.max_lines_visible = 5
+		cost_label.add_theme_font_size_override("font_size", 12)
 	# Can't afford it: the picture and name dim, and the cost shows in red
 	modulate = Color.WHITE
 	icon.modulate = Color.WHITE if affordable else UNAFFORDABLE_TINT

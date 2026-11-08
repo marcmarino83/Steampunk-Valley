@@ -10,8 +10,10 @@
 - I drop new Meshy models straight into assets/. When you find new model files there, move each into a sensible folder (tools, pickups, buildables, etc.), rename it in lowercase with underscores (e.g. lean_to.glb), and keep its textures with it.
 - Tell me each model's triangle count and file size. Flag anything that looks too heavy for what it is, but don't change the model.
 - Cap textures on import: 1024 for most things, 512 for small pickups.
-- Delete unused extra files the import creates (numbered texture copies).
+- Delete unused extra files the import creates (numbered texture copies). To stop them coming back, set the model's import to not extract its built-in textures (embedded image handling: discard) and give it a material that uses the named textures.
 - Keep pickup and buildable models out of the Object Painter's palette.
+- .gitignore keeps out any hd/ folder and .zip files, but git can't ignore files by size. Whenever you add, move or change files, check for any file over 50 MB that git would commit (anything outside the ignored paid tree packs and hd/ folders) and warn me about it, with its size, before I commit. GitHub refuses files over 100 MB.
+- When a model is replaced by a lighter version, don't leave the old one behind unused: ask before deleting it, or put it in an hd/ folder so it stays out of git.
 
 ## File organization
 

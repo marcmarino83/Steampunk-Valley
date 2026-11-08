@@ -422,6 +422,7 @@ func add_item(item: String, amount: int) -> void:
 ## toward anything that unlocks by gathering it
 func gathered(item: String, amount: int) -> void:
 	add_item(item, amount)
+	flash("+%d %s" % [amount, item])
 	report_progress("Gather", item)
 
 
@@ -479,7 +480,7 @@ func sleep(where: Vector3) -> void:
 	night.tween_property(_fade, "modulate:a", 0.0, SLEEP_FADE)
 	night.tween_callback(func():
 		_sleeping = false
-		SaveGame.save_now())
+		SaveGame.autosave())
 
 
 ## Takes items out of your pockets. Returns false (and takes nothing) if you don't have enough.
@@ -659,7 +660,7 @@ func _burn_torch(delta: float) -> void:
 ## Makes a recipe: takes the resources and puts the result in the backpack. If there's no room,
 ## says so and spends nothing.
 func craft(recipe: Recipe) -> void:
-	if not recipe.can_craft(inventory) or not nearby_stations().has(recipe.station):
+	if not is_unlocked(recipe) or not recipe.can_craft(inventory) or not nearby_stations().has(recipe.station):
 		return
 	var crafting: Control = inventory_screen.crafting
 	if _backpack_contents().size() >= inventory_screen.slot_count and not inventory.has(recipe.result):

@@ -9,7 +9,8 @@ size = Vector3(0.5, 0.4, 0.5)
 [node name="Stone" type="StaticBody3D"]
 script = ExtResource("1_res")
 resource_name = "Stone"
-amount_per_gather = 2
+amount_per_gather = 6
+gathers_left = 1
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)

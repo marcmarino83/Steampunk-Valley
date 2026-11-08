@@ -12,12 +12,8 @@ static func create(tool_item: ToolItem) -> DroppedTool:
 	var dropped := DroppedTool.new()
 	dropped._item = tool_item.item_name
 	dropped.add_to_group("dropped_tools")
-	var model := tool_item.make_dropped_model()
-	# Anything a tool shows only while in use (a torch's flame and light) stays out on the ground
-	for part in model.find_children("*", "Node3D", true, false):
-		if part.name in ["Flame", "Light"]:
-			part.visible = false
-	dropped.add_child(model)
+	# The model alone: a tool's held effect (a torch's flame) is only added in the hand
+	dropped.add_child(tool_item.make_dropped_model())
 	var sphere := SphereShape3D.new()
 	sphere.radius = PICKUP_RADIUS
 	var collision := CollisionShape3D.new()

@@ -1,8 +1,12 @@
 extends Control
-## The first thing you see. With no save, it goes straight into a new game. With one, it offers
-## Continue or New Game; New Game asks before starting over, since the next save replaces the old.
+## The first thing you see. With no saves at all, it goes straight into a new game. Otherwise it
+## offers Continue (the most recent save of any world), New Game (a fresh world with saves of
+## its own; other worlds are left alone) and Load Game (every save, grouped by world).
 
-var _confirm_layer: Control
+var _latest: Label
+var _continue: Button
+var _load: Button
+var _list: SaveList
 
 
 func _ready() -> void:
@@ -17,27 +21,31 @@ func _ready() -> void:
 
 	var choices := MenuStyle.screen(self, 0.0)
 	choices.add_child(MenuStyle.title("Steampunk Valley", 34))
-	var when := SaveGame.saved_when()
-	if not when.is_empty():
-		choices.add_child(MenuStyle.note("Last saved %s" % when))
-	var go_on := MenuStyle.button("Continue")
-	go_on.pressed.connect(SaveGame.continue_game)
-	choices.add_child(go_on)
+	_latest = MenuStyle.note("")
+	_latest.custom_minimum_size.x = 300
+	choices.add_child(_latest)
+	_continue = MenuStyle.button("Continue")
+	_continue.pressed.connect(SaveGame.continue_game)
+	choices.add_child(_continue)
 	var fresh := MenuStyle.button("New Game")
-	fresh.pressed.connect(func(): _confirm_layer.visible = true)
+	fresh.pressed.connect(SaveGame.new_game)
 	choices.add_child(fresh)
+	_load = MenuStyle.button("Load Game")
+	_load.pressed.connect(func(): _list.open("load"))
+	choices.add_child(_load)
 
-	# Asked before starting over, on top of everything else
-	_confirm_layer = Control.new()
-	_confirm_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_confirm_layer.visible = false
-	add_child(_confirm_layer)
-	var confirm := MenuStyle.screen(_confirm_layer, 0.6)
-	confirm.add_child(MenuStyle.title("Start a new game?", 24))
-	confirm.add_child(MenuStyle.note("Your saved game will be replaced the next time the game saves."))
-	var yes := MenuStyle.button("Start New Game")
-	yes.pressed.connect(SaveGame.new_game)
-	confirm.add_child(yes)
-	var no := MenuStyle.button("Back")
-	no.pressed.connect(func(): _confirm_layer.visible = false)
-	confirm.add_child(no)
+	_list = SaveList.new()
+	add_child(_list)
+	_list.changed.connect(_update)
+	_update()
+
+
+# What Continue would load, kept up to date as saves are deleted
+func _update() -> void:
+	var newest := SaveGame.newest_save()
+	_continue.disabled = newest.is_empty()
+	_load.disabled = newest.is_empty()
+	if newest.is_empty():
+		_latest.text = "No saved games"
+	else:
+		_latest.text = "Latest: %s\n%s, %s" % [newest["name"], newest["world_name"], "manual save" if newest["kind"] == "manual" else "autosave"]

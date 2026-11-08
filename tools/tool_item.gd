@@ -31,6 +31,11 @@ const TIER_FOLDER := "res://iron_tier/tools"
 ## Turns the tool in the hand, in degrees. With the head at the top of the model: Z leans the
 ## head in toward the middle of the view, and a negative X tips it away from you.
 @export var held_rotation_degrees := Vector3(-25, -10, 20)
+## Something shown on the tool only while it's in your hand, like a torch's flame
+@export var held_effect: PackedScene
+## Where that sits, from the middle of the model, in meters once the model is sized (the head
+## is at +Y)
+@export var held_effect_position := Vector3.ZERO
 
 @export_group("On the ground")
 ## How it lies when dropped, in degrees
@@ -68,6 +73,10 @@ func make_held_model() -> Node3D:
 	var model := _make_model()
 	model.position = held_position
 	model.rotation_degrees = held_rotation_degrees
+	if held_effect:
+		var effect: Node3D = held_effect.instantiate()
+		effect.position = held_effect_position
+		model.add_child(effect)
 	_turn_off_shadows(model)
 	return model
 

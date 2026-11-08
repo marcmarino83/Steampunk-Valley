@@ -6,7 +6,11 @@
 [resource]
 script = ExtResource("1_tool")
 item_name = "Spear"
+model_file = "res://assets/tier_1_tools/spear/spear.fbx"
 placeholder_scene = ExtResource("2_model")
 length = 1.6
-held_position = Vector3(0.05, 0.15, -0.1)
+model_rotation_degrees = Vector3(0, -90, 0)
+held_position = Vector3(0.05, 0.1, -0.35)
 held_rotation_degrees = Vector3(-62, 8, 6)
+dropped_rotation_degrees = Vector3(0, 0, 90)
+dropped_height = 0.04

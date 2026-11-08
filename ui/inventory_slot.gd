@@ -43,6 +43,23 @@ const ITEM_ICONS := {
 	"Axe": preload("res://assets/tier_1_tools/icons/axe.png"),
 	"Pickaxe": preload("res://assets/tier_1_tools/icons/pickaxe.png"),
 	"Knife": preload("res://assets/tier_1_tools/icons/knife.png"),
+	"Spear": preload("res://assets/icons/spear.png"),
+	"Torch": preload("res://assets/icons/torch.png"),
+	"Rope": preload("res://assets/icons/rope.png"),
+	"Planks": preload("res://assets/icons/planks.png"),
+	"Wood": preload("res://assets/icons/wood.png"),
+	"Sticks": preload("res://assets/icons/sticks.png"),
+	"Stone": preload("res://assets/icons/stone.png"),
+	"Plant Fiber": preload("res://assets/icons/plant_fiber.png"),
+	"Berries": preload("res://assets/icons/berries.png"),
+	"Mushrooms": preload("res://assets/icons/mushrooms.png"),
+	"Herbs": preload("res://assets/icons/herbs.png"),
+	"Scrap": preload("res://assets/icons/scrap.png"),
+	"Coal": preload("res://assets/icons/coal.png"),
+	"Tin Ore": preload("res://assets/icons/tin_ore.png"),
+	"Copper Ore": preload("res://assets/icons/copper_ore.png"),
+	"Iron Ore": preload("res://assets/icons/iron_ore.png"),
+	"Dowsing Rod": preload("res://assets/icons/dowsing_rod.png"),
 }
 
 ## The have / need count on a recipe's cost slot: normal, and when you're short
@@ -125,7 +142,7 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 	var is_tool := container == "backpack" and ToolItem.exists_for(_item)
 	if not is_tool and not trading:
 		return null
-	set_drag_preview(make_drag_preview(_item))
+	DragIcon.start(self, make_drag_preview(_item))
 	var data := {"item": _item, "from": container, "from_bar": false}
 	if is_tool:
 		data["tool_item"] = _item
@@ -149,6 +166,11 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 			item_moved.emit(data["tool_item"], "backpack")
 		return
 	item_moved.emit(data["item"], data["from"])
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_DRAG_END:
+		DragIcon.stop()
 
 
 func _gui_input(event: InputEvent) -> void:

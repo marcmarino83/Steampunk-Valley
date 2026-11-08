@@ -3,15 +3,16 @@ extends StaticBody3D
 
 ## What you get from this, as shown on the counter (e.g. "Scrap", "Coal")
 @export var resource_name := "Scrap"
-## How much each press of E gives you
+## How much each press of E gives you. Pickups gathered by hand (sticks, stone, plant fiber,
+## berries...) give everything they hold in one press: this is their whole amount, with
+## gathers_left at 1.
 @export var amount_per_gather := 1
 ## How many times you can gather before it's used up
 @export var gathers_left := 3
 ## The tool you must be holding to gather this, or empty if bare hands will do
 @export var required_tool := ""
-## A tool that gets you extra from each gather while it's in your hand, and how much extra
+## A tool that doubles what you get while it's in your hand (the knife, for plant fiber)
 @export var bonus_tool := ""
-@export var bonus_amount := 0
 
 var _tween: Tween
 
@@ -40,7 +41,7 @@ func interact(player) -> void:
 	# Some things (like trees) take a few hits before giving anything
 	if amount > 0:
 		if not bonus_tool.is_empty() and player.held_item == bonus_tool:
-			amount += bonus_amount
+			amount *= 2
 		player.gathered(resource_name, amount)
 
 

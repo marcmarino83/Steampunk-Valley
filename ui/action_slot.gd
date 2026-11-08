@@ -48,8 +48,13 @@ func show_item(item: String, selected: bool) -> void:
 func _get_drag_data(_at_position: Vector2) -> Variant:
 	if _item.is_empty():
 		return null
-	set_drag_preview(InventorySlot.make_drag_preview(_item))
+	DragIcon.start(self, InventorySlot.make_drag_preview(_item))
 	return {"tool_item": _item, "from_bar": true}
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_DRAG_END:
+		DragIcon.stop()
 
 
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:

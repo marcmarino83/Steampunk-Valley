@@ -19,6 +19,9 @@ const STATION_ICONS := {
 const STATION_NAMES := {
 	"workbench": "a workbench",
 }
+## A locked recipe's picture, as a dark silhouette of its own shape
+const SILHOUETTE := Color(0.07, 0.06, 0.05, 0.9)
+const ICON_STATES := ["icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_hover_pressed_color", "icon_focus_color"]
 
 @onready var list: VBoxContainer = $ListScroll/List
 @onready var large_icon: TextureRect = $Details/LargeIcon
@@ -35,6 +38,8 @@ var _selected: Recipe
 var _inventory := {}
 # The crafting stations within reach right now ("hand" is always there)
 var _stations: PackedStringArray = ["hand"]
+# Says whether the player has unlocked a recipe yet
+var _is_unlocked: Callable = func(_r): return true
 
 
 func _ready() -> void:
@@ -49,24 +54,29 @@ func _ready() -> void:
 	craft_button.pressed.connect(func(): craft_requested.emit(_selected))
 
 
-## Brings the list and details up to date. Unlocked recipes all show; ones that need a station
-## you're not near are greyed out, saying which station they need.
+## Brings the list and details up to date. Every recipe shows: ones that need a station you're
+## not near are greyed out, saying which station they need, and locked ones show their name with
+## their picture as a dark silhouette and how to unlock them.
 func refresh(inventory: Dictionary, stations: PackedStringArray, is_unlocked: Callable) -> void:
 	_inventory = inventory
 	_stations = stations
-	var first_shown: Recipe
-	var selected_shown := false
+	_is_unlocked = is_unlocked
 	for i in _recipes.size():
-		var shown: bool = is_unlocked.call(_recipes[i])
-		_rows[i].visible = shown
-		var makeable := stations.has(_recipes[i].station) and _recipes[i].can_craft(inventory)
-		_rows[i].modulate = Color.WHITE if makeable else UNAVAILABLE_TINT
-		if shown and first_shown == null:
-			first_shown = _recipes[i]
-		if shown and _recipes[i] == _selected:
-			selected_shown = true
-	if not selected_shown:
-		_select(first_shown)
+		var recipe := _recipes[i]
+		var row := _rows[i]
+		var unlocked: bool = is_unlocked.call(recipe)
+		var makeable := unlocked and stations.has(recipe.station) and recipe.can_craft(inventory)
+		row.modulate = Color.WHITE if makeable else UNAVAILABLE_TINT
+		if unlocked:
+			row.text = recipe.display_name
+			for state in ICON_STATES:
+				row.remove_theme_color_override(state)
+		else:
+			row.text = "%s\n%s" % [recipe.display_name, recipe.unlock_hint_text()]
+			for state in ICON_STATES:
+				row.add_theme_color_override(state, SILHOUETTE)
+	if _selected == null and not _recipes.is_empty():
+		_select(_recipes[0])
 	else:
 		_show_details()
 
@@ -118,7 +128,9 @@ func _show_details() -> void:
 	$Details.visible = has_recipe
 	if not has_recipe:
 		return
+	var unlocked: bool = _is_unlocked.call(_selected)
 	large_icon.texture = _selected.icon if _selected.icon else InventorySlot.icon_for(_selected.result)
+	large_icon.modulate = Color.WHITE if unlocked else SILHOUETTE
 	name_label.text = _selected.display_name
 	description_label.text = _selected.description
 	used_for_label.text = "Used for: %s" % _selected.used_for
@@ -136,8 +148,10 @@ func _show_details() -> void:
 			slot.set_cost(items[i], _inventory.get(items[i], 0), _selected.costs[items[i]])
 
 	var at_station := _stations.has(_selected.station)
-	craft_button.disabled = not (at_station and _selected.can_craft(_inventory))
-	if not at_station:
+	craft_button.disabled = not (unlocked and at_station and _selected.can_craft(_inventory))
+	if not unlocked:
+		show_status(_selected.unlock_hint_text(), true)
+	elif not at_station:
 		show_status("Requires %s." % STATION_NAMES.get(_selected.station, _selected.station), true)
 	elif _selected.already_owned(_inventory):
 		show_status("You already have one", false)
@@ -151,6 +165,8 @@ func _make_row(recipe: Recipe) -> Button:
 	row.focus_mode = Control.FOCUS_NONE
 	row.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	row.custom_minimum_size = Vector2(0, 56)
+	# A locked recipe's unlock hint wraps inside the row instead of widening the list
+	row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	row.add_theme_constant_override("icon_max_width", 40)
 	row.add_theme_constant_override("h_separation", 8)
 	row.add_theme_font_size_override("font_size", 15)

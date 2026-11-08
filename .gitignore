@@ -13,3 +13,9 @@
 /assets/douglasfir/
 /assets/maple/
 /assets/willow/
+
+# Heavy source models and downloads that should never go in the repository: any hd/ folder
+# (high-detail originals kept only locally) and any zip archive. Git can't ignore files by size,
+# so files over 50 MB are checked by hand instead (see CLAUDE.md).
+hd/
+*.zip

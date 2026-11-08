@@ -30,7 +30,8 @@ rings = 3
 [node name="BerryBush" type="StaticBody3D"]
 script = ExtResource("1_res")
 resource_name = "Berries"
-amount_per_gather = 2
+amount_per_gather = 6
+gathers_left = 1
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)

@@ -2,11 +2,19 @@
 
 [ext_resource type="Script" path="res://tools/tool_item.gd" id="1_tool"]
 [ext_resource type="PackedScene" path="res://tools/torch_placeholder.tscn" id="2_model"]
+[ext_resource type="PackedScene" path="res://tools/torch_flame.tscn" id="3_flame"]
 
 [resource]
 script = ExtResource("1_tool")
 item_name = "Torch"
+model_file = "res://assets/tier_1_tools/torch/torch.fbx"
 placeholder_scene = ExtResource("2_model")
 length = 0.5
+model_rotation_degrees = Vector3(0, 0, -90)
 stackable = true
+held_position = Vector3(0.02, -0.04, 0)
 held_rotation_degrees = Vector3(-15, 0, 12)
+held_effect = ExtResource("3_flame")
+held_effect_position = Vector3(0, 0.23, 0)
+dropped_rotation_degrees = Vector3(0, 0, 90)
+dropped_height = 0.05

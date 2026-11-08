@@ -1,11 +1,13 @@
 extends Control
 ## Esc, when nothing else is open: pauses the game and offers Resume, Save, Load and Quit.
-## It keeps working while everything else is paused. Quit saves first. In a test run (the
-## world scene run straight from the editor) Save is greyed out and Quit just closes.
+## Save opens this world's save slots, Load lists every save. It keeps working while everything
+## else is paused. Quit autosaves first. In a test run (the world scene run straight from the
+## editor) Save is greyed out and Quit just closes.
 
 var _save_button: Button
 var _load_button: Button
 var _quit_button: Button
+var _list: SaveList
 
 
 func _ready() -> void:
@@ -14,9 +16,14 @@ func _ready() -> void:
 	var column := MenuStyle.screen(self)
 	column.add_child(MenuStyle.title("Paused"))
 	_add_button(column, "Resume", close)
-	_save_button = _add_button(column, "Save", _save)
-	_load_button = _add_button(column, "Load", _load)
+	_save_button = _add_button(column, "Save", func(): _list.open("save"))
+	_load_button = _add_button(column, "Load", func(): _list.open("load"))
 	_quit_button = _add_button(column, "Quit", _quit)
+	_list = SaveList.new()
+	add_child(_list)
+	# Saving goes straight back to the game, as Save always has
+	_list.closed.connect(func(saved): if saved: close())
+	_list.changed.connect(_update_buttons)
 
 
 func _add_button(column: VBoxContainer, text: String, action: Callable) -> Button:
@@ -27,9 +34,9 @@ func _add_button(column: VBoxContainer, text: String, action: Callable) -> Butto
 
 
 func open() -> void:
-	_load_button.disabled = not SaveGame.has_save()
-	_save_button.disabled = not SaveGame.can_save()
-	_save_button.text = "Save" if SaveGame.can_save() else "Save (test run)"
+	# A picture of the game for any save made from here, taken before the menu covers it
+	SaveGame.take_snapshot()
+	_update_buttons()
 	_quit_button.disabled = false
 	visible = true
 	get_tree().paused = true
@@ -37,25 +44,23 @@ func open() -> void:
 
 
 func close() -> void:
+	_list.visible = false
 	visible = false
+	SaveGame.clear_snapshot()
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _update_buttons() -> void:
+	_load_button.disabled = not SaveGame.has_save()
+	_save_button.disabled = not SaveGame.can_save()
+	_save_button.text = "Save" if SaveGame.can_save() else "Save (test run)"
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if visible and event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
 		close()
-
-
-func _save() -> void:
-	SaveGame.save_now()
-	close()
-
-
-func _load() -> void:
-	SaveGame.world_closed()
-	SaveGame.continue_game()
 
 
 func _quit() -> void:

@@ -14,7 +14,6 @@ furniture = Array[Dictionary]([{
 "summary": "2+ storage shelves"
 }])
 houses_per = ""
-plot_color = Color(0.58, 0.72, 0.95, 1)
 display_name = "Storehouse"
 starts_locked = true
 unlocked_by = "Craft"

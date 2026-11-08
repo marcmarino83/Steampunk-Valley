@@ -18,8 +18,6 @@ extends Buildable
 @export var furniture: Array[Dictionary] = []
 ## Settlers it holds, one per this item (a house: one per bed). Empty: it houses no one.
 @export var houses_per := ""
-## The colour of its outline and label in plot view
-@export var plot_color := Color(1.0, 0.78, 0.35)
 
 
 ## Plots are free

@@ -40,7 +40,7 @@ const SLEEP_DARK := 0.6
 ## How long a "New blueprint" pop-up stays up before fading, in seconds
 const BLUEPRINT_POPUP_TIME := 3.0
 ## In plot view, how far ahead E finds the plot whose ground you're aiming at
-const PLOT_REACH := 10.0
+const PLOT_REACH := 20.0
 ## More new blueprints than this at once are summed up in the pop-up instead of listed
 const BLUEPRINT_POPUP_LINES := 3
 ## How close a crafting station (like the workbench) must be for its recipes, in meters
@@ -97,6 +97,8 @@ var _message_time := 0.0
 var _note_panel: Control
 # The plot panel (E aimed inside a plot in plot view), which also asks plots' yes/no questions
 var _plot_panel: PlotPanel
+# The plot tracker on the right of the screen (the plot you're in, or aiming at in plot view)
+var _plot_tracker: PlotTracker
 # What was being placed when the build menu opened, to go back to if nothing else is picked
 var _build_resume: Buildable
 # Plot view switched on with P (it only shows with the hammer out)
@@ -194,6 +196,10 @@ func _ready() -> void:
 	_hud = HudControls.new()
 	$HUD.add_child(_hud)
 	$HUD.move_child(_hud, inventory_screen.get_index())
+	# The plot tracker, on the right: under the menus too
+	_plot_tracker = PlotTracker.new()
+	$HUD.add_child(_plot_tracker)
+	$HUD.move_child(_plot_tracker, inventory_screen.get_index())
 	# Last, so the black of sleep covers everything
 	_fade = ColorRect.new()
 	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -216,6 +222,7 @@ func _ready() -> void:
 	$HUD.add_child(_pause_menu)
 	_placer = BuildPlacer.new()
 	add_child(_placer)
+	_placer.plots.became_working.connect(func(plot): flash("%s is now working" % plot.plot_name))
 	if IronTier.ENABLED:
 		_dowsing = load("res://iron_tier/dowsing.gd").new()
 		add_child(_dowsing)
@@ -378,6 +385,7 @@ func _update_hud() -> void:
 	_instruments.update_instruments(atan2(facing.x, -facing.z), sun.time_of_day if sun else 0.5, action_bar.first_slot_rect(), bar.end.y, _hud.row_rect())
 	var covered: bool = _note_panel.is_open() or _plot_panel.is_open() or _sleeping or inventory_screen.visible or build_menu.visible
 	_instruments.show_crosshair(not covered)
+	_plot_tracker.show_plot(null if covered else _tracked_plot())
 	if covered:
 		_hud.set_prompts([])
 		_hud.set_controls([])
@@ -849,6 +857,17 @@ func _looked_at() -> Object:
 	if held_item == MineableRock.TOOL:
 		return _scattered_rock_looked_at()
 	return null
+
+
+# The plot the tracker shows, with the hammer out: the one aimed at in plot view, or else the one
+# you're standing in (of overlapping plots, the one whose middle is nearest); null for none
+func _tracked_plot() -> Plot:
+	if held_item != "Hammer":
+		return null
+	var plot: Plot = _plot_looked_at() if _plot_view_on() else null
+	if plot == null:
+		plot = _placer.plots.find(_placer.plots.owner_for(global_position, global_position))
+	return plot
 
 
 ## True while plot view shows: the hammer is out, and P has switched it on, or the build menu's

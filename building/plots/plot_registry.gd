@@ -9,8 +9,13 @@ extends Node
 ## Pieces keep their plot's id (BuildPiece.owner_plot); the workbench, chest and campfire keep it
 ## as metadata (OWNER_META). Only a plot's own things count toward its requirements.
 ##
+## When a plot turns working, `became_working` is sent (the player flashes a message).
+##
 ## Requirements are checked again (on the next physics frame, so new pieces' collision is ready)
 ## whenever something is placed, removed, moved or resized, and every few seconds anyway.
+
+## A plot that wasn't working now is (not sent for the first check after loading or placing)
+signal became_working(plot: Plot)
 
 ## Marks a workbench, chest or campfire with the plot that owns it
 const OWNER_META := &"owner_plot"
@@ -210,6 +215,7 @@ func check(plot: Plot) -> void:
 			if open.size() > 1:
 				what += " and %d more" % (open.size() - 1)
 			lines.append({"text": "Roofed (%s %s not under a roof)" % [what, "is" if open.size() == 1 else "are"], "ok": false, "short": "roof"})
+	var was_working := plot.working
 	plot.checklist = lines
 	plot.working = lines.all(func(line): return line["ok"])
 	plot.capacity = int(counts.get(type.houses_per, 0)) if not type.houses_per.is_empty() else 0
@@ -218,7 +224,10 @@ func check(plot: Plot) -> void:
 		if not line["ok"]:
 			short.append(line.get("short", ""))
 	plot.missing = short
-	plot.update_label()
+	plot.update_status()
+	if plot.checked and not was_working and plot.working:
+		became_working.emit(plot)
+	plot.checked = true
 
 
 # True if a roof (or a floor above) belonging to the plot is over this item, like standing under

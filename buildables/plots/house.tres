@@ -18,7 +18,6 @@ furniture = Array[Dictionary]([{
 "label": "Campfire or fireplace"
 }])
 houses_per = "Bed"
-plot_color = Color(0.95, 0.72, 0.38, 1)
 display_name = "House"
 starts_locked = true
 unlocked_by = "Craft"

@@ -17,7 +17,6 @@ furniture = Array[Dictionary]([{
 "label": "Tool rack"
 }])
 houses_per = ""
-plot_color = Color(0.86, 0.6, 0.36, 1)
 display_name = "Woodcutter's Hut"
 starts_locked = true
 unlocked_by = "Craft"

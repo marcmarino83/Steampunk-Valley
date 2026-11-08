@@ -3,10 +3,11 @@ extends Node3D
 ## One plot: a rectangle on the ground (its middle is this node's origin, its sides along its own
 ## X and Z) that turns the pieces and furniture built in it into a working building. Once placed it
 ## shows nothing in the world, except in plot view (P with the hammer out, or while the build
-## menu's Plots tab is open): then a faint glowing outline on the ground and a label floating in
-## its middle with its name and status ("House · Missing: bed, door"). In plot view, E aimed at the
-## ground or a piece inside it opens the plot panel. PlotRegistry keeps them all, works out which
-## pieces each one owns, and checks their requirements.
+## menu's Plots tab is open): then a faint glowing outline on the ground, green while it's working
+## and amber while it's missing requirements. Its name, status and checklist show in the HUD's plot
+## tracker (see PlotTracker). In plot view, E aimed at the ground or a piece inside it opens the
+## plot panel. PlotRegistry keeps them all, works out which pieces each one owns, and checks their
+## requirements. A preview (drawing, moving, resizing) also floats a label with its size.
 
 ## The outline: a low glowing strip along the ground, measured against the ground this often
 const LINE_HEIGHT := 0.14
@@ -18,8 +19,11 @@ const GLOW := 1.5
 const FAINT := 0.55
 const EDGE_RIM := 1.0
 const EDGE_PLAIN := 0.6
-## The label floats this high above the middle
+## A preview's label floats this high above the middle
 const LABEL_HEIGHT := 2.2
+## Outline colours in plot view: working, and missing requirements
+const WORKING_COLOR := Color(0.35, 0.95, 0.4)
+const MISSING_COLOR := Color(1.0, 0.68, 0.22)
 ## Edges, as bits (for `highlight_edges`): +X, -X, +Z, -Z
 const RIGHT := 1
 const LEFT := 2
@@ -38,6 +42,8 @@ var checklist: Array = []
 var working := false
 var missing: PackedStringArray = []
 var capacity := 0
+## True once its requirements have been checked at least once
+var checked := false
 ## Which edges stand out (while dragging one), as RIGHT | LEFT | FRONT | BACK bits
 var highlight_edges := 0:
 	set(value):
@@ -68,6 +74,10 @@ func setup(type: PlotType, plot_size: Vector2, preview := false) -> void:
 	_outline.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_outline.material_override = _material
 	add_child(_outline)
+	_shown = preview
+	_apply_colour()
+	if not preview:
+		return
 	_label = Label3D.new()
 	_label.top_level = true
 	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -79,8 +89,6 @@ func setup(type: PlotType, plot_size: Vector2, preview := false) -> void:
 	_label.outline_modulate = Color(0.08, 0.05, 0.03, 0.9)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_label)
-	_shown = preview
-	_apply_colour()
 
 
 func _ready() -> void:
@@ -88,12 +96,11 @@ func _ready() -> void:
 	set_view(_shown)
 
 
-## Plot view on or off: the outline and label show, or nothing does
+## Plot view on or off: the outline shows, or nothing does
 func set_view(shown: bool) -> void:
 	_shown = shown or _preview
 	if _outline:
 		_outline.visible = _shown
-		_label.visible = _shown
 
 
 ## Tints the outline (green or red while drawing or moving), or back to its own colour (alpha 0)
@@ -109,22 +116,18 @@ func set_shown(shown: bool) -> void:
 
 func rename(new_name: String) -> void:
 	plot_name = new_name
-	update_label()
 
 
-## Its label: name and status ("House · Working", "House · Missing: bed, door")
-func update_label() -> void:
-	if _label == null or _preview:
-		return
-	var status := "Working" if working else ("Missing: " + ", ".join(missing) if not missing.is_empty() else "Checking...")
-	_label.text = "%s · %s" % [plot_name, status]
-	_label.modulate = Color(0.75, 1.0, 0.6) if working else Color(1.0, 0.86, 0.6)
+## After a requirement check: the outline's colour follows whether it's working
+func update_status() -> void:
+	_apply_colour()
 
 
 ## A preview's label (its size as it's drawn), in a colour
 func set_label(text: String, color := Color(1, 1, 1)) -> void:
-	_label.text = text
-	_label.modulate = color
+	if _label:
+		_label.text = text
+		_label.modulate = color
 
 
 ## True if a spot (in the world) is inside, seen from above
@@ -166,7 +169,8 @@ func rebuild() -> void:
 		_strip(st, edge[0], edge[1], Color(shade, shade, shade, 1.0 if lit else FAINT))
 	_outline.mesh = st.commit()
 	var middle := _world_at(Vector2.ZERO)
-	_label.global_position = middle + Vector3.UP * LABEL_HEIGHT
+	if _label:
+		_label.global_position = middle + Vector3.UP * LABEL_HEIGHT
 
 
 # ---- Opening its panel (E, aimed inside it in plot view; see the player) ----
@@ -197,7 +201,8 @@ func save_data() -> Dictionary:
 func _apply_colour() -> void:
 	if _material == null:
 		return
-	var base: Color = _tint if _tint.a > 0.0 else plot_type.plot_color
+	# A preview takes its tint; a placed plot shows its status
+	var base: Color = _tint if _tint.a > 0.0 else (WORKING_COLOR if working else MISSING_COLOR)
 	_material.albedo_color = Color(base.r * GLOW, base.g * GLOW, base.b * GLOW)
 
 

@@ -12,8 +12,6 @@ signal closed(saved: bool)
 ## Emitted after a save is deleted, so the screen behind can update
 signal changed
 
-const ROW_COLOR := Color(0.2, 0.16, 0.12)
-const ROW_BORDER := Color(0.45, 0.28, 0.16)
 const THUMB_SIZE := Vector2(160, 90)
 
 var _mode := "load"
@@ -152,12 +150,7 @@ func _fill() -> void:
 
 func _row(save: Dictionary) -> PanelContainer:
 	var row := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = ROW_COLOR
-	style.border_color = ROW_BORDER
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(4)
-	style.set_content_margin_all(8)
+	var style := BrassStyle.frame("plate")
 	row.add_theme_stylebox_override("panel", style)
 	var line := HBoxContainer.new()
 	line.add_theme_constant_override("separation", 12)

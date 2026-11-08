@@ -25,6 +25,11 @@ var _chest_open := false
 
 
 func _ready() -> void:
+	# The shared brass look: the panel (and the chest's beside it) and the two tabs
+	var frame := BrassStyle.frame("panel")
+	panel.add_theme_stylebox_override("panel", frame)
+	BrassStyle.style_button(inventory_tab)
+	BrassStyle.style_button(crafting_tab)
 	for i in slot_count:
 		_add_slot(grid, "backpack")
 	# The backpack and the chest side by side
@@ -33,6 +38,7 @@ func _ready() -> void:
 	$Center.add_child(row)
 	panel.reparent(row)
 	_build_chest_panel(row)
+	MenuStyle.enlarge(row)
 	# Letting go of a tool anywhere outside the action bar returns it to the backpack; letting go
 	# of something from the chest over the backpack's panel moves it to the backpack, and the
 	# other way round over the chest's panel

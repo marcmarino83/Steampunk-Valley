@@ -132,9 +132,6 @@ func update_demolish(delta: float, active: bool, holding_x: bool) -> void:
 	_pieces.update_demolish(delta, active, _demolishing, holding_x)
 
 
-func demolish_hint() -> String:
-	return _pieces.demolish_hint(_demolishing)
-
 
 # Demolish mode takes left-click (demolish, then back to normal), and right-click, Esc, Tab and
 # the number keys (back to normal); the mouse wheel does nothing in it
@@ -193,19 +190,34 @@ func handle_input(event: InputEvent) -> bool:
 	return false
 
 
-## The lines for the key hints in the corner
-func hints() -> PackedStringArray:
+## What the on-screen controls show with the hammer out (see HudControls): {"controls":
+## [[label, key], ...], "info": the piece panel, or empty}. Placing, in demolish mode, or just
+## holding the hammer; holding X shows the piece it would demolish.
+func hud_state() -> Dictionary:
 	if _demolishing:
-		return PackedStringArray([demolish_hint()])
+		return {"controls": [["Demolish", "LMB"], ["Cancel", "RMB"]], "info": _pieces.demolish_info(true)}
+	var state: Dictionary
 	if _pieces.is_placing():
-		return _pieces.hints()
-	var lines: PackedStringArray = ["Placing %s" % _buildable.display_name]
-	if not _problem.is_empty():
-		lines.append(_problem)
-	lines.append("[Left-click] Place   [R] Rotate")
-	lines.append("[Right-click] or [Esc] Cancel")
-	lines.append(demolish_hint())
-	return lines
+		state = _pieces.hud_state()
+	elif _buildable:
+		state = {
+			"controls": [["Place", "LMB"], ["Rotate", "R"], ["Demolish mode", "MMB"], ["Cancel", "RMB"]],
+			"info": {
+				"icon": _buildable.icon,
+				"title": _buildable.display_name,
+				"cost": _buildable.cost_text(),
+				"cost_bad": not _buildable.can_afford(_player.inventory),
+				"detail": _problem,
+				"detail_bad": not _problem.is_empty(),
+			},
+		}
+	else:
+		state = {"controls": [["Build menu", "Tab"], ["Demolish mode", "MMB"], ["Demolish", "Hold X"]], "info": {}}
+	# Holding X: the piece it would demolish takes the panel
+	var demolishing := _pieces.demolish_info(false)
+	if not demolishing.is_empty():
+		state["info"] = demolishing
+	return state
 
 
 func _physics_process(_delta: float) -> void:

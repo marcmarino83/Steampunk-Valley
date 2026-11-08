@@ -33,6 +33,8 @@ const SLEEP_FADE := 1.0
 const SLEEP_DARK := 0.6
 ## How long a "New blueprint" pop-up stays up before fading, in seconds
 const BLUEPRINT_POPUP_TIME := 3.0
+## More new blueprints than this at once are summed up in the pop-up instead of listed
+const BLUEPRINT_POPUP_LINES := 3
 ## How close a crafting station (like the workbench) must be for its recipes, in meters
 const STATION_RANGE := 3.0
 ## An open chest closes once you're this far from it, in meters
@@ -55,13 +57,9 @@ const PAUSE_MENU_SCENE = preload("res://ui/pause_menu.tscn")
 
 @onready var camera: Camera3D = $Camera3D
 @onready var interact_ray: RayCast3D = $Camera3D/InteractRay
-@onready var prompt_label: Label = $HUD/Prompt
 @onready var held_items: Node3D = $Camera3D/HeldItems
-@onready var hunger_bar: ProgressBar = $HUD/Meters/HungerBar
-@onready var warmth_bar: ProgressBar = $HUD/Meters/WarmthBar
 @onready var status_label: Label = $HUD/Status
 @onready var inventory_screen: Control = $HUD/InventoryScreen
-@onready var hints_label: Label = $HUD/Hints
 @onready var build_menu: Control = $HUD/BuildMenu
 @onready var action_bar: ActionBar = $HUD/ActionBar
 
@@ -91,6 +89,12 @@ var _placer: BuildPlacer
 var _unlocked := {}
 # The "New blueprint" pop-up
 var _blueprint_label: Label
+# The compact controls row, piece panel and crosshair prompts
+var _hud: HudControls
+# Bottom left: the hunger and warmth panel and gauge; by the action bar: the compass and watch,
+# and the crosshair
+var _vitals: VitalsPanel
+var _instruments: HudInstruments
 var _blueprint_tween: Tween
 # Sleeping: the black screen it fades to, and whether you're asleep right now
 var _fade: ColorRect
@@ -142,6 +146,17 @@ func _ready() -> void:
 	_blueprint_label.add_theme_constant_override("outline_size", 7)
 	_blueprint_label.modulate.a = 0.0
 	$HUD.add_child(_blueprint_label)
+	# Under the menus, so an open inventory or build menu covers it
+	_vitals = VitalsPanel.new()
+	$HUD.add_child(_vitals)
+	$HUD.move_child(_vitals, inventory_screen.get_index())
+	_instruments = HudInstruments.new()
+	$HUD.add_child(_instruments)
+	# Just above the action bar, so the compass's brass sits on the bar's scrollwork
+	$HUD.move_child(_instruments, action_bar.get_index() + 1)
+	_hud = HudControls.new()
+	$HUD.add_child(_hud)
+	$HUD.move_child(_hud, inventory_screen.get_index())
 	# Last, so the black of sleep covers everything
 	_fade = ColorRect.new()
 	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -284,13 +299,6 @@ func _process(delta: float) -> void:
 		else:
 			_close_chest()
 
-	# Show "[E] ..." while you're looking at something you can use
-	var target = null if _note_panel.is_open() or _sleeping else _looked_at()
-	prompt_label.visible = target != null
-	if target:
-		prompt_label.text = "[E] %s" % target.get_prompt()
-		if target is ResourceNode and target.needs_tool(self):
-			prompt_label.text += " (equip the %s)" % target.required_tool
 
 	# With the hammer out: in demolish mode (middle-click, see _unhandled_input) or while X is
 	# held, the building piece under the crosshair glows red, ready to demolish
@@ -299,31 +307,56 @@ func _process(delta: float) -> void:
 	if _fps_label.visible:
 		var triangles := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
 		_fps_label.text = "%d FPS\n%d triangles" % [Engine.get_frames_per_second(), triangles]
-	_update_hints()
+	_update_hud()
 
 
-# The key hints in the corner only list what you can actually do right now
-func _update_hints() -> void:
-	if _placer.is_placing():
-		hints_label.text = "\n".join(_placer.hints())
+# The compact on-screen controls (see HudControls): what E and F would do, under the crosshair,
+# and a row of the controls that apply right now above the action bar (with the piece's panel
+# while building). Hidden while a menu, a page or sleep covers the view.
+func _update_hud() -> void:
+	var bar := action_bar.rect_on_screen()
+	_hud.set_bar_top(bar.position.y)
+	# The compass needle points the way you face (north is -Z); the watch shows the sun's clock
+	var facing := -global_basis.z
+	var sun = get_tree().get_first_node_in_group("sun")
+	_instruments.update_instruments(atan2(facing.x, -facing.z), sun.time_of_day if sun else 0.5, action_bar.first_slot_rect(), bar.end.y, _hud.row_rect())
+	var covered: bool = _note_panel.is_open() or _sleeping or inventory_screen.visible or build_menu.visible
+	_instruments.show_crosshair(not covered)
+	if covered:
+		_hud.set_prompts([])
+		_hud.set_controls([])
+		_hud.set_info({})
 		return
-	var hints: PackedStringArray = []
+	var prompts := []
+	var target = _looked_at()
+	if target:
+		var what: String = target.get_prompt()
+		if target is ResourceNode and target.needs_tool(self):
+			what += " (equip the %s)" % target.required_tool
+		prompts.append(["E", what])
 	if inventory.get("Berries", 0) > 0:
-		hints.append("[F] Eat Berries")
+		prompts.append(["F", "Eat Berries"])
+	_hud.set_prompts(prompts)
+
 	if held_item == "Hammer":
-		hints.append("[Tab] Build")
-		hints.append(_placer.demolish_hint())
+		var state: Dictionary = _placer.hud_state()
+		_hud.set_controls(state["controls"])
+		_hud.set_info(state["info"])
+		return
+	var controls := []
 	if _dowsing and held_item == "Dowsing Rod":
-		hints.append("[R] Dowse for buried ore")
+		controls.append(["Dowse for ore", "R"])
 	if not held_item.is_empty():
-		hints.append("[G] Drop %s" % held_item)
+		controls.append(["Drop %s" % held_item, "G"])
 	if inventory_screen.crafting.anything_craftable(inventory, nearby_stations(), is_unlocked):
-		hints.append("[I] You can craft something")
-	for item in inventory:
-		if ToolItem.exists_for(item) and not action_bar.has_item(item):
-			hints.append("[I] Drag tools onto the action bar to use them")
-			break
-	hints_label.text = "\n".join(hints)
+		controls.append(["Craft something", "I"])
+	else:
+		for item in inventory:
+			if ToolItem.exists_for(item) and not action_bar.has_item(item):
+				controls.append(["Put tools on the bar", "I"])
+				break
+	_hud.set_controls(controls)
+	_hud.set_info({})
 
 
 ## Opens a note, journal or log on the parchment panel. Anything readable calls this.
@@ -533,7 +566,12 @@ func report_progress(action: String, item: String) -> void:
 	if learned.is_empty():
 		return
 	_refresh_inventory_display()
-	_blueprint_label.text = "\n".join(Array(learned).map(func(n): return "New blueprint: %s" % n))
+	# A few are named one per line; many at once (the first planks unlock every building piece)
+	# are summed up, so they don't fill the screen
+	if learned.size() <= BLUEPRINT_POPUP_LINES:
+		_blueprint_label.text = "\n".join(Array(learned).map(func(n): return "New blueprint: %s" % n))
+	else:
+		_blueprint_label.text = "%d new blueprints: %s and more\nSee the build menu [Tab]" % [learned.size(), ", ".join(learned.slice(0, 2))]
 	if _blueprint_tween:
 		_blueprint_tween.kill()
 	_blueprint_label.modulate.a = 1.0
@@ -641,8 +679,7 @@ func _update_survival(delta: float) -> void:
 		warmth_change = FIRE_WARMTH
 	warmth = clampf(warmth + warmth_change * delta, 0.0, 100.0)
 
-	hunger_bar.value = hunger
-	warmth_bar.value = warmth
+	_vitals.set_values(hunger, warmth)
 
 	# A recent message wins; otherwise warn about anything that's run out
 	_message_time -= delta

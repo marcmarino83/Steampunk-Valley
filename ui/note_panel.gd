@@ -6,6 +6,10 @@ extends Control
 @onready var body_label: Label = $Center/Paper/VBox/Body
 
 
+func _ready() -> void:
+	MenuStyle.enlarge($Center/Paper)
+
+
 func open(title: String, text: String) -> void:
 	title_label.text = title
 	body_label.text = text

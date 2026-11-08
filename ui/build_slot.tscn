@@ -19,7 +19,7 @@ corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
 [node name="BuildSlot" type="PanelContainer"]
-custom_minimum_size = Vector2(150, 136)
+custom_minimum_size = Vector2(150, 150)
 focus_mode = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_slot")
 script = ExtResource("1_slot")

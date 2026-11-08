@@ -5,10 +5,6 @@ extends HBoxContainer
 signal craft_requested(recipe: Recipe)
 
 const COST_SLOT_SCENE = preload("res://ui/inventory_slot.tscn")
-const ROW_COLOR := Color(0.2, 0.16, 0.12)
-const ROW_SELECTED_COLOR := Color(0.36, 0.26, 0.15)
-const ROW_BORDER := Color(0.45, 0.28, 0.16)
-const ROW_SELECTED_BORDER := Color(0.98, 0.78, 0.32)
 ## How dark a recipe's row goes when you can't make it right now
 const UNAVAILABLE_TINT := Color(0.6, 0.6, 0.6)
 ## The little picture on the row of a recipe that needs a crafting station, and what to call the
@@ -172,10 +168,10 @@ func _make_row(recipe: Recipe) -> Button:
 	row.add_theme_font_size_override("font_size", 15)
 	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
 		row.add_theme_color_override(state, Color(0.94, 0.8, 0.55))
-	row.add_theme_stylebox_override("normal", _row_style(ROW_COLOR, ROW_BORDER))
-	row.add_theme_stylebox_override("hover", _row_style(ROW_COLOR.lightened(0.08), ROW_BORDER))
-	row.add_theme_stylebox_override("pressed", _row_style(ROW_SELECTED_COLOR, ROW_SELECTED_BORDER))
-	row.add_theme_stylebox_override("hover_pressed", _row_style(ROW_SELECTED_COLOR, ROW_SELECTED_BORDER))
+	row.add_theme_stylebox_override("normal", BrassStyle.frame("slot"))
+	row.add_theme_stylebox_override("hover", BrassStyle.frame("slot_hover"))
+	row.add_theme_stylebox_override("pressed", BrassStyle.frame("slot_selected"))
+	row.add_theme_stylebox_override("hover_pressed", BrassStyle.frame("slot_selected"))
 	# Recipes made at a station carry its picture, small, at the right-hand end of the row
 	if STATION_ICONS.has(recipe.station):
 		var mark := TextureRect.new()
@@ -195,11 +191,3 @@ func _make_row(recipe: Recipe) -> Button:
 	return row
 
 
-func _row_style(background: Color, border: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.border_color = border
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(4)
-	style.set_content_margin_all(6)
-	return style

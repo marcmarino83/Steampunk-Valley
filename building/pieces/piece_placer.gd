@@ -182,21 +182,39 @@ func handle_input(event: InputEvent) -> bool:
 	return false
 
 
-## The lines for the key hints in the corner
-func hints() -> PackedStringArray:
-	var lines: PackedStringArray = ["Placing %s (%s)" % [_buildable.display_name, _buildable.cost_text()]]
-	if not _problem.is_empty():
-		lines.append(_problem)
+## What the on-screen controls show while placing (see HudControls): the controls that apply
+## right now, and the piece's panel (icon, name, cost in red if you can't afford it, and one line
+## of details: snapped and turned, or the height; and why it can't go there, if it can't)
+func hud_state() -> Dictionary:
+	var details: PackedStringArray = []
+	var controls := [["Place", "LMB"]]
 	if _target:
-		var step := roundi(rad_to_deg(_shape.get("turn_step", PI / 2.0)))
-		lines.append("Snapped, turned %d°   [Left-click] Place   [R] Turn %d°   [Alt+Wheel] Turn 15°" % [roundi(rad_to_deg(_snap_turn)) % 360, step])
+		details.append("Snapped")
+		var turn := roundi(rad_to_deg(_snap_turn)) % 360
+		if turn != 0:
+			details.append("turned %d°" % turn)
+		controls.append(["Rotate %d°" % roundi(rad_to_deg(_shape.get("turn_step", PI / 2.0))), "R"])
+		controls.append(["Rotate 15°", "Alt+Wheel"])
 	else:
-		lines.append("Height %+.2f m   [Left-click] Place   [R] Turn 15°   [Alt+Wheel] Turn" % _height)
-	lines.append("[PgUp/PgDn] or [Ctrl+Wheel] Raise/lower (Alt: fine)   [Backspace] Reset height")
-	lines.append("[Shift] Place without snapping")
-	lines.append("[Right-click] or [Esc] Stop placing")
-	lines.append(demolish_hint(false))
-	return lines
+		details.append("Height %+.2f m" % _height)
+		controls.append(["Rotate", "R"])
+		controls.append(["Raise/Lower", "PgUp/PgDn"])
+		if not is_zero_approx(_height):
+			controls.append(["Reset height", "Backspace"])
+	controls.append(["No snap", "Shift"])
+	controls.append(["Demolish mode", "MMB"])
+	controls.append(["Cancel", "RMB"])
+	if not _problem.is_empty():
+		details.append(_problem)
+	var info := {
+		"icon": _buildable.icon,
+		"title": _buildable.display_name,
+		"cost": _buildable.cost_text(),
+		"cost_bad": not _buildable.can_afford(_player.inventory),
+		"detail": "  ·  ".join(details),
+		"detail_bad": not _problem.is_empty(),
+	}
+	return {"controls": controls, "info": info}
 
 
 # Raises (+1) or lowers (-1) a freely placed piece by one step, or a fine step
@@ -504,17 +522,22 @@ func demolish() -> bool:
 	return true
 
 
-## The key hint about demolishing: in demolish mode, what left-click would take down; while X is
-## held, how far along it is; otherwise how to start
-func demolish_hint(in_mode: bool) -> String:
+## The piece panel while demolishing (see HudControls): in demolish mode, or while X is held, the
+## targeted piece's name and refund, in red. Empty otherwise.
+func demolish_info(in_mode: bool) -> Dictionary:
 	var target := demolish_target()
-	if _hold_time > 0.0 and target:
-		return "Demolishing %s (refund: %s)... %d%%" % [target.display_name(), _refund_text(target), int(_hold_time / DEMOLISH_HOLD * 100.0)]
+	if target and (in_mode or _hold_time > 0.0):
+		var detail := "Demolishing... %d%%" % int(_hold_time / DEMOLISH_HOLD * 100.0) if _hold_time > 0.0 else "Demolish mode"
+		return {
+			"icon": target.buildable.icon if target.buildable else null,
+			"title": target.display_name(),
+			"cost": "Refund: %s" % _refund_text(target),
+			"cost_bad": true,
+			"detail": detail,
+		}
 	if in_mode:
-		if target:
-			return "[Left-click] Demolish %s (refund: %s)   [Right-click/Esc] Cancel" % [target.display_name(), _refund_text(target)]
-		return "Demolish mode: aim at a piece   [Right-click/Esc] Cancel"
-	return "[Middle-click] Demolish mode   (or hold [X] on a piece)"
+		return {"title": "Demolish mode", "detail": "Aim at a building piece"}
+	return {}
 
 
 func _refund_text(piece: BuildPiece) -> String:

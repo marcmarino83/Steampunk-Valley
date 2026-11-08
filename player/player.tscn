@@ -9,27 +9,6 @@
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_meter_bg"]
-bg_color = Color(0, 0, 0, 0.55)
-corner_radius_top_left = 3
-corner_radius_top_right = 3
-corner_radius_bottom_right = 3
-corner_radius_bottom_left = 3
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hunger"]
-bg_color = Color(0.85, 0.6, 0.22, 1)
-corner_radius_top_left = 3
-corner_radius_top_right = 3
-corner_radius_bottom_right = 3
-corner_radius_bottom_left = 3
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_warmth"]
-bg_color = Color(0.88, 0.32, 0.2, 1)
-corner_radius_top_left = 3
-corner_radius_top_right = 3
-corner_radius_bottom_right = 3
-corner_radius_bottom_left = 3
-
 [node name="Player" type="CharacterBody3D" unique_id=925832463]
 script = ExtResource("1_4flbx")
 
@@ -51,72 +30,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, -0.27, -0.55)
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=1534333101]
 
-[node name="Crosshair" type="Label" parent="HUD" unique_id=886388623]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 24
-text = "+"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="Prompt" type="Label" parent="HUD" unique_id=1590497414]
-visible = false
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_top = 50.0
-offset_bottom = 50.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 6
-theme_override_font_sizes/font_size = 20
-text = "[E] Gather"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="Meters" type="VBoxContainer" parent="HUD"]
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 16.0
-offset_top = -120.0
-offset_right = 256.0
-offset_bottom = -16.0
-grow_vertical = 0
-alignment = 2
-
-[node name="HungerLabel" type="Label" parent="HUD/Meters"]
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 5
-theme_override_font_sizes/font_size = 16
-text = "Hunger"
-
-[node name="HungerBar" type="ProgressBar" parent="HUD/Meters"]
-custom_minimum_size = Vector2(240, 14)
-theme_override_styles/background = SubResource("StyleBoxFlat_meter_bg")
-theme_override_styles/fill = SubResource("StyleBoxFlat_hunger")
-value = 100.0
-show_percentage = false
-
-[node name="WarmthLabel" type="Label" parent="HUD/Meters"]
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 5
-theme_override_font_sizes/font_size = 16
-text = "Warmth"
-
-[node name="WarmthBar" type="ProgressBar" parent="HUD/Meters"]
-custom_minimum_size = Vector2(240, 14)
-theme_override_styles/background = SubResource("StyleBoxFlat_meter_bg")
-theme_override_styles/fill = SubResource("StyleBoxFlat_warmth")
-value = 100.0
-show_percentage = false
-
 [node name="Status" type="Label" parent="HUD"]
 anchors_preset = 10
 anchor_right = 1.0
@@ -128,26 +41,6 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 6
 theme_override_font_sizes/font_size = 22
 horizontal_alignment = 1
-
-[node name="Hints" type="Label" parent="HUD"]
-anchors_preset = 3
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -420.0
-offset_top = -150.0
-offset_right = -16.0
-offset_bottom = -96.0
-grow_horizontal = 0
-grow_vertical = 0
-theme_override_colors/font_color = Color(0.94, 0.8, 0.55, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 5
-theme_override_font_sizes/font_size = 16
-text = "[F] Eat Berries"
-horizontal_alignment = 2
-vertical_alignment = 2
 
 [node name="InventoryScreen" parent="HUD" instance=ExtResource("2_inv")]
 

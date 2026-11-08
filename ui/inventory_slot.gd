@@ -72,6 +72,8 @@ const MISSING_COLOR := Color(1.0, 0.36, 0.3)
 @onready var count_label: Label = $VBox/CountLabel
 
 var _item := ""
+# Nothing in it (an empty backpack or chest slot shows a faint gear)
+var _empty := true
 
 
 ## An item's picture: its icon, or a little square of its placeholder color
@@ -93,7 +95,7 @@ static func make_drag_preview(item: String) -> Control:
 	else:
 		square = ColorRect.new()
 		square.color = ITEM_COLORS.get(item, Color(0.6, 0.6, 0.6))
-	square.size = Vector2(40, 40)
+	square.size = Vector2(40, 40) * MenuStyle.MENU_SCALE
 	square.position = -square.size * 0.5
 	var preview := Control.new()
 	preview.add_child(square)
@@ -101,7 +103,19 @@ static func make_drag_preview(item: String) -> Control:
 
 
 ## Shows an item and how many you have in this slot
+func _ready() -> void:
+	# The shared brass slot (see BrassStyle)
+	add_theme_stylebox_override("panel", BrassStyle.frame("slot"))
+
+
+func _draw() -> void:
+	if _empty:
+		BrassStyle.draw_slot_gear(self, Rect2(Vector2.ZERO, size))
+
+
 func set_item(item: String, count: int) -> void:
+	_empty = false
+	queue_redraw()
 	_item = item
 	name_label.text = item
 	count_label.text = "x%d" % count
@@ -125,6 +139,8 @@ func set_cost(item: String, have: int, need: int) -> void:
 
 ## Makes this an empty slot
 func clear() -> void:
+	_empty = true
+	queue_redraw()
 	_item = ""
 	name_label.text = ""
 	count_label.text = ""

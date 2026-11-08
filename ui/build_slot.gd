@@ -4,7 +4,6 @@ extends PanelContainer
 signal chosen(buildable: Buildable)
 signal hover_changed(buildable: Buildable, hovering: bool)
 
-const HOVER_BORDER := Color(0.88, 0.66, 0.28)
 ## How dark a slot goes when you can't afford what's in it
 const UNAFFORDABLE_TINT := Color(0.55, 0.55, 0.55)
 ## A locked blueprint: its name, its picture as a dark silhouette, and how to unlock it, in a
@@ -19,13 +18,12 @@ const SILHOUETTE := Color(0.07, 0.06, 0.05, 0.9)
 
 var _buildable: Buildable
 var _affordable := false
-var _style: StyleBoxFlat
-var _normal_border: Color
+var _style: StyleBox
 
 
 func _ready() -> void:
-	_style = get_theme_stylebox("panel").duplicate()
-	_normal_border = _style.border_color
+	# The shared brass slot (see BrassStyle), lit under the mouse
+	_style = BrassStyle.frame("slot")
 	add_theme_stylebox_override("panel", _style)
 	mouse_entered.connect(_set_hover.bind(true))
 	mouse_exited.connect(_set_hover.bind(false))
@@ -36,6 +34,8 @@ func show_buildable(buildable: Buildable, affordable: bool, locked: bool) -> voi
 	_affordable = affordable and not locked
 	name_label.text = buildable.display_name
 	icon.modulate = Color.WHITE
+	name_label.modulate = Color.WHITE
+	cost_label.add_theme_color_override("font_color", BrassStyle.TEXT_DIM)
 	if locked:
 		cost_label.text = buildable.unlock_hint_text()
 		modulate = LOCKED_TINT
@@ -51,7 +51,11 @@ func show_buildable(buildable: Buildable, affordable: bool, locked: bool) -> voi
 			icon.hide()
 		return
 	cost_label.text = buildable.cost_text()
-	modulate = Color.WHITE if affordable else UNAFFORDABLE_TINT
+	# Can't afford it: the picture and name dim, and the cost shows in red
+	modulate = Color.WHITE
+	icon.modulate = Color.WHITE if affordable else UNAFFORDABLE_TINT
+	name_label.modulate = Color.WHITE if affordable else UNAFFORDABLE_TINT
+	cost_label.add_theme_color_override("font_color", BrassStyle.TEXT if affordable else BrassStyle.BAD)
 	if buildable.icon:
 		icon.texture = buildable.icon
 		icon.show()
@@ -81,6 +85,6 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _set_hover(hovering: bool) -> void:
-	_style.border_color = HOVER_BORDER if hovering and _buildable else _normal_border
+	BrassStyle.set_lit(_style, hovering and _buildable != null)
 	if _buildable:
 		hover_changed.emit(_buildable, hovering)

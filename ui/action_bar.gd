@@ -13,6 +13,19 @@ const SLOT_COUNT := 9
 ## How long an item's name stays up after switching to it, and how long it then takes to fade
 const NAME_SECONDS := 1.2
 const NAME_FADE_SECONDS := 0.4
+## The gap kept below the bar, in pixels at 1920 x 1080
+const BOTTOM_GAP := 26.0
+
+## action_bar.png (945 x 183, its left end trimmed at the frame): where its first slot opening
+## is, how far apart the openings are, and how big each is, in its own pixels (measured from
+## the art), and how big its pixels are drawn on screen. The slots are laid out to sit exactly
+## over the openings.
+const ART_FIRST_SLOT := Vector2(27, 72)
+const ART_PITCH := 96.33
+const ART_SLOT := Vector2(90, 92)
+const ART_SCALE := 0.75
+## Without the art: a brass rail round plain slots, this far past them
+const FRAME_PAD := Vector2(8, 7)
 
 @onready var row: HBoxContainer = $Row
 @onready var name_label: Label = $NameLabel
@@ -24,20 +37,82 @@ var selected := -1
 
 var _held := ""
 var _name_tween: Tween
+# The bar's art (kept loaded while it's drawn), or the code-drawn rail when there's none
+var _art: Texture2D
+var _frame: StyleBox
 
 
 func _ready() -> void:
 	items.resize(SLOT_COUNT)
 	items.fill("")
+	_art = BrassStyle.texture("action_bar")
+	var slot_size := ART_SLOT * ART_SCALE
+	var gap := (ART_PITCH - ART_SLOT.x) * ART_SCALE
 	for i in SLOT_COUNT:
 		var slot := SLOT_SCENE.instantiate()
 		row.add_child(slot)
 		slot.set_number(i + 1)
 		slot.tool_dropped.connect(assign.bind(i))
+		if _art:
+			# Each slot is as wide as one step along the bar, its picture filling the opening
+			slot.fit_opening(slot_size, gap)
 	name_label.modulate.a = 0.0
 	set_editing(false)
 	_update()
 	add_to_group("saveable")
+	offset_top = -BOTTOM_GAP
+	offset_bottom = -BOTTOM_GAP
+	if _art:
+		row.add_theme_constant_override("separation", 0)
+		# The art reaches further past the first slot than past the last: move over so the art,
+		# not just the slots, is centred
+		var past_last := _art.get_width() - ART_FIRST_SLOT.x - ART_PITCH * SLOT_COUNT
+		offset_left = (ART_FIRST_SLOT.x - past_last) * ART_SCALE / 2.0
+		offset_right = offset_left
+		# The held item's name sits just above the art's top
+		add_theme_constant_override("separation", int(ART_FIRST_SLOT.y * ART_SCALE) + 2)
+		name_label.add_theme_font_size_override("font_size", 16)
+	else:
+		# The plain slots were laid out for the old 1152 x 648 screen, so they're drawn bigger by
+		# the same amount the screen layout grew, from the bottom middle
+		scale = Vector2.ONE * MenuStyle.OLD_LAYOUT_SCALE
+		var keep_bottom_middle := func(): pivot_offset = Vector2(size.x / 2.0, size.y)
+		resized.connect(keep_bottom_middle)
+		keep_bottom_middle.call()
+		_frame = BrassStyle.frame("action_bar")
+		add_theme_constant_override("separation", 14)
+	row.draw.connect(_draw_frame)
+
+
+# Behind the slots: the bar's art, placed so its openings fall on the slots; or the plain rail
+func _draw_frame() -> void:
+	if _art:
+		row.draw_texture_rect(_art, _art_rect(), false)
+		return
+	_frame.draw(row.get_canvas_item(), Rect2(-FRAME_PAD, row.size + FRAME_PAD * 2.0))
+
+
+# Where the art goes, in the row's own coordinates
+func _art_rect() -> Rect2:
+	return Rect2(-ART_FIRST_SLOT * ART_SCALE, _art.get_size() * ART_SCALE)
+
+
+## Where the bar is on screen, as drawn, art and all (the controls row sits above it, the compass
+## to its left)
+func rect_on_screen() -> Rect2:
+	var xform := row.get_global_transform()
+	var local := _art_rect() if _art else Rect2(-FRAME_PAD, row.size + FRAME_PAD * 2.0)
+	var top_left := xform * local.position
+	var bottom_right := xform * local.end
+	# The item's name shows above the bar's top
+	var name_top := (name_label.get_global_transform() * Vector2.ZERO).y
+	top_left.y = minf(top_left.y, name_top)
+	return Rect2(top_left, bottom_right - top_left)
+
+
+## Where slot 1's picture is on screen (the compass tucks in just left of it)
+func first_slot_rect() -> Rect2:
+	return row.get_child(0).get_global_rect()
 
 
 func save_key() -> String:

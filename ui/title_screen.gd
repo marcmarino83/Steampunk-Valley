@@ -20,6 +20,8 @@ func _ready() -> void:
 	add_child(backdrop)
 
 	var choices := MenuStyle.screen(self, 0.0)
+	# The title screen alone gets the ornate frame (the other menus use the plaque)
+	choices.get_parent().add_theme_stylebox_override("panel", BrassStyle.frame("title"))
 	choices.add_child(MenuStyle.title("Steampunk Valley", 34))
 	_latest = MenuStyle.note("")
 	_latest.custom_minimum_size.x = 300

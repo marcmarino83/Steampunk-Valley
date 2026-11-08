@@ -13,10 +13,6 @@ const FALLBACK_TAB := "Other"
 const COLUMNS := 6
 ## Room kept free above and below the list, so a short screen scrolls it instead of cutting it off
 const SCREEN_MARGIN := 280.0
-const TAB_COLOR := Color(0.2, 0.16, 0.12)
-const TAB_SELECTED_COLOR := Color(0.36, 0.26, 0.15)
-const TAB_BORDER := Color(0.45, 0.28, 0.16)
-const TAB_SELECTED_BORDER := Color(0.98, 0.78, 0.32)
 
 @onready var grid: GridContainer = $Center/Panel/VBox/Grid
 @onready var detail_label: Label = $Center/Panel/VBox/Detail
@@ -40,6 +36,9 @@ var _hovered: Buildable
 func _ready() -> void:
 	_buildables = _load_buildables()
 	var column := grid.get_parent()
+	var frame := BrassStyle.frame("panel")
+	$Center/Panel.add_theme_stylebox_override("panel", frame)
+	MenuStyle.enlarge($Center/Panel)
 	# Tabs across the top, then the tab's slots (scrolling if the screen is short) in place of the
 	# scene's single grid
 	var tab_row := HBoxContainer.new()
@@ -152,26 +151,8 @@ func _tab_button(text: String) -> Button:
 	button.toggle_mode = true
 	button.focus_mode = Control.FOCUS_NONE
 	button.add_theme_font_size_override("font_size", 15)
-	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
-		button.add_theme_color_override(state, Color(0.94, 0.8, 0.55))
-	button.add_theme_stylebox_override("normal", _tab_style(TAB_COLOR, TAB_BORDER))
-	button.add_theme_stylebox_override("hover", _tab_style(TAB_COLOR.lightened(0.08), TAB_BORDER))
-	button.add_theme_stylebox_override("pressed", _tab_style(TAB_SELECTED_COLOR, TAB_SELECTED_BORDER))
-	button.add_theme_stylebox_override("hover_pressed", _tab_style(TAB_SELECTED_COLOR, TAB_SELECTED_BORDER))
+	BrassStyle.style_button(button)
 	return button
-
-
-func _tab_style(background: Color, border: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.border_color = border
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(4)
-	style.content_margin_left = 10
-	style.content_margin_right = 10
-	style.content_margin_top = 5
-	style.content_margin_bottom = 5
-	return style
 
 
 # As tall as the biggest tab needs (so the menu doesn't jump between tabs), unless the screen is
@@ -185,7 +166,7 @@ func _fit_to_screen() -> void:
 		page.visible = true
 		needed = needed.max(page.get_combined_minimum_size())
 		page.visible = was_visible
-	var room := get_viewport_rect().size.y - SCREEN_MARGIN
+	var room := get_viewport_rect().size.y / MenuStyle.MENU_SCALE - SCREEN_MARGIN
 	_scroll.custom_minimum_size = Vector2(needed.x + 12.0, minf(needed.y, maxf(room, 200.0)))
 
 

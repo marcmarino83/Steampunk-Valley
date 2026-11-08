@@ -4,16 +4,17 @@ class_name MenuStyle
 
 const TEXT := Color(0.94, 0.8, 0.55)
 const TEXT_DIM := Color(0.7, 0.62, 0.5)
+## The screen is laid out at 1920 × 1080 and scales with the window (Project Settings, Display >
+## Window > Stretch). The menus were drawn for a 1152 × 648 layout, so their panels are shown this
+## much bigger to stay readable; the action bar keeps exactly its old size (OLD_LAYOUT_SCALE).
+const MENU_SCALE := 1.5
+const OLD_LAYOUT_SCALE := 1920.0 / 1152.0
 
 
+## A menu panel in the shared brass look (see BrassStyle)
 static func panel() -> PanelContainer:
 	var box := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.09, 0.07, 0.96)
-	style.border_color = Color(0.54, 0.29, 0.16)
-	style.set_border_width_all(3)
-	style.set_corner_radius_all(8)
-	style.set_content_margin_all(24)
+	var style := BrassStyle.frame("panel")
 	box.add_theme_stylebox_override("panel", style)
 	return box
 
@@ -43,22 +44,36 @@ static func button(text: String) -> Button:
 	b.custom_minimum_size = Vector2(240, 42)
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_size_override("font_size", 18)
-	for state in ["font_color", "font_hover_color", "font_pressed_color"]:
-		b.add_theme_color_override(state, Color(1.0, 0.93, 0.78))
-	b.add_theme_stylebox_override("normal", _button_style(Color(0.36, 0.24, 0.12)))
-	b.add_theme_stylebox_override("hover", _button_style(Color(0.54, 0.36, 0.14)))
-	b.add_theme_stylebox_override("pressed", _button_style(Color(0.66, 0.45, 0.18)))
+	BrassStyle.style_button(b)
 	return b
 
 
-static func _button_style(fill: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = fill
-	style.border_color = Color(0.98, 0.78, 0.32)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(4)
-	style.set_content_margin_all(8)
-	return style
+
+
+## Draws a menu panel `factor` times bigger (clicks and drags still land where they look).
+## Containers undo their children's scale, so the panel moves into a plain holder that takes the
+## panel's place and is as big as the panel looks: a CenterContainer above still centres it.
+static func enlarge(content: Control, factor := MENU_SCALE) -> void:
+	var parent := content.get_parent()
+	var holder := Control.new()
+	holder.name = content.name + "Holder"
+	holder.mouse_filter = Control.MOUSE_FILTER_PASS
+	parent.add_child(holder)
+	parent.move_child(holder, content.get_index())
+	content.reparent(holder, false)
+	content.position = Vector2.ZERO
+	content.scale = Vector2.ONE * factor
+	var fit := func():
+		var natural := content.get_combined_minimum_size()
+		content.size = natural
+		holder.custom_minimum_size = natural * factor
+		holder.size = natural * factor
+		# Have the CenterContainer above place it again, so it stays centred as it grows
+		if parent is Container:
+			parent.queue_sort()
+	content.minimum_size_changed.connect(fit)
+	content.resized.connect(fit)
+	fit.call()
 
 
 ## A full-screen dark backdrop with a centred column in a panel, to put titles and buttons in
@@ -72,6 +87,7 @@ static func screen(parent: Control, dim := 0.55) -> VBoxContainer:
 	parent.add_child(center)
 	var box := panel()
 	center.add_child(box)
+	enlarge(box)
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 12)
 	box.add_child(column)

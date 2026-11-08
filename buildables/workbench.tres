@@ -12,6 +12,8 @@ unlocked_by = "Craft"
 unlock_item = "Axe"
 unlock_also = PackedStringArray("Pickaxe")
 scene = ExtResource("2_scene")
+section = "Other"
+menu_order = 3
 costs = Array[Dictionary]([{
 "Wood": 6,
 "Stone": 4,

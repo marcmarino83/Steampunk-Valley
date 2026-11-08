@@ -11,6 +11,8 @@ starts_locked = true
 unlocked_by = "Craft"
 unlock_item = "Hammer"
 scene = ExtResource("2_scene")
+section = "Other"
+menu_order = 2
 costs = Array[Dictionary]([{
 "Sticks": 8,
 "Wood": 4,

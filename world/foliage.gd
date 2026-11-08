@@ -281,6 +281,28 @@ func hide_rocks_in(middle: Vector2, reach: float) -> void:
 					_rock_multimesh.set_instance_transform(i, place.scaled_local(Vector3.ZERO))
 
 
+## True if a scattered rock (still standing) pokes into this box, in world space. Building pieces
+## can't go through them.
+func rock_in_box(box: AABB) -> bool:
+	if _rock_multimesh == null:
+		return false
+	var low := _rock_cell(box.position)
+	var high := _rock_cell(box.end)
+	for cz in range(low.y - 1, high.y + 2):
+		for cx in range(low.x - 1, high.x + 2):
+			for i in _rock_cells.get(Vector2i(cx, cz), PackedInt32Array()):
+				var place := _rock_multimesh.get_instance_transform(i)
+				var size := place.basis.get_scale()
+				if is_zero_approx(size.x):
+					continue
+				var middle := to_global(place.origin)
+				var nearest := middle.clamp(box.position, box.end)
+				# Most of a rock's outline is a bit inside its rough radius
+				if nearest.distance_to(middle) < ROCK_RADIUS * maxf(size.x, maxf(size.y, size.z)) * 0.8:
+					return true
+	return false
+
+
 func _rock_cell(spot: Vector3) -> Vector2i:
 	return Vector2i(floori(spot.x / ROCK_CELL_SIZE), floori(spot.z / ROCK_CELL_SIZE))
 

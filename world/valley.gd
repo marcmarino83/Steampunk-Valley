@@ -1440,7 +1440,8 @@ func _scatter_starter_kit() -> void:
 ## scattered boulders and the small decorations painted by hand (ones with nothing solid to them)
 ## inside it
 func add_clear_zone(zone: Node3D) -> void:
-	_clear_zones.append(zone)
+	if not _clear_zones.has(zone):
+		_clear_zones.append(zone)
 	var reach: float = zone.radius
 	var middle := Vector2(zone.global_position.x, zone.global_position.z)
 	var foliage = get_node_or_null("Foliage")
@@ -1458,6 +1459,17 @@ func add_clear_zone(zone: Node3D) -> void:
 				continue
 			if Vector2(decoration.global_position.x, decoration.global_position.z).distance_to(middle) < reach:
 				decoration.visible = false
+
+
+## Takes a Clear Zone away while the game is running (a floor piece was taken down): the grass
+## and ferns grow back over it. Call this before freeing the zone.
+func remove_clear_zone(zone: Node3D) -> void:
+	_clear_zones.erase(zone)
+	var foliage = get_node_or_null("Foliage")
+	if foliage and zone.clear_plants:
+		var reach: float = zone.radius
+		var middle := Vector2(zone.global_position.x, zone.global_position.z)
+		foliage.regrow_plants_in(Rect2(middle.x - reach, middle.y - reach, reach * 2.0, reach * 2.0))
 
 
 # Seats a resource on the ground around it: tilts it with the slope as far as its lean says, then

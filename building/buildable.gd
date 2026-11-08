@@ -6,6 +6,11 @@ extends Blueprint
 
 ## The scene that gets placed in the world
 @export var scene: PackedScene
+## Which tab of the build menu it's listed under: "Foundations", "Floors", "Walls", "Roofs",
+## "Beams & Pillars", "Stairs & Doors", "Round" or "Other" (anything else goes under "Other")
+@export var section := ""
+## Its place within that part of the menu, lowest first (ties go by file name)
+@export var menu_order := 0
 ## The ways of paying for it, best first, like [{"Wood": 3}, {"Sticks": 6, "Stone": 2}].
 ## There must be at least one. It's paid with the first one you can afford.
 @export var costs: Array[Dictionary] = []

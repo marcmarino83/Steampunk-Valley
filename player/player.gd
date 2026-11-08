@@ -41,6 +41,14 @@ const CHEST_RANGE := 4.0
 ## this fast (0.75 = three quarters as fast)
 const TORCH_NIGHTS := 0.5
 const TORCH_CHILL := 0.75
+## Checking for a roof overhead and a closed room around you: how often, in seconds, how far the
+## rays look, in meters, and how many go round the room
+## Climbing a ladder: how fast (m/s), and how close it must be in front of you
+const CLIMB_SPEED := 2.5
+const LADDER_REACH := 0.9
+const SHELTER_CHECK_SECONDS := 0.4
+const SHELTER_REACH := 14.0
+const ENCLOSURE_RAYS := 32
 
 const NOTE_PANEL_SCENE = preload("res://ui/note_panel.tscn")
 const PAUSE_MENU_SCENE = preload("res://ui/pause_menu.tscn")
@@ -100,6 +108,10 @@ var _open_chest: Node3D
 var _last_stations: PackedStringArray = []
 # Seconds left on the torch in your hand (0 = a fresh one is lit when you next hold one)
 var _torch_left := 0.0
+# Under a roof you've built, and shut in a room (see _check_shelter), and when to check again
+var _under_roof := false
+var _enclosed := false
+var _shelter_check_in := 0.0
 
 
 func _ready() -> void:
@@ -179,6 +191,9 @@ func save_data() -> Dictionary:
 			"position": SaveGame.from_vector(tool_on_ground.global_position),
 			"turn": tool_on_ground.rotation.y,
 		})
+	var bundles: Array = []
+	for bundle in get_tree().get_nodes_in_group("item_bundles"):
+		bundles.append({"position": SaveGame.from_vector(bundle.global_position), "contents": bundle.contents.duplicate()})
 	return {
 		"position": SaveGame.from_vector(global_position),
 		"turn": rotation.y,
@@ -189,6 +204,7 @@ func save_data() -> Dictionary:
 		"unlocked": _unlocked.keys().map(func(blueprint): return blueprint.resource_path),
 		"notes_read": _notes_read.keys(),
 		"dropped_tools": dropped,
+		"item_bundles": bundles,
 		"done": _done.keys(),
 		"torch_left": _torch_left,
 	}
@@ -226,6 +242,17 @@ func load_data(data: Dictionary) -> void:
 			get_parent().add_child(dropped)
 			dropped.global_position = SaveGame.to_vector(entry.get("position"))
 			dropped.rotation.y = float(entry.get("turn", 0.0))
+	for bundle in get_tree().get_nodes_in_group("item_bundles"):
+		bundle.queue_free()
+	for entry in data.get("item_bundles", []):
+		var contents := {}
+		var saved: Dictionary = entry.get("contents", {})
+		for item in saved:
+			contents[item] = int(saved[item])
+		if not contents.is_empty():
+			var bundle := ItemBundle.create(contents)
+			get_parent().add_child(bundle)
+			bundle.global_position = SaveGame.to_vector(entry.get("position"))
 	_refresh_inventory_display()
 
 
@@ -265,6 +292,10 @@ func _process(delta: float) -> void:
 		if target is ResourceNode and target.needs_tool(self):
 			prompt_label.text += " (equip the %s)" % target.required_tool
 
+	# With the hammer out: in demolish mode (middle-click, see _unhandled_input) or while X is
+	# held, the building piece under the crosshair glows red, ready to demolish
+	_placer.update_demolish(delta, _can_demolish(), Input.is_key_pressed(KEY_X))
+
 	if _fps_label.visible:
 		var triangles := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
 		_fps_label.text = "%d FPS\n%d triangles" % [Engine.get_frames_per_second(), triangles]
@@ -281,6 +312,7 @@ func _update_hints() -> void:
 		hints.append("[F] Eat Berries")
 	if held_item == "Hammer":
 		hints.append("[Tab] Build")
+		hints.append(_placer.demolish_hint())
 	if _dowsing and held_item == "Dowsing Rod":
 		hints.append("[R] Dowse for buried ore")
 	if not held_item.is_empty():
@@ -315,11 +347,20 @@ func _unhandled_input(event: InputEvent) -> void:
 			_note_panel.close()
 		return
 
-	# While the build menu is open, Tab or Esc closes it, and nothing else happens
+	# While the build menu is open, Q and E change tab, Tab or Esc closes it, and nothing else happens
 	if build_menu.visible:
-		var close_key: bool = event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_TAB
-		if close_key or event.is_action_pressed("ui_cancel"):
+		var key: bool = event is InputEventKey and event.pressed and not event.echo
+		if key and event.keycode == KEY_Q:
+			build_menu.cycle_tab(-1)
+		elif key and event.keycode == KEY_E:
+			build_menu.cycle_tab(1)
+		elif (key and event.keycode == KEY_TAB) or event.is_action_pressed("ui_cancel"):
 			_close_build_menu()
+		return
+
+	# With the hammer out, middle-click turns demolish mode on (or off again), placing or not
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_MIDDLE and _can_demolish():
+		_placer.toggle_demolish_mode()
 		return
 
 	# While placing a building, clicks, R and Esc belong to that
@@ -404,7 +445,28 @@ func _physics_process(delta: float) -> void:
 	velocity.x = direction.x * speed
 	velocity.z = direction.z * speed
 
+	# W on a ladder you're facing climbs it; carrying on forward at the top steps you off
+	if input_dir.y < 0.0 and _facing_ladder():
+		velocity.y = CLIMB_SPEED
+
 	move_and_slide()
+
+
+# True if a ladder is right in front of you: what you're looking at, or (looking up past its top
+# or down at its foot) just ahead of your body
+func _facing_ladder() -> bool:
+	if interact_ray.is_colliding():
+		var target = interact_ray.get_collider()
+		if target is BuildPiece and target.is_ladder() and interact_ray.get_collision_point().distance_to(camera.global_position) < LADDER_REACH + 0.4:
+			return true
+	for height in [0.3, 1.0]:
+		var from: Vector3 = global_position + Vector3.UP * height
+		var query := PhysicsRayQueryParameters3D.create(from, from - global_basis.z * LADDER_REACH)
+		query.exclude = [get_rid()]
+		var hit := get_world_3d().direct_space_state.intersect_ray(query)
+		if not hit.is_empty() and hit["collider"] is BuildPiece and hit["collider"].is_ladder():
+			return true
+	return false
 
 
 ## Shows a short message at the top of the screen
@@ -416,6 +478,34 @@ func flash(text: String) -> void:
 func add_item(item: String, amount: int) -> void:
 	inventory[item] = inventory.get(item, 0) + amount
 	_refresh_inventory_display()
+
+
+## True if this item would fit: you already carry some (stacks have no limit), or the backpack
+## has a free slot
+func has_room_for(item: String) -> bool:
+	return inventory.has(item) or action_bar.has_item(item) or _backpack_contents().size() < inventory_screen.slot_count
+
+
+## Puts these items in your pockets; any that won't fit (backpack full) are left in a bundle on
+## the ground at `spot`, for E to pick up later. Returns what was left.
+func give_or_drop(items: Dictionary, spot: Vector3) -> Dictionary:
+	var left := {}
+	for item in items:
+		if has_room_for(item):
+			add_item(item, items[item])
+		else:
+			left[item] = items[item]
+	if not left.is_empty():
+		var bundle := ItemBundle.create(left)
+		get_parent().add_child(bundle)
+		bundle.global_position = spot
+	return left
+
+
+# The hammer is out and nothing else is in the way (no menu, page or sleep), so demolishing works
+func _can_demolish() -> bool:
+	return held_item == "Hammer" and not _sleeping and not _note_panel.is_open() \
+			and not inventory_screen.visible and not build_menu.visible and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 
 
 ## Something gathered from the world (picked, chopped, mined): into your pockets, and it counts
@@ -537,10 +627,13 @@ func _update_survival(delta: float) -> void:
 	var night_chill := NIGHT_CHILL_PER_NIGHT / night_seconds
 	var day_warmth := DAY_WARMTH_PER_DAY / day_seconds
 	var warmth_change := lerpf(-night_chill, day_warmth, daylight)
-	# Out of the wind, the cold creeps in much more slowly
+	# Out of the wind, the cold creeps in much more slowly; shut in a room, not at all
+	_check_shelter(delta)
 	var sheltered := is_sheltered()
 	if sheltered and warmth_change < 0.0:
 		warmth_change *= SHELTER_CHILL
+	if _enclosed and warmth_change < 0.0:
+		warmth_change = 0.0
 	# A lit torch in your hand keeps a little of the cold off
 	if held_item == "Torch" and warmth_change < 0.0:
 		warmth_change *= TORCH_CHILL
@@ -561,18 +654,78 @@ func _update_survival(delta: float) -> void:
 			warnings.append("You're starving! Eat something [F]")
 		if warmth <= 0.0:
 			warnings.append("You're freezing! Get to a fire")
-		if warnings.is_empty() and sheltered:
+		if warnings.is_empty() and _enclosed:
+			warnings.append("Indoors: the cold can't get in here")
+		elif warnings.is_empty() and sheltered:
 			warnings.append("Sheltered: the cold creeps in slowly here")
 		status_label.text = "\n".join(warnings)
 
 
 ## True while standing inside a shelter (any Area3D in the "shelters" group), like the
-## intact half of the wreck. Wind and rain will check this too, later.
+## intact half of the wreck, or under a roof you've built. Wind and rain will check this too, later.
 func is_sheltered() -> bool:
+	if _under_roof or _enclosed:
+		return true
 	for shelter in get_tree().get_nodes_in_group("shelters"):
 		if shelter.overlaps_body(self):
 			return true
 	return false
+
+
+## True while shut inside a room you've built: floor underneath, walls all round (with any door
+## closed) and a roof overhead. The cold can't get in at all.
+func is_enclosed() -> bool:
+	return _enclosed
+
+
+# Under a roof, and shut in a room, checked a few times a second with rays: one up for a roof,
+# one down for a floor, a ring of them across the room (below window height) that must all meet
+# a wall or a closed door, and some up from around the room that must all meet a roof or a
+# floor above. Works for round rooms as for square ones.
+func _check_shelter(delta: float) -> void:
+	_shelter_check_in -= delta
+	if _shelter_check_in > 0.0:
+		return
+	_shelter_check_in = SHELTER_CHECK_SECONDS
+	var feet := global_position
+	var overhead := _piece_hit(feet + Vector3.UP * 1.6, feet + Vector3.UP * SHELTER_REACH)
+	_under_roof = overhead != null and (overhead.is_roof() or overhead.is_floor())
+	_enclosed = false
+	if not _under_roof:
+		return
+	var underfoot := _piece_hit(feet + Vector3.UP * 0.3, feet + Vector3.DOWN * 1.0)
+	if underfoot == null or not underfoot.is_floor():
+		return
+	for i in ENCLOSURE_RAYS:
+		var direction := Vector3.FORWARD.rotated(Vector3.UP, TAU * i / ENCLOSURE_RAYS)
+		var reach := INF
+		for height in [0.5, 1.0]:
+			var from: Vector3 = feet + Vector3.UP * height
+			var query := PhysicsRayQueryParameters3D.create(from, from + direction * SHELTER_REACH)
+			query.exclude = [get_rid()]
+			var hit := get_world_3d().direct_space_state.intersect_ray(query)
+			# A gap, something that isn't part of the building, or a door standing open
+			if hit.is_empty() or not hit["collider"] is BuildPiece or not hit["collider"].is_closed():
+				return
+			reach = minf(reach, from.distance_to(hit["position"]))
+		# The ceiling must cover the room, not just the spot you're standing on
+		if i % 4 == 0:
+			var inside := feet + direction * reach * 0.7 + Vector3.UP * 1.6
+			var ceiling := _piece_hit(inside, inside + Vector3.UP * SHELTER_REACH)
+			if ceiling == null or not (ceiling.is_roof() or ceiling.is_floor()):
+				return
+	_enclosed = true
+
+
+# The building piece a line from one point to another meets first, or null if it meets something
+# else first (or nothing)
+func _piece_hit(from: Vector3, to: Vector3) -> BuildPiece:
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty() or not hit["collider"] is BuildPiece:
+		return null
+	return hit["collider"]
 
 
 func _near_lit_fire() -> bool:

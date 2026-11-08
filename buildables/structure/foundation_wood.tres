@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="PieceBuildable" format=3]
+
+[ext_resource type="Script" path="res://building/pieces/piece_buildable.gd" id="1_piece"]
+[ext_resource type="PackedScene" path="res://building/pieces/build_piece.tscn" id="2_scene"]
+[ext_resource type="Texture2D" path="res://assets/icons/build/foundation_wood.png" id="3_icon"]
+
+[resource]
+script = ExtResource("1_piece")
+shape = "foundation_wood"
+display_name = "Wood Foundation"
+starts_locked = true
+unlocked_by = "Craft"
+unlock_item = "Planks"
+unlock_hint = "Craft planks to unlock"
+scene = ExtResource("2_scene")
+section = "Foundations"
+menu_order = 1
+costs = Array[Dictionary]([{
+"Wood": 4
+}])
+icon_color = Color(0.47, 0.33, 0.2, 1)
+icon = ExtResource("3_icon")

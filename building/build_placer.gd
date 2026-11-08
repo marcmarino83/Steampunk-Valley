@@ -2,6 +2,8 @@ class_name BuildPlacer
 extends Node
 ## Puts a chosen buildable down in the world: a see-through preview follows the crosshair along
 ## the ground, green where it can go and red where it can't. Nothing is spent until it's placed.
+## Building pieces (floors, walls, roofs...) snap together, so they're handed to the PiecePlacer;
+## the PieceRegistry keeps track of every piece placed.
 
 ## How far ahead of the camera the crosshair picks a spot. Beyond this (or at the sky), the
 ## preview sits on the ground beneath that point instead.
@@ -19,7 +21,11 @@ const CLEAR_ZONE_SCENE := preload("res://building/clear_zone.tscn")
 # Marks a building with the buildable it was made from (its resource path)
 const BUILDABLE_META := &"buildable"
 
+## Every building piece in the world
+var registry: PieceRegistry
+
 var _player: CharacterBody3D
+var _pieces: PiecePlacer
 var _buildable: Buildable
 var _preview: Node3D
 var _material: StandardMaterial3D
@@ -27,20 +33,33 @@ var _footprint: CylinderShape3D
 var _turn := 0.0
 # Why it can't go where the preview is. Empty means it can.
 var _problem := ""
+# Demolish mode (middle-click): on or off, and what was being placed before, to go back to
+var _demolishing := false
+var _resume: Buildable
 
 
 func _ready() -> void:
 	_player = get_parent()
 	set_physics_process(false)
 	add_to_group("saveable")
+	registry = PieceRegistry.new()
+	registry.world = _player.get_parent()
+	add_child(registry)
+	_pieces = PiecePlacer.new()
+	_pieces.registry = registry
+	add_child(_pieces)
 
 
+## True while placing something, or in demolish mode: either way the clicks, R and Esc are ours
 func is_placing() -> bool:
-	return _buildable != null
+	return _buildable != null or _pieces.is_placing() or _demolishing
 
 
 func begin(buildable: Buildable) -> void:
 	cancel()
+	if buildable is PieceBuildable:
+		_pieces.begin(buildable)
+		return
 	_buildable = buildable
 	_turn = 0.0
 	_problem = "Point at the ground"
@@ -56,17 +75,99 @@ func begin(buildable: Buildable) -> void:
 	set_physics_process(true)
 
 
-## Stops placing without spending anything
+## Stops placing (and demolish mode) without spending anything
 func cancel() -> void:
+	_demolishing = false
+	_resume = null
+	_stop_placing()
+
+
+func _stop_placing() -> void:
 	if _preview:
 		_preview.queue_free()
 	_preview = null
 	_buildable = null
 	set_physics_process(false)
+	_pieces.cancel()
+
+
+# ---- Demolish mode ----
+#
+# Middle-click with the hammer out turns it on: whatever was being placed is put aside (its
+# preview hidden), and the piece under the crosshair glows red. Left-click demolishes that one
+# piece and turns it off; right-click, Esc or middle-click again turns it off without demolishing.
+# Either way, placing carries on with what was put aside.
+
+## Middle-click: into demolish mode, or back out of it
+func toggle_demolish_mode() -> void:
+	if _demolishing:
+		_leave_demolish_mode()
+		return
+	if _buildable:
+		_resume = _buildable
+	else:
+		_resume = _pieces.current()
+	_stop_placing()
+	_demolishing = true
+
+
+func is_demolishing() -> bool:
+	return _demolishing
+
+
+func _leave_demolish_mode() -> void:
+	_demolishing = false
+	var resume := _resume
+	_resume = null
+	if resume:
+		begin(resume)
+
+
+## Called every frame: the red glow on the piece to demolish (in demolish mode, or while X is
+## held), and X held long enough taking it down (see PiecePlacer)
+func update_demolish(delta: float, active: bool, holding_x: bool) -> void:
+	# Interrupted (a menu opened, the mouse let go): back to normal, and to placing if we were
+	if _demolishing and not active:
+		_leave_demolish_mode()
+	_pieces.update_demolish(delta, active, _demolishing, holding_x)
+
+
+func demolish_hint() -> String:
+	return _pieces.demolish_hint(_demolishing)
+
+
+# Demolish mode takes left-click (demolish, then back to normal), and right-click, Esc, Tab and
+# the number keys (back to normal); the mouse wheel does nothing in it
+func _demolish_input(event: InputEvent) -> bool:
+	if event.is_action_pressed("ui_cancel"):
+		_leave_demolish_mode()
+		return true
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_TAB or (event.keycode >= KEY_1 and event.keycode <= KEY_9):
+			return true
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			return true
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			return false
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if _pieces.demolish():
+				_leave_demolish_mode()
+			else:
+				_player.flash("Aim at a building piece to demolish it")
+			return true
+		if event.button_index == MOUSE_BUTTON_RIGHT:
+			_leave_demolish_mode()
+			return true
+	return false
 
 
 ## Takes the keys and clicks that mean something while placing. Returns true if it used this one.
 func handle_input(event: InputEvent) -> bool:
+	if _demolishing:
+		return _demolish_input(event)
+	if _pieces.is_placing():
+		return _pieces.handle_input(event)
 	if event.is_action_pressed("ui_cancel"):
 		cancel()
 		return true
@@ -94,11 +195,16 @@ func handle_input(event: InputEvent) -> bool:
 
 ## The lines for the key hints in the corner
 func hints() -> PackedStringArray:
+	if _demolishing:
+		return PackedStringArray([demolish_hint()])
+	if _pieces.is_placing():
+		return _pieces.hints()
 	var lines: PackedStringArray = ["Placing %s" % _buildable.display_name]
 	if not _problem.is_empty():
 		lines.append(_problem)
 	lines.append("[Left-click] Place   [R] Rotate")
 	lines.append("[Right-click] or [Esc] Cancel")
+	lines.append(demolish_hint())
 	return lines
 
 
@@ -132,7 +238,7 @@ func _cast_ray(from: Vector3, to: Vector3) -> Dictionary:
 
 # Why this spot won't do, or an empty string if it will
 func _check_spot(hit: Dictionary) -> String:
-	if not hit["collider"].is_in_group("terrain_ground"):
+	if not _is_ground(hit["collider"]):
 		return BLOCKED
 	var spot: Vector3 = hit["position"]
 	var valley = get_tree().get_first_node_in_group("valley")
@@ -151,9 +257,14 @@ func _overlaps_something(spot: Vector3) -> bool:
 	query.shape = _footprint
 	query.transform = Transform3D(Basis.IDENTITY, spot + Vector3.UP * _footprint.height * 0.5)
 	for found in _player.get_world_3d().direct_space_state.intersect_shape(query, MAX_OVERLAPS):
-		if not found["collider"].is_in_group("terrain_ground"):
+		if not _is_ground(found["collider"]):
 			return true
 	return false
+
+
+# The ground, or a built floor: a campfire, workbench or chest can stand on either
+func _is_ground(collider: Object) -> bool:
+	return collider.is_in_group("terrain_ground") or (collider is BuildPiece and collider.is_floor())
 
 
 func _place() -> void:

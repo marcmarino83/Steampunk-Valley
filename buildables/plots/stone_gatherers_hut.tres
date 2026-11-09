@@ -15,8 +15,17 @@ furniture = Array[Dictionary]([{
 "count": 1,
 "items": ["Tool Rack"],
 "label": "Tool rack"
+}, {
+"count": 1,
+"items": ["Storage Chest"],
+"label": "Storage chest"
 }])
 houses_per = ""
+workers = 1
+work_at = "Stone Sorting Table"
+daily_output = {
+"Stone": 15
+}
 display_name = "Stone Gatherer's Hut"
 starts_locked = true
 unlocked_by = "Craft"

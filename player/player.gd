@@ -173,6 +173,9 @@ var _open_chest: Node3D
 var _last_stations: PackedStringArray = []
 # Seconds left on the torch in your hand (0 = a fresh one is lit when you next hold one)
 var _torch_left := 0.0
+# The settlers, and a settler's panel (E aimed at one)
+var _settlers: SettlerManager
+var _settler_panel: SettlerPanel
 # Under a roof you've built, and shut in a room (see _check_shelter), and when to check again
 var _under_roof := false
 var _enclosed := false
@@ -250,6 +253,20 @@ func _ready() -> void:
 	_placer = BuildPlacer.new()
 	add_child(_placer)
 	_placer.plots.became_working.connect(func(plot): flash("%s is now working" % plot.plot_name))
+	_settlers = SettlerManager.new()
+	_settlers.world = get_parent()
+	_settlers.plots = _placer.plots
+	add_child(_settlers)
+	_settlers.arrived.connect(func(settler): _announce("A refugee named %s has arrived." % settler.settler_name))
+	_settlers.notice.connect(_announce)
+	_plot_panel.settlers = _settlers
+	_plot_tracker.settlers = _settlers
+	# Above the HUD, under the black of sleep
+	_settler_panel = SettlerPanel.new()
+	_settler_panel.manager = _settlers
+	$HUD.add_child(_settler_panel)
+	$HUD.move_child(_settler_panel, _fade.get_index())
+	_settler_panel.closed.connect(func(): Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
 	if IronTier.ENABLED:
 		_dowsing = load("res://iron_tier/dowsing.gd").new()
 		add_child(_dowsing)
@@ -415,7 +432,7 @@ func _update_hud() -> void:
 	var facing := -global_basis.z
 	var sun = get_tree().get_first_node_in_group("sun")
 	_instruments.update_instruments(atan2(facing.x, -facing.z), sun.time_of_day if sun else 0.5, action_bar.first_slot_rect(), bar.end.y, _hud.row_rect())
-	var covered: bool = _note_panel.is_open() or _plot_panel.is_open() or _sleeping or inventory_screen.visible or build_menu.visible
+	var covered: bool = _note_panel.is_open() or _plot_panel.is_open() or _settler_panel.is_open() or _sleeping or inventory_screen.visible or build_menu.visible
 	_instruments.show_crosshair(not covered)
 	_plot_tracker.show_plot(null if covered else _tracked_plot())
 	if covered:
@@ -465,6 +482,15 @@ func open_plot_panel(plot: Plot) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
+## Opens a settler's panel (E aimed at a settler calls this)
+func open_settler_panel(settler: Settler) -> void:
+	if inventory_screen.visible:
+		_toggle_inventory()
+	_placer.cancel()
+	_settler_panel.open(settler)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
 ## Asks a yes/no question on the plot panel (shrinking a plot that would lose pieces); one of the
 ## two is called after
 func ask_confirm(question: String, on_yes: Callable, on_no: Callable) -> void:
@@ -492,6 +518,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not _plot_panel.is_typing() and ((key and event.keycode == KEY_E) or event.is_action_pressed("ui_cancel")):
 			get_viewport().set_input_as_handled()
 			_plot_panel.dismiss()
+		return
+
+	# A settler's panel: E or Esc closes it (or its list of choices)
+	if _settler_panel.is_open():
+		var key: bool = event is InputEventKey and event.pressed and not event.echo
+		if (key and event.keycode == KEY_E) or event.is_action_pressed("ui_cancel"):
+			get_viewport().set_input_as_handled()
+			_settler_panel.dismiss()
 		return
 
 	# While reading, E or Esc puts the page away, and nothing else happens
@@ -587,6 +621,15 @@ func _unhandled_input(event: InputEvent) -> void:
 					_dowsing.pulse()
 			KEY_F3:
 				_fps_label.visible = not _fps_label.visible
+			KEY_F9:
+				# Debug builds only: a refugee arrives at once, in front of you
+				if OS.is_debug_build():
+					_settlers.spawn_debug(self)
+			KEY_F10:
+				# Debug builds only: skip to the next dawn (tonight's meal, then the day's output)
+				if OS.is_debug_build():
+					_settlers.skip_to_dawn()
+					flash("Skipped to dawn (debug)")
 			KEY_I:
 				_toggle_inventory()
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9:
@@ -605,7 +648,7 @@ func _physics_process(delta: float) -> void:
 
 	# WASD to walk (but stand still while reading or asleep)
 	var input_dir := Vector2.ZERO
-	if not _note_panel.is_open() and not _plot_panel.is_open() and not _sleeping:
+	if not _note_panel.is_open() and not _plot_panel.is_open() and not _settler_panel.is_open() and not _sleeping:
 		if Input.is_key_pressed(KEY_W): input_dir.y -= 1
 		if Input.is_key_pressed(KEY_S): input_dir.y += 1
 		if Input.is_key_pressed(KEY_A): input_dir.x -= 1
@@ -761,9 +804,19 @@ func _facing_ladder() -> bool:
 
 
 ## Shows a short message at the top of the screen
-func flash(text: String) -> void:
+func flash(text: String, seconds := 2.5) -> void:
 	_message = text
-	_message_time = 2.5
+	_message_time = seconds
+
+
+# Settlement news (an arrival, a chest full at dawn, a settler hungry or leaving): shown for a
+# while, several at once one under another
+func _announce(text: String) -> void:
+	if _message_time > 0.0 and _message_time > 3.0 and not _message.contains(text):
+		_message += "\n" + text
+		_message_time = maxf(_message_time, 6.0)
+	else:
+		flash(text, 6.0)
 
 
 func add_item(item: String, amount: int) -> void:
@@ -860,6 +913,9 @@ func sleep(where: Vector3) -> void:
 	var night := create_tween()
 	night.tween_property(_fade, "modulate:a", 1.0, SLEEP_FADE)
 	night.tween_callback(func():
+		# Sleeping from before midnight wakes you on the next day
+		if sun.time_of_day > 0.5:
+			sun.day += 1
 		sun.time_of_day = WAKE_TIME
 		hunger = maxf(hunger - SLEEP_HUNGER, 0.0)
 		stamina = max_stamina()
@@ -1106,7 +1162,7 @@ func _wall_hit(from: Vector3, to: Vector3) -> Dictionary:
 			return hit
 		var other: Object = hit["collider"]
 		var in_room: bool = (other is BuildPiece and (other.is_furniture() or other.is_chimney())) \
-				or (other is Node and (other as Node).is_in_group("buildings"))
+				or (other is Node and ((other as Node).is_in_group("buildings") or (other as Node).is_in_group("settlers")))
 		if not in_room:
 			return hit
 		skip.append(hit["rid"])
@@ -1180,9 +1236,19 @@ func open_chest(chest: Node3D) -> void:
 	if not inventory_screen.visible:
 		_toggle_inventory()
 	inventory_screen.show_chest(chest.contents)
+	# A day's output going in, or a settler eating from it, shows while it's open
+	if chest.has_signal("changed") and not chest.changed.is_connected(_on_open_chest_changed):
+		chest.changed.connect(_on_open_chest_changed)
+
+
+func _on_open_chest_changed() -> void:
+	if _open_chest and is_instance_valid(_open_chest) and inventory_screen.visible:
+		inventory_screen.show_chest(_open_chest.contents)
 
 
 func _close_chest() -> void:
+	if _open_chest and is_instance_valid(_open_chest) and _open_chest.has_signal("changed") and _open_chest.changed.is_connected(_on_open_chest_changed):
+		_open_chest.changed.disconnect(_on_open_chest_changed)
 	_open_chest = null
 	inventory_screen.hide_chest()
 

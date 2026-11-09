@@ -293,4 +293,7 @@ func load_data(data: Dictionary) -> void:
 			continue
 		var saved_size: Array = entry.get("size", [type.min_size.x, type.min_size.y])
 		var where := Transform3D(Basis(Vector3.UP, float(entry.get("turn", 0.0))), SaveGame.to_vector(entry.get("position")))
-		create(type, where, Vector2(float(saved_size[0]), float(saved_size[1])), str(entry.get("name", "")), str(entry.get("id", "")))
+		var plot := create(type, where, Vector2(float(saved_size[0]), float(saved_size[1])), str(entry.get("name", "")), str(entry.get("id", "")))
+		var saved_shares: Dictionary = entry.get("production", {})
+		for item in saved_shares:
+			plot.production[str(item)] = int(saved_shares[item])

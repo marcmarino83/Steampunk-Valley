@@ -17,6 +17,15 @@ furniture = Array[Dictionary]([{
 "label": "Storage chest"
 }])
 houses_per = ""
+workers = 1
+work_at = "Foraging Basket"
+split_output_total = 20
+split_output = {
+"Berries": 50,
+"Herbs": 20,
+"Mushrooms": 20,
+"Plant Fiber": 10
+}
 display_name = "Forager's Hut"
 starts_locked = true
 unlocked_by = "Craft"

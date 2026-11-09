@@ -19,10 +19,23 @@ const CROSS := "✗"
 const GOOD := Color(0.62, 0.9, 0.5)
 const REFRESH_SECONDS := 0.3
 
+## The settlers (for a House's residents and a workplace's worker)
+var settlers: SettlerManager
+
 var _plot: Plot
 var _name_edit: LineEdit
 var _info: Label
 var _capacity: Label
+# Its residents, or its workers (each with an Unassign button)
+var _people: VBoxContainer
+var _people_key := ""
+# Production (a workplace): what it makes a day, and for the Forager's Hut a slider per item that
+# together always add up to 100%
+var _production: VBoxContainer
+var _production_key := ""
+var _sliders := {}
+var _slider_labels := {}
+var _summary: Label
 var _checklist: VBoxContainer
 var _status: Label
 var _move: Button
@@ -113,6 +126,8 @@ func _refresh() -> void:
 	_info.text = "%s   ·   %d × %d m   (at least %s m)" % [type.display_name, roundi(_plot.size.x), roundi(_plot.size.y), PlotType.size_text(type.min_size)]
 	_capacity.visible = not type.houses_per.is_empty()
 	_capacity.text = "Houses %d %s (one per %s)" % [_plot.capacity, "settler" if _plot.capacity == 1 else "settlers", type.houses_per.to_lower()]
+	_refresh_people()
+	_refresh_production()
 	var lines: Array = _plot.checklist
 	while _checklist.get_child_count() < lines.size():
 		_checklist.add_child(_line_label())
@@ -130,6 +145,159 @@ func _refresh() -> void:
 		label.add_theme_color_override("font_color", GOOD if line["ok"] else BrassStyle.BAD)
 	_status.text = "Working" if _plot.working else "Missing requirements"
 	_status.add_theme_color_override("font_color", GOOD if _plot.working else BrassStyle.BAD)
+
+
+# A House's residents ("Residents 1/2: Ada Cobb"), or a workplace's worker with Unassign (rebuilt
+# only when who's there changes)
+func _refresh_people() -> void:
+	var house := settlers != null and SettlerManager.is_house(_plot)
+	var workplace := settlers != null and SettlerManager.is_workplace(_plot)
+	var people: Array = []
+	if house:
+		people = settlers.residents(_plot)
+	elif workplace:
+		people = settlers.workers(_plot)
+	var key := "%s|%s|%d" % [_plot.plot_id, ",".join(people.map(func(s): return s.settler_id + str(s.hungry_days))), _plot.capacity]
+	_people.visible = house or workplace
+	if key == _people_key:
+		return
+	_people_key = key
+	for child in _people.get_children():
+		child.queue_free()
+	if house:
+		var names := ", ".join(people.map(func(s): return s.settler_name + (" (hungry)" if s.is_hungry() else "")))
+		var line := _line_label()
+		line.text = "Residents %d/%d:  %s" % [people.size(), _plot.capacity, names if not names.is_empty() else "none yet"]
+		_people.add_child(line)
+		return
+	if not workplace:
+		return
+	var wanted := _plot.plot_type.workers
+	if people.is_empty():
+		var none := _line_label()
+		none.text = "%s:  none (assign one from a settler's panel)" % ("Worker" if wanted == 1 else "Workers")
+		_people.add_child(none)
+		return
+	for settler in people:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var line := _line_label()
+		line.text = "Worker:  %s%s" % [settler.settler_name, "  (hungry: half output)" if settler.is_hungry() else ""]
+		line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(line)
+		var unassign := _button("Unassign")
+		unassign.custom_minimum_size = Vector2(110, 32)
+		unassign.pressed.connect(func():
+			settlers.assign_job(settler, null)
+			_refresh())
+		row.add_child(unassign)
+		_people.add_child(row)
+
+
+# A workplace's Production: "Makes each dawn: 12 wood, 8 sticks", or for a plot with shared output
+# (the Forager's Hut) a slider per item with its percentage and amount per day. Rebuilt only when
+# the plot changes; the amounts follow the sliders as they move.
+func _refresh_production() -> void:
+	var type := _plot.plot_type
+	var shows := not type.daily_output.is_empty() or type.split_output_total > 0
+	_production.visible = shows
+	if not shows:
+		return
+	if _production_key != _plot.plot_id:
+		_production_key = _plot.plot_id
+		_sliders.clear()
+		_slider_labels.clear()
+		for child in _production.get_children():
+			child.queue_free()
+		_production.add_child(_label("Production", 17, BrassStyle.TEXT))
+		_summary = _line_label()
+		_production.add_child(_summary)
+		if type.split_output_total > 0:
+			var shares := _plot.shares()
+			for item in shares:
+				var row := HBoxContainer.new()
+				row.add_theme_constant_override("separation", 10)
+				var item_label := _label(item, 15, BrassStyle.TEXT)
+				item_label.custom_minimum_size.x = 96
+				row.add_child(item_label)
+				var slider := HSlider.new()
+				slider.min_value = 0
+				slider.max_value = 100
+				slider.step = 1
+				slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+				slider.custom_minimum_size.y = 22
+				slider.focus_mode = Control.FOCUS_NONE
+				_style_slider(slider)
+				slider.set_value_no_signal(int(shares[item]))
+				slider.value_changed.connect(_on_share_changed.bind(item))
+				row.add_child(slider)
+				var amount := _label("", 15, BrassStyle.TEXT_DIM)
+				amount.custom_minimum_size.x = 112
+				amount.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+				row.add_child(amount)
+				_production.add_child(row)
+				_sliders[item] = slider
+				_slider_labels[item] = amount
+	_update_production_text()
+
+
+func _update_production_text() -> void:
+	var type := _plot.plot_type
+	var made := _plot.daily_output()
+	if _summary:
+		if type.split_output_total > 0:
+			_summary.text = "%d items each dawn into its storage chest, shared out like this:" % type.split_output_total
+		else:
+			var parts: PackedStringArray = []
+			for item in made:
+				parts.append("%d %s" % [made[item], item.to_lower()])
+			_summary.text = "Each dawn into its storage chest:  %s" % ", ".join(parts)
+	var shares := _plot.shares()
+	for item in _slider_labels:
+		(_slider_labels[item] as Label).text = "%d%%  ·  %d/day" % [int(shares.get(item, 0)), int(made.get(item, 0))]
+
+
+# One slider moved: the others share out what's left in their current proportions (evenly if they
+# were all at 0), so the total stays 100%
+func _on_share_changed(value: float, item: String) -> void:
+	var shares := _plot.shares()
+	var wanted := clampi(roundi(value), 0, 100)
+	var others: Array = shares.keys().filter(func(k): return k != item)
+	var left := 100 - wanted
+	var weights := {}
+	var weight_sum := 0
+	for other in others:
+		weight_sum += int(shares[other])
+	for other in others:
+		weights[other] = int(shares[other]) if weight_sum > 0 else 1
+	var parts := PlotType.split(left, weights) if left > 0 else {}
+	shares[item] = wanted
+	for other in others:
+		shares[other] = int(parts.get(other, 0))
+	for other in _sliders:
+		(_sliders[other] as HSlider).set_value_no_signal(int(shares[other]))
+	_update_production_text()
+
+
+func _style_slider(slider: HSlider) -> void:
+	var track := StyleBoxFlat.new()
+	track.bg_color = BrassStyle.BAR_BACK
+	track.border_color = BrassStyle.BRASS_DARK
+	track.set_border_width_all(1)
+	track.set_corner_radius_all(3)
+	track.content_margin_top = 4
+	track.content_margin_bottom = 4
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = BrassStyle.BRASS
+	fill.set_corner_radius_all(3)
+	fill.content_margin_top = 4
+	fill.content_margin_bottom = 4
+	var lit := fill.duplicate() as StyleBoxFlat
+	lit.bg_color = BrassStyle.BRASS_LIGHT
+	slider.add_theme_stylebox_override("slider", track)
+	slider.add_theme_stylebox_override("grabber_area", fill)
+	slider.add_theme_stylebox_override("grabber_area_highlight", lit)
 
 
 func _apply_name() -> void:
@@ -175,6 +343,12 @@ func _build_main(center: CenterContainer) -> Control:
 	column.add_child(_info)
 	_capacity = _label("", 15, BrassStyle.TEXT)
 	column.add_child(_capacity)
+	_people = VBoxContainer.new()
+	_people.add_theme_constant_override("separation", 4)
+	column.add_child(_people)
+	_production = VBoxContainer.new()
+	_production.add_theme_constant_override("separation", 4)
+	column.add_child(_production)
 	column.add_child(_label("Requirements", 17, BrassStyle.TEXT))
 	_checklist = VBoxContainer.new()
 	_checklist.add_theme_constant_override("separation", 2)

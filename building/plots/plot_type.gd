@@ -18,6 +18,50 @@ extends Buildable
 @export var furniture: Array[Dictionary] = []
 ## Settlers it holds, one per this item (a house: one per bed). Empty: it houses no one.
 @export var houses_per := ""
+## How many settlers can work here (0: it's not a workplace)
+@export var workers := 0
+## The furniture item a worker stands at while working (the forager's basket, the chopping block)
+@export var work_at := ""
+## What it makes each dawn while it's working and has a worker, put in its own storage chest:
+## fixed amounts ({"Wood": 12, "Sticks": 8})...
+@export var daily_output: Dictionary = {}
+## ...and/or this many items a day shared out by percentages the player sets with sliders in the
+## plot panel (`split_output` holds the items and their starting percentages, adding up to 100)
+@export var split_output_total := 0
+@export var split_output: Dictionary = {}
+
+
+## The day's output for these percentages (item -> amount), at full strength. Fixed amounts as
+## they are; the shared amount split so the parts add up exactly (largest remainders get the rest).
+func output_for(percentages: Dictionary) -> Dictionary:
+	var made := daily_output.duplicate()
+	if split_output_total > 0:
+		var parts := split(split_output_total, percentages if not percentages.is_empty() else split_output)
+		for item in parts:
+			made[item] = int(made.get(item, 0)) + parts[item]
+	return made
+
+
+## Shares `total` out by percentages so the whole numbers add up to exactly `total`
+static func split(total: int, percentages: Dictionary) -> Dictionary:
+	var parts := {}
+	var remainders := []
+	var given := 0
+	var sum := 0.0
+	for item in percentages:
+		sum += float(percentages[item])
+	if sum <= 0.0:
+		return parts
+	for item in percentages:
+		var exact := total * float(percentages[item]) / sum
+		parts[item] = int(floor(exact))
+		given += parts[item]
+		remainders.append([exact - floor(exact), item])
+	remainders.sort_custom(func(a, b): return a[0] > b[0])
+	for i in total - given:
+		var item: String = remainders[i % remainders.size()][1]
+		parts[item] += 1
+	return parts
 
 
 ## Plots are free

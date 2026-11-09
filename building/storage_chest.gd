@@ -2,6 +2,9 @@ extends StaticBody3D
 ## A storage chest: 20 slots, one kind of item in each. E opens it beside the inventory. Its
 ## contents are kept in the save along with the building (see save_data and load_data).
 
+## Its contents changed from outside the inventory screen (a day's output went in, a settler ate)
+signal changed
+
 ## How many kinds of item it holds
 const SLOTS := 20
 
@@ -29,6 +32,19 @@ func can_take(item: String) -> bool:
 func put(item: String, amount: int) -> void:
 	if amount > 0:
 		contents[item] = contents.get(item, 0) + amount
+
+
+## Takes out up to `amount` of an item and says how many that was
+func take(item: String, amount: int) -> int:
+	var have: int = contents.get(item, 0)
+	var taken := mini(have, amount)
+	if taken <= 0:
+		return 0
+	if taken == have:
+		contents.erase(item)
+	else:
+		contents[item] = have - taken
+	return taken
 
 
 ## Takes out every one of an item and says how many that was

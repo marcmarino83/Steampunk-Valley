@@ -14,10 +14,14 @@ const FADE := 9.0
 const WORKING := Color(0.62, 0.92, 0.5)
 const MISSING := Color(1.0, 0.72, 0.3)
 
+## The settlers (for a House's residents and a workplace's workers line)
+var settlers: SettlerManager
+
 var _panel: PanelContainer
 var _name: Label
 var _type: Label
 var _status: Label
+var _people: Label
 var _lines: VBoxContainer
 var _plot: Plot
 var _shown_text := ""
@@ -42,6 +46,8 @@ func _ready() -> void:
 	column.add_child(_type)
 	_status = _label(17, WORKING)
 	column.add_child(_status)
+	_people = _label(15, BrassStyle.TEXT, true)
+	column.add_child(_people)
 	var gap := Control.new()
 	gap.custom_minimum_size.y = 4
 	column.add_child(gap)
@@ -71,10 +77,13 @@ func _process(delta: float) -> void:
 # Rebuilds the text only when something in it changed
 func _refresh() -> void:
 	var lines: Array = _plot.checklist
-	var text := "%s|%s|%s" % [_plot.plot_name, _plot.working, str(lines)]
+	var people := _people_text()
+	var text := "%s|%s|%s|%s" % [_plot.plot_name, _plot.working, str(lines), people]
 	if text == _shown_text:
 		return
 	_shown_text = text
+	_people.text = people
+	_people.visible = not people.is_empty()
 	_name.text = _plot.plot_name
 	# Its type, unless that's just its name again; and how many it houses
 	var parts: PackedStringArray = []
@@ -95,6 +104,27 @@ func _refresh() -> void:
 			var line: Dictionary = lines[i]
 			label.text = "%s %s" % ["✓" if line["ok"] else "✗", line["text"]]
 			label.add_theme_color_override("font_color", WORKING if line["ok"] else MISSING)
+
+
+# "Residents 1/2: Ada Cobb" and "Food stored: 6 days" (for everyone in the settlement) for a House,
+# "Worker: Ada Cobb" (or "none") for a workplace, else empty; the hungry are marked "(hungry)"
+func _people_text() -> String:
+	if settlers == null:
+		return ""
+	var named := func(s): return s.settler_name + (" (hungry)" if s.is_hungry() else "")
+	if SettlerManager.is_house(_plot):
+		var living: Array = settlers.residents(_plot)
+		var names := ", ".join(living.map(named))
+		var line := "Residents %d/%d: %s" % [living.size(), _plot.capacity, names if not names.is_empty() else "none"]
+		var days: int = settlers.economy.days_of_food()
+		if days >= 0:
+			line += "\nFood stored: %d %s" % [days, "day" if days == 1 else "days"]
+		return line
+	if SettlerManager.is_workplace(_plot):
+		var working: Array = settlers.workers(_plot)
+		var names := ", ".join(working.map(named))
+		return "%s: %s" % ["Worker" if _plot.plot_type.workers == 1 else "Workers", names if not names.is_empty() else "none"]
+	return ""
 
 
 func _label(size: int, color: Color, wrap := false) -> Label:

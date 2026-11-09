@@ -44,6 +44,9 @@ var missing: PackedStringArray = []
 var capacity := 0
 ## True once its requirements have been checked at least once
 var checked := false
+## For a plot whose output is shared out by sliders (the Forager's Hut): item -> percent, adding up
+## to 100 (empty: the type's starting split)
+var production := {}
 ## Which edges stand out (while dragging one), as RIGHT | LEFT | FRONT | BACK bits
 var highlight_edges := 0:
 	set(value):
@@ -187,8 +190,20 @@ func interact(player) -> void:
 	player.open_plot_panel(self)
 
 
+## The slider percentages (the type's starting split until changed)
+func shares() -> Dictionary:
+	if production.is_empty():
+		production = plot_type.split_output.duplicate()
+	return production
+
+
+## What it makes in a day at full strength (item -> amount)
+func daily_output() -> Dictionary:
+	return plot_type.output_for(shares() if plot_type.split_output_total > 0 else {})
+
+
 func save_data() -> Dictionary:
-	return {
+	var data := {
 		"id": plot_id,
 		"type": plot_type.resource_path,
 		"name": plot_name,
@@ -196,6 +211,9 @@ func save_data() -> Dictionary:
 		"turn": global_rotation.y,
 		"size": [size.x, size.y],
 	}
+	if not production.is_empty():
+		data["production"] = production.duplicate()
+	return data
 
 
 func _apply_colour() -> void:

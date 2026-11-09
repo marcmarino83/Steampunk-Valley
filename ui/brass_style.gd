@@ -9,7 +9,7 @@ class_name BrassStyle
 ##   panel_frame.png   1024 x 562: the ornate frame, for the title screen only (TITLE_SLICE)
 ##   action_bar.png, slot_plain.png, slot_gear.png   the action bar (see ActionBar)
 ##   compass_clock.png the compass with the small clock (see CompassClock)
-##   vitals_panel.png  the hunger and warmth panel with its gauge (see VitalsPanel)
+##   vitals_panel.png  the hunger and stamina panel with its gauge (see VitalsPanel)
 ##   crosshair.png     drawn at 32 px (see HudInstruments)
 
 const UI_FOLDER := "res://assets/ui/"
@@ -32,6 +32,8 @@ const BUTTON_HOVER := Color(0.31, 0.22, 0.13)
 const BAR_BACK := Color(0.06, 0.05, 0.04, 0.95)
 const HUNGER_FILL := Color(0.86, 0.62, 0.26)
 const WARMTH_FILL := Color(0.92, 0.38, 0.16)
+## Stamina: a pale electric blue-green, clear of the hunger gold
+const STAMINA_FILL := Color(0.36, 0.78, 0.82)
 ## The key badges: dark brown with a thin brass border
 const BADGE_FILL := Color(0.2, 0.13, 0.08, 0.92)
 ## How faint the gear in an empty inventory or chest slot is

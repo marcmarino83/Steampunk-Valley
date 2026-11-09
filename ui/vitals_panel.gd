@@ -1,9 +1,11 @@
 class_name VitalsPanel
 extends Control
-## Bottom left: the brass vitals panel. Its gauge's needle shows warmth (the red zone is full
-## warmth), and its two bar channels fill with hunger (gold) and warmth (orange-red), each fill
+## Bottom left: the brass vitals panel. Its gauge's needle shows stamina (the red zone is full
+## stamina), and its two bar channels fill with hunger (gold) and stamina (blue-green), each fill
 ## ending in a soft edge. The words and icons are part of the art.
-## Art: res://assets/ui/vitals_panel.png. Without it, plain bars are drawn in code.
+## Art: res://assets/ui/vitals_panel.png ("Hunger" with a steak, "Stamina" with a lightning bolt).
+## Without it, plain bars are drawn in code. (Warmth is switched off for now; when it returns for
+## cold regions and winter it will need its own meter.)
 
 ## The gap to the screen's edges, in pixels at 1920 x 1080, and how big the art's pixels are drawn
 const EDGE := 16.0
@@ -17,7 +19,7 @@ const NEEDLE_EMPTY := -172.0
 const NEEDLE_FULL := -9.0
 ## The inside of each bar channel (kept clear of its pointed ends and its rim)
 const HUNGER_CHANNEL := Rect2(60, 493, 897, 38)
-const WARMTH_CHANNEL := Rect2(60, 663, 897, 37)
+const STAMINA_CHANNEL := Rect2(60, 663, 897, 37)
 ## How long a fill's soft end is, in the art's pixels
 const SOFT_END := 26.0
 ## How fast the needle and fills catch up with a change (per second)
@@ -32,9 +34,9 @@ var _art: Texture2D
 var _box: Control
 # What's shown (easing towards the latest values), 0 to 100
 var _hunger := 100.0
-var _warmth := 100.0
+var _stamina := 100.0
 var _hunger_target := 100.0
-var _warmth_target := 100.0
+var _stamina_target := 100.0
 
 
 func _ready() -> void:
@@ -53,30 +55,30 @@ func _process(delta: float) -> void:
 	_box.position = Vector2(EDGE, get_viewport_rect().size.y - EDGE - _box.size.y)
 	var step := 1.0 - exp(-EASE * delta)
 	var hunger := lerpf(_hunger, _hunger_target, step)
-	var warmth := lerpf(_warmth, _warmth_target, step)
-	if absf(hunger - _hunger) > 0.01 or absf(warmth - _warmth) > 0.01:
+	var stamina := lerpf(_stamina, _stamina_target, step)
+	if absf(hunger - _hunger) > 0.01 or absf(stamina - _stamina) > 0.01:
 		_hunger = hunger
-		_warmth = warmth
+		_stamina = stamina
 		_box.queue_redraw()
 
 
-## Hunger and warmth, 0 to 100
-func set_values(hunger: float, warmth: float) -> void:
+## Hunger and stamina, 0 to 100
+func set_values(hunger: float, stamina: float) -> void:
 	_hunger_target = clampf(hunger, 0.0, 100.0)
-	_warmth_target = clampf(warmth, 0.0, 100.0)
+	_stamina_target = clampf(stamina, 0.0, 100.0)
 
 
 func _draw_panel() -> void:
 	if _art == null:
 		_box.draw_rect(Rect2(Vector2.ZERO, _box.size), BrassStyle.PANEL)
 		_fill(Rect2(10, 14, 180, 12), _hunger, BrassStyle.HUNGER_FILL, 1.0)
-		_fill(Rect2(10, 38, 180, 12), _warmth, BrassStyle.WARMTH_FILL, 1.0)
+		_fill(Rect2(10, 38, 180, 12), _stamina, BrassStyle.STAMINA_FILL, 1.0)
 		return
 	_box.draw_texture_rect(_art, Rect2(Vector2.ZERO, _box.size), false)
 	var s := ART_SCALE
 	_fill(Rect2(HUNGER_CHANNEL.position * s, HUNGER_CHANNEL.size * s), _hunger, BrassStyle.HUNGER_FILL, s)
-	_fill(Rect2(WARMTH_CHANNEL.position * s, WARMTH_CHANNEL.size * s), _warmth, BrassStyle.WARMTH_FILL, s)
-	_needle(HOLE * s, deg_to_rad(lerpf(NEEDLE_EMPTY, NEEDLE_FULL, _warmth / 100.0)), NEEDLE_LENGTH * s)
+	_fill(Rect2(STAMINA_CHANNEL.position * s, STAMINA_CHANNEL.size * s), _stamina, BrassStyle.STAMINA_FILL, s)
+	_needle(HOLE * s, deg_to_rad(lerpf(NEEDLE_EMPTY, NEEDLE_FULL, _stamina / 100.0)), NEEDLE_LENGTH * s)
 
 
 # A bar's fill along `channel`, `value` percent full: solid, with a lighter top and darker bottom

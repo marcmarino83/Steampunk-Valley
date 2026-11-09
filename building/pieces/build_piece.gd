@@ -117,21 +117,23 @@ func weather() -> void:
 
 
 ## A piece's model, scaled evenly to fit its solid box and placed in it: standing on the box's
-## floor, centred side to side, its back against the box's back (-Z). Used for the piece itself and
-## its placement preview.
+## floor, centred side to side, its back against the box's back (-Z). A model made facing another
+## way is first turned about its upright by the shape's "model_turn" (see PieceShapes.MODEL_TURNS).
+## Used for the piece itself and its placement preview.
 static func fitted_model(piece: PieceBuildable, def: Dictionary) -> Node3D:
 	if def.has("model_fit"):
 		return _flattened_model(piece, def["model_fit"])
 	var model: Node3D = piece.model_scene.instantiate()
 	var box := PieceShapes.bounds_of(def)
-	var own := _model_bounds(model)
+	var turn := Basis(Vector3.UP, def.get("model_turn", 0.0))
+	var own: AABB = Transform3D(turn, Vector3.ZERO) * _model_bounds(model)
 	if own.size.x <= 0.0 or own.size.y <= 0.0 or own.size.z <= 0.0:
 		return model
 	var s := minf(minf(box.size.x / own.size.x, box.size.y / own.size.y), box.size.z / own.size.z)
 	var holder := Node3D.new()
 	holder.name = "Model"
 	holder.add_child(model)
-	model.scale = Vector3.ONE * s
+	model.basis = turn.scaled(Vector3.ONE * s)
 	var centre := own.get_center() * s
 	model.position = Vector3(box.get_center().x - centre.x, box.position.y - own.position.y * s, box.position.z - own.position.z * s)
 	return holder

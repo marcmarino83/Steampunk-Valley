@@ -61,6 +61,9 @@ func come_back() -> bool:
 
 
 func interact(player) -> void:
+	# Each swing of the pickaxe costs stamina; too winded to swing, nothing happens
+	if not player.swing_tool():
+		return
 	hits_left -= 1
 	player.gathered("Stone", STONE_PER_HIT)
 	if _tween:

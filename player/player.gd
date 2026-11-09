@@ -10,6 +10,24 @@ const SPRINT_FOV_EASE := 8.0
 const SPRINT_HUNGER := 1.5
 const MOUSE_SENSITIVITY = 0.002
 
+## Stamina (0 to 100): what sprinting costs per second, and what a jump and a tool swing (chopping,
+## mining) cost each; how fast it comes back (per second) once you've spent none for REGEN_DELAY
+## seconds; and, once it hits 0, how high it must climb back before you can sprint or swing again
+const SPRINT_STAMINA := 12.0
+const JUMP_STAMINA := 8.0
+const SWING_STAMINA := 6.0
+const STAMINA_REGEN := 20.0
+const STAMINA_REGEN_DELAY := 1.0
+const STAMINA_RECOVER := 15.0
+## Starving: the most stamina you can have, and how fast it comes back (0.5 = half as fast). Well
+## fed is full on both; in between eases from one to the other as hunger runs down.
+const STARVING_MAX_STAMINA := 50.0
+const STARVING_STAMINA_REGEN := 0.5
+## The project setting that switches warmth (and the cold) on. Off for now: warmth returns for cold
+## regions and winter. While off there's no warmth meter, no cold, and no shelter messages; fires
+## still give light and shelter checks still run.
+const WARMTH_SETTING := "game/survival/warmth_enabled"
+
 ## Hunger and warmth follow the sun's clock (its Day Minutes and Night Minutes), so they stay fair
 ## however long the day is. A full belly lasts this many whole days (a day and its night).
 const FULL_BELLY_DAYS := 1.0
@@ -87,8 +105,17 @@ var inventory := {}
 var held_item := ""
 ## 100 = full, 0 = starving
 var hunger := 100.0
-## 100 = toasty, 0 = freezing
+## 100 = toasty, 0 = freezing (only changes while warmth is switched on, see WARMTH_SETTING)
 var warmth := 100.0
+## 100 = fresh, 0 = spent (the most you can have drops while hungry, see max_stamina)
+var stamina := 100.0
+
+# Whether warmth and the cold are switched on (read once from the project settings)
+var _warmth_on: bool = ProjectSettings.get_setting(WARMTH_SETTING, false)
+# Seconds since stamina was last spent (it starts coming back after STAMINA_REGEN_DELAY)
+var _since_spent := 0.0
+# Ran out of stamina: no sprinting or swinging until it's back above STAMINA_RECOVER
+var _winded := false
 
 # A short message shown at the top of the screen, and how long it has left
 var _message := ""
@@ -125,7 +152,7 @@ var _unlocked := {}
 var _blueprint_label: Label
 # The compact controls row, piece panel and crosshair prompts
 var _hud: HudControls
-# Bottom left: the hunger and warmth panel and gauge; by the action bar: the compass and watch,
+# Bottom left: the hunger and stamina panel and gauge; by the action bar: the compass and watch,
 # and the crosshair
 var _vitals: VitalsPanel
 var _instruments: HudInstruments
@@ -270,6 +297,7 @@ func save_data() -> Dictionary:
 		"look": camera.rotation.x,
 		"hunger": hunger,
 		"warmth": warmth,
+		"stamina": stamina,
 		"inventory": inventory.duplicate(),
 		"unlocked": _unlocked.keys().map(func(blueprint): return blueprint.resource_path),
 		"notes_read": _notes_read.keys(),
@@ -286,7 +314,11 @@ func load_data(data: Dictionary) -> void:
 	rotation.y = float(data.get("turn", rotation.y))
 	camera.rotation.x = float(data.get("look", 0.0))
 	hunger = float(data.get("hunger", hunger))
-	warmth = float(data.get("warmth", warmth))
+	# Older saves have warmth but no stamina: with warmth switched off, their warmth is ignored
+	warmth = float(data.get("warmth", warmth)) if _warmth_on else 100.0
+	stamina = clampf(float(data.get("stamina", 100.0)), 0.0, max_stamina())
+	_winded = false
+	_since_spent = STAMINA_REGEN_DELAY
 	inventory.clear()
 	var saved_inventory: Dictionary = data.get("inventory", {})
 	for item in saved_inventory:
@@ -569,6 +601,7 @@ func _physics_process(delta: float) -> void:
 	# Space to jump
 	if Input.is_action_just_pressed("ui_accept") and is_on_floor() and not _sleeping:
 		velocity.y = JUMP_VELOCITY
+		_spend_stamina(JUMP_STAMINA)
 
 	# WASD to walk (but stand still while reading or asleep)
 	var input_dir := Vector2.ZERO
@@ -581,16 +614,21 @@ func _physics_process(delta: float) -> void:
 	# Shift sprints, moving forward or diagonally forward only. It starts only on the ground; a
 	# running jump keeps its speed through the air as long as you keep going forward.
 	var forward := input_dir.y < 0.0
+	# Out of stamina, you can't sprint until it's come back a little.
 	if is_on_floor():
-		_sprinting = forward and Input.is_key_pressed(KEY_SHIFT) and not _facing_ladder()
+		_sprinting = forward and Input.is_key_pressed(KEY_SHIFT) and not _facing_ladder() and not _winded
 	elif not forward:
 		_sprinting = false
+	if _sprinting and _winded:
+		_sprinting = false
+	if _sprinting and velocity.length() > 0.1:
+		_spend_stamina(SPRINT_STAMINA * delta)
 
-	# Starving or freezing slows you to a trudge
+	# Starving (or freezing, while warmth is on) slows you to a trudge
 	var speed := WALK_SPEED
 	if _sprinting:
 		speed *= SPRINT_MULTIPLIER
-	if hunger <= 0.0 or warmth <= 0.0:
+	if hunger <= 0.0 or (_warmth_on and warmth <= 0.0):
 		speed *= 0.5
 	_ease_sprint_fov(delta)
 
@@ -824,7 +862,10 @@ func sleep(where: Vector3) -> void:
 	night.tween_callback(func():
 		sun.time_of_day = WAKE_TIME
 		hunger = maxf(hunger - SLEEP_HUNGER, 0.0)
-		warmth = 100.0 if warm else COLD_WAKE_WARMTH)
+		stamina = max_stamina()
+		_winded = false
+		if _warmth_on:
+			warmth = 100.0 if warm else COLD_WAKE_WARMTH)
 	night.tween_interval(SLEEP_DARK)
 	night.tween_property(_fade, "modulate:a", 0.0, SLEEP_FADE)
 	night.tween_callback(func():
@@ -919,25 +960,29 @@ func _update_survival(delta: float) -> void:
 	var appetite := SPRINT_HUNGER if _sprinting and velocity.length() > 0.1 else 1.0
 	hunger = maxf(hunger - 100.0 / (FULL_BELLY_DAYS * (day_seconds + night_seconds)) * appetite * delta, 0.0)
 
-	# Chilly at night, slowly warming by day, and quickly warming by a fire
-	var night_chill := NIGHT_CHILL_PER_NIGHT / night_seconds
-	var day_warmth := DAY_WARMTH_PER_DAY / day_seconds
-	var warmth_change := lerpf(-night_chill, day_warmth, daylight)
-	# Out of the wind, the cold creeps in much more slowly; shut in a room, not at all
+	_update_stamina(delta)
+
+	# Shelter is checked whether or not warmth is on (beds and settlers will need it too)
 	_check_shelter(delta)
 	var sheltered := is_sheltered()
-	if sheltered and warmth_change < 0.0:
-		warmth_change *= SHELTER_CHILL
-	if _enclosed and warmth_change < 0.0:
-		warmth_change = 0.0
-	# A lit torch in your hand keeps a little of the cold off
-	if held_item == "Torch" and warmth_change < 0.0:
-		warmth_change *= TORCH_CHILL
-	if _near_lit_fire():
-		warmth_change = FIRE_WARMTH
-	warmth = clampf(warmth + warmth_change * delta, 0.0, 100.0)
+	if _warmth_on:
+		# Chilly at night, slowly warming by day, and quickly warming by a fire
+		var night_chill := NIGHT_CHILL_PER_NIGHT / night_seconds
+		var day_warmth := DAY_WARMTH_PER_DAY / day_seconds
+		var warmth_change := lerpf(-night_chill, day_warmth, daylight)
+		# Out of the wind, the cold creeps in much more slowly; shut in a room, not at all
+		if sheltered and warmth_change < 0.0:
+			warmth_change *= SHELTER_CHILL
+		if _enclosed and warmth_change < 0.0:
+			warmth_change = 0.0
+		# A lit torch in your hand keeps a little of the cold off
+		if held_item == "Torch" and warmth_change < 0.0:
+			warmth_change *= TORCH_CHILL
+		if _near_lit_fire():
+			warmth_change = FIRE_WARMTH
+		warmth = clampf(warmth + warmth_change * delta, 0.0, 100.0)
 
-	_vitals.set_values(hunger, warmth)
+	_vitals.set_values(hunger, stamina)
 
 	# A recent message wins; otherwise warn about anything that's run out
 	_message_time -= delta
@@ -947,13 +992,51 @@ func _update_survival(delta: float) -> void:
 		var warnings: PackedStringArray = []
 		if hunger <= 0.0:
 			warnings.append("You're starving! Eat something [F]")
-		if warmth <= 0.0:
-			warnings.append("You're freezing! Get to a fire")
-		if warnings.is_empty() and _enclosed:
-			warnings.append("Indoors: the cold can't get in here")
-		elif warnings.is_empty() and sheltered:
-			warnings.append("Sheltered: the cold creeps in slowly here")
+		if _warmth_on:
+			if warmth <= 0.0:
+				warnings.append("You're freezing! Get to a fire")
+			if warnings.is_empty() and _enclosed:
+				warnings.append("Indoors: the cold can't get in here")
+			elif warnings.is_empty() and sheltered:
+				warnings.append("Sheltered: the cold creeps in slowly here")
 		status_label.text = "\n".join(warnings)
+
+
+## The most stamina you can have right now: 100 when well fed, easing down to
+## STARVING_MAX_STAMINA as hunger runs out
+func max_stamina() -> float:
+	return lerpf(STARVING_MAX_STAMINA, 100.0, clampf(hunger / 100.0, 0.0, 1.0))
+
+
+## Spends a tool swing's stamina (chopping, mining). Returns false, spending nothing, if you're too
+## winded to swing; the thing being hit should then do nothing.
+func swing_tool() -> bool:
+	if _winded:
+		flash("Too tired to swing. Catch your breath")
+		return false
+	_spend_stamina(SWING_STAMINA)
+	return true
+
+
+# Takes stamina away (never below 0) and holds off its coming back; at 0 you're winded
+func _spend_stamina(amount: float) -> void:
+	stamina = maxf(stamina - amount, 0.0)
+	_since_spent = 0.0
+	if stamina <= 0.0:
+		_winded = true
+
+
+# Stamina comes back once none has been spent for a moment, more slowly the hungrier you are, up to
+# max_stamina (which also drops while hungry). Winded ends once it's back above STAMINA_RECOVER.
+func _update_stamina(delta: float) -> void:
+	var fed := clampf(hunger / 100.0, 0.0, 1.0)
+	var top := max_stamina()
+	_since_spent += delta
+	if _since_spent >= STAMINA_REGEN_DELAY:
+		stamina += STAMINA_REGEN * lerpf(STARVING_STAMINA_REGEN, 1.0, fed) * delta
+	stamina = clampf(stamina, 0.0, top)
+	if _winded and stamina > STAMINA_RECOVER:
+		_winded = false
 
 
 ## True while standing inside a shelter (any Area3D in the "shelters" group), like the

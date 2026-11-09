@@ -342,6 +342,8 @@ class RockTarget extends RefCounted:
 		return "Mine Rock"
 
 	func interact(player) -> void:
+		if not player.swing_tool():
+			return
 		_foliage.mine_rock(_index)
 		player.gathered("Stone", MineableRock.STONE_PER_HIT)
 

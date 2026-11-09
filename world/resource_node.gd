@@ -37,6 +37,9 @@ func interact(player) -> void:
 	if needs_tool(player):
 		player.flash("Equip the %s first" % required_tool)
 		return
+	# A tool swing (like chopping) costs stamina; too winded to swing, nothing happens
+	if not required_tool.is_empty() and not player.swing_tool():
+		return
 	var amount := gather()
 	# Some things (like trees) take a few hits before giving anything
 	if amount > 0:

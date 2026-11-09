@@ -1074,6 +1074,15 @@ const MODEL_BOXES := {
 	"tool_rack": Vector3(1.3, 0.86, 0.31),
 	"storage_shelf": Vector3(1.25, 1.17, 0.44),
 	"fireplace": Vector3(1.4, 1.19, 0.91),
+	# The Rustic Bed at a full 2 m long (its own proportions make it 1.34 m wide), headboard at -Z
+	"bed": Vector3(1.34, 0.645, 2.0),
+	# The Foraging Basket filling the 0.62 m footprint across its rope handle
+	"foraging_basket": Vector3(0.62, 0.335, 0.55),
+}
+## Models made facing another way, turned about their upright before fitting (radians): the bed
+## model lies along X with its headboard at +X, so a quarter turn puts the headboard at -Z
+const MODEL_TURNS := {
+	"bed": PI / 2.0,
 }
 ## Where the fireplace's flames burn, in its own space (inside the model's hearth)
 const HEARTH_FIRE := Vector3(0, 0.2, 0.05)
@@ -1174,6 +1183,7 @@ static func _furniture(d: Dictionary, shape: String) -> void:
 	size = MODEL_BOXES.get(shape, size)
 	solid.size = size
 	_collision(d, solid, _at(0, size.y / 2.0, 0))
+	d["model_turn"] = MODEL_TURNS.get(shape, 0.0)
 	d["furniture"] = true
 	d["hearth_at"] = HEARTH_FIRE
 	if shape == "fireplace":

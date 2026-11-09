@@ -185,6 +185,11 @@ void fragment() {
 	float foot = facing.y < 0.3 ? 1.0 - smoothstep(0.0, 0.8, lp.y - box_min.y) : 0.0;
 	float grime = clamp(edge * edge_grime + foot * foot_grime, 0.0, 0.55);
 
+	// Weathered silver-grey wood, to match the close-up look (piece_detail.gdshader) it stands in for
+	if (!alt) {
+		float g = dot(color, vec3(0.3, 0.59, 0.11));
+		color = mix(color, vec3(g), 0.8) * vec3(1.0, 0.97, 0.91) * 1.7;
+	}
 	ALBEDO = color * tint.rgb * (1.0 - grime);
 	ROUGHNESS = clamp(rough + grime * 0.15, 0.0, 1.0);
 	NORMAL = normalize((VIEW_MATRIX * vec4(bent, 0.0)).xyz);

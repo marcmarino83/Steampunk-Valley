@@ -14,6 +14,9 @@ const CLEAR_ZONE_SCENE := preload("res://building/clear_zone.tscn")
 const SURFACE_SHADER := preload("res://building/pieces/piece_surface.gdshader")
 const WOOD_FOLDER := "res://assets/textures/wood_planks_dirt/wood_planks_dirt"
 const STONE_FOLDER := "res://assets/textures/rock_wall_13/rock_wall_13"
+## The close-up look (see PieceDetail) and how many versions of it each shape has
+const DETAIL_SHADER := preload("res://building/pieces/piece_detail.gdshader")
+const DETAIL_VARIANTS := 8
 
 ## Where pieces are added (the world). Set by the build placer.
 var world: Node
@@ -26,11 +29,21 @@ var _shapes := {}
 var _material: StandardMaterial3D
 # The textured surfaces, one per kind ("wood", "roof", "stone"...), made when first needed
 var _surfaces := {}
+# The close-up looks ("shape#variant" -> PieceDetail.build()), their material, and the corner posts
+# and ridge logs worked out from the pieces
+var _details := {}
+var _detail_material: ShaderMaterial
+var _joints: JointDetails
 
 
 func _ready() -> void:
 	add_to_group("saveable")
 	add_to_group("piece_registry")
+	# Corner posts over wall joints and logs along ridges, worked out again whenever pieces change
+	_joints = JointDetails.new()
+	_joints.registry = self
+	add_child(_joints)
+	changed.connect(_joints.mark_dirty)
 
 
 func _exit_tree() -> void:
@@ -38,6 +51,8 @@ func _exit_tree() -> void:
 	_shapes.clear()
 	_material = null
 	_surfaces.clear()
+	_details.clear()
+	_detail_material = null
 
 
 ## A shape's look, collision and snap points (see PieceShapes.build)
@@ -87,6 +102,30 @@ func _make_surface(kind: String) -> ShaderMaterial:
 	return material
 
 
+## A piece's close-up look (see PieceDetail): one of DETAIL_VARIANTS made once per shape, picked
+## by the piece's id, so neighbours differ and a piece always looks the same
+func detail_mesh(shape: String, piece_id: int) -> Dictionary:
+	var variant := posmod(piece_id, DETAIL_VARIANTS)
+	var key := "%s#%d" % [shape, variant]
+	if not _details.has(key):
+		_details[key] = PieceDetail.build(shape, hash(shape) + variant * 7919)
+	return _details[key]
+
+
+## The material the close-up looks (and corner posts and ridge logs) are drawn with
+func detail_material() -> ShaderMaterial:
+	if _detail_material == null:
+		_detail_material = ShaderMaterial.new()
+		_detail_material.shader = DETAIL_SHADER
+		_detail_material.set_shader_parameter("wood_albedo", load(WOOD_FOLDER + "_diff_2k.jpg"))
+		_detail_material.set_shader_parameter("wood_normal", load(WOOD_FOLDER + "_nor_gl_2k.png"))
+		_detail_material.set_shader_parameter("wood_rough", load(WOOD_FOLDER + "_rough_2k.png"))
+		_detail_material.set_shader_parameter("stone_albedo", load(STONE_FOLDER + "_diff_2k.jpg"))
+		_detail_material.set_shader_parameter("stone_normal", load(STONE_FOLDER + "_nor_gl_2k.png"))
+		_detail_material.set_shader_parameter("stone_rough", load(STONE_FOLDER + "_rough_2k.png"))
+	return _detail_material
+
+
 ## The plain painted material (each face its own colour): furniture, and anything else drawn
 ## without textures
 func wood_material() -> StandardMaterial3D:
@@ -110,6 +149,7 @@ func spawn(piece: PieceBuildable, where: Transform3D, paid: Dictionary, id := 0,
 		id = _next_id
 	_next_id = maxi(_next_id, id + 1)
 	built.piece_id = id
+	built.dress(detail_mesh(piece.shape, id), detail_material())
 	built.weather()
 	built.owner_plot = owner_plot
 	built.paid = paid.duplicate()

@@ -23,6 +23,12 @@ var _door_angle := 0.0
 # The door's swinging parts and how each one sits when closed
 var _door_parts: Array = []
 var _door_tween: Tween
+# The plain textured box look, which only shows from far off once it has a close-up look
+var _plain_looks: Array[MeshInstance3D] = []
+
+## Beyond this distance a piece shows its plain textured box instead of its close-up look
+const DETAIL_RANGE := 60.0
+const DETAIL_FADE := 4.0
 
 
 ## Builds it from its shape. Called before it's added to the world.
@@ -38,12 +44,14 @@ func setup(piece: PieceBuildable, def: Dictionary, material: Material) -> void:
 		look.mesh = def["mesh"]
 		look.material_override = material
 		add_child(look)
+		_plain_looks.append(look)
 	if def["door_mesh"]:
 		var panel := MeshInstance3D.new()
 		panel.mesh = def["door_mesh"]
 		panel.material_override = material
 		add_child(panel)
 		_door_parts.append({"node": panel, "rest": Transform3D.IDENTITY})
+		_plain_looks.append(panel)
 	if def.get("hearth", false):
 		_make_hearth_fire()
 	for part in def["collision"]:
@@ -53,6 +61,30 @@ func setup(piece: PieceBuildable, def: Dictionary, material: Material) -> void:
 		add_child(solid)
 		if part["door"]:
 			_door_parts.append({"node": solid, "rest": part["transform"]})
+
+
+## Gives it its close-up look (see PieceDetail: separate planks, logs, shakes, stones and rope),
+## shown within DETAIL_RANGE; its plain textured box takes over beyond that. A door's panel gets
+## its own close-up look, which swings with it. Nothing changes for a shape without one.
+func dress(detail: Dictionary, material: Material) -> void:
+	if detail.is_empty() or detail.get("mesh") == null and detail.get("door_mesh") == null:
+		return
+	for plain in _plain_looks:
+		plain.visibility_range_begin = DETAIL_RANGE
+		plain.visibility_range_begin_margin = DETAIL_FADE
+	for key in ["mesh", "door_mesh"]:
+		var mesh: Mesh = detail.get(key)
+		if mesh == null:
+			continue
+		var near := MeshInstance3D.new()
+		near.name = "Detail" if key == "mesh" else "DoorDetail"
+		near.mesh = mesh
+		near.material_override = material
+		near.visibility_range_end = DETAIL_RANGE
+		near.visibility_range_end_margin = DETAIL_FADE
+		add_child(near)
+		if key == "door_mesh":
+			_door_parts.append({"node": near, "rest": Transform3D.IDENTITY})
 
 
 ## Gives its textured surface (see piece_surface.gdshader) this piece's own slight colour and

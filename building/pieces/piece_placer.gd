@@ -148,13 +148,21 @@ func begin(piece: PieceBuildable, keep := false) -> void:
 	_ghost.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_ghost.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_preview = Node3D.new()
-	for mesh in [_shape["mesh"], _shape["door_mesh"]]:
-		if mesh:
-			var ghost := MeshInstance3D.new()
-			ghost.mesh = mesh
-			ghost.material_override = _ghost
-			ghost.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			_preview.add_child(ghost)
+	if piece.model_scene:
+		# The piece's own model, see-through
+		var model := BuildPiece.fitted_model(piece, _shape)
+		for found in model.find_children("*", "MeshInstance3D", true, false):
+			(found as MeshInstance3D).material_override = _ghost
+			(found as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_preview.add_child(model)
+	else:
+		for mesh in [_shape["mesh"], _shape["door_mesh"]]:
+			if mesh:
+				var ghost := MeshInstance3D.new()
+				ghost.mesh = mesh
+				ghost.material_override = _ghost
+				ghost.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				_preview.add_child(ghost)
 	_preview.visible = false
 	_player.get_parent().add_child(_preview)
 	_make_test_parts()
@@ -494,12 +502,16 @@ func _check(where: Transform3D, target: BuildPiece) -> String:
 	if target:
 		query.exclude = [target.get_rid()]
 	var placing_slender: bool = _shape.get("slender", false)
+	var placing_overhang: bool = _shape.get("overhang", false)
 	for part in _test_parts:
 		query.shape = part["shape"]
 		query.transform = where * (part["transform"] as Transform3D)
 		for found in space.intersect_shape(query, MAX_OVERLAPS):
 			var other: Object = found["collider"]
 			if other.is_in_group("terrain_ground"):
+				continue
+			# Overhangs (eaves, gable overhangs, corners) only bump into each other
+			if other is BuildPiece and other.is_overhang() != placing_overhang:
 				continue
 			if other is BuildPiece and other.is_slender() != placing_slender:
 				continue
@@ -554,12 +566,15 @@ func piece_blocked(piece: BuildPiece, where: Transform3D, skip: Array[RID]) -> O
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.exclude = skip
 	var slender := piece.is_slender()
+	var overhang := piece.is_overhang()
 	for part in _test_parts_of(piece.buildable.shape):
 		query.shape = part["shape"]
 		query.transform = where * (part["transform"] as Transform3D)
 		for found in space.intersect_shape(query, MAX_OVERLAPS):
 			var other: Object = found["collider"]
 			if other.is_in_group("terrain_ground"):
+				continue
+			if other is BuildPiece and other.is_overhang() != overhang:
 				continue
 			if other is BuildPiece and other.is_slender() != slender:
 				continue

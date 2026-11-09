@@ -98,6 +98,25 @@ const SNAP_RULES := {
 	"roof_side_right_45": {"roof_side_left_45": [PI]},
 	"ridge_cap_26": {"roof_high_26": [0.0]},
 	"ridge_cap_45": {"roof_high_45": [0.0]},
+	# Overhangs: eaves on a roof's low edge (and end to end along it), gable overhangs on a roof's
+	# side edge (and up the slope, and back to back at the ridge), corners under a gable overhang's
+	# low end (and end to end with eaves). Each only meets roofs of its own pitch.
+	"eave_base_26": {"eave_spot_26": [PI]},
+	"eave_base_45": {"eave_spot_45": [PI]},
+	"eave_side_left_26": {"eave_side_right_26": [PI]},
+	"eave_side_right_26": {"eave_side_left_26": [PI]},
+	"eave_side_left_45": {"eave_side_right_45": [PI]},
+	"eave_side_right_45": {"eave_side_left_45": [PI]},
+	"overhang_left_26": {"roof_side_right_26": [PI]},
+	"overhang_right_26": {"roof_side_left_26": [PI]},
+	"overhang_left_45": {"roof_side_right_45": [PI]},
+	"overhang_right_45": {"roof_side_left_45": [PI]},
+	"overhang_low_26": {"overhang_high_26": [PI]},
+	"overhang_high_26": {"overhang_high_26": [PI], "overhang_low_26": [PI]},
+	"overhang_low_45": {"overhang_high_45": [PI]},
+	"overhang_high_45": {"overhang_high_45": [PI], "overhang_low_45": [PI]},
+	"corner_top_26": {"overhang_low_26": [PI]},
+	"corner_top_45": {"overhang_low_45": [PI]},
 	"stairs_foot": {"floor_center": QUARTER_TURNS},
 	# Stairs: the bottom on a floor or foundation edge, the top on one a level up, and end to end
 	"stairs_bottom": {"floor_edge": [PI], "stairs_top": [PI]},
@@ -138,7 +157,7 @@ const SNAP_RULES := {
 static func build(shape: String) -> Dictionary:
 	var d := {
 		"surface": _new_surface(), "door_surface": null, "collision": [], "sockets": [],
-		"roof": false, "floor": false, "furniture": false, "clear_center": Vector3.ZERO, "clear_radius": 0.0,
+		"roof": false, "floor": false, "furniture": false, "overhang": false, "clear_center": Vector3.ZERO, "clear_radius": 0.0,
 	}
 	match shape:
 		"floor":
@@ -188,6 +207,12 @@ static func build(shape: String) -> Dictionary:
 			_ridge_cap(d, ROOF_RISE, "_26")
 		"ridge_45":
 			_ridge_cap(d, ROOF_RISE_45, "_45")
+		"eave_26", "eave_45":
+			_eave(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
+		"gable_overhang_26", "gable_overhang_45":
+			_gable_overhang(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
+		"eave_corner_26", "eave_corner_45":
+			_eave_corner(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
 		"beam_1", "beam_2":
 			_beam(d, 1.0 if shape == "beam_1" else GRID)
 		"beam_diag_26":
@@ -250,6 +275,9 @@ static func build(shape: String) -> Dictionary:
 	# How far R turns it while snapped: 45° for round and triangle pieces, 90° for the rest
 	var fine_turn := shape.contains("round") or shape.contains("curved") or shape.contains("cone") or shape.contains("tri")
 	d["turn_step"] = PI / 4.0 if fine_turn else PI / 2.0
+	# The 45° triangle is centred on its middle, which turns it 22.5° off the grid of the squares
+	# it joins: its textured planks fold back onto their grid with this (see piece_surface.gdshader)
+	d["frame_offset"] = PI / 8.0 if shape.contains("tri45") else 0.0
 	d["mesh"] = (d["surface"] as SurfaceTool).commit()
 	d.erase("surface")
 	d["door_mesh"] = (d["door_surface"] as SurfaceTool).commit() if d["door_surface"] else null
@@ -369,15 +397,13 @@ static func _door(d: Dictionary) -> void:
 
 # A sloped roof section: 2 m along its low edge, rising `rise` (1 m for the 26° roof, 2 m for the
 # 45°) over 2 m toward +Z. Its underside runs from the low edge up to the high edge; `pitch` ("_26"
-# or "_45") names the snap points only roofs of the same pitch meet at.
+# or "_45") names the snap points only roofs of the same pitch meet at. Both its ends are cut
+# plumb (straight up and down): two roofs back to back share one upright face at the ridge and meet
+# in a sharp, closed peak, and the eave end looks like a cut rafter end.
 static func _roof(d: Dictionary, rise: float, pitch: String) -> void:
-	var slope := atan2(rise, GRID)
-	var length := sqrt(GRID * GRID + rise * rise)
-	var basis := Basis(Vector3.RIGHT, -slope)
-	var normal := basis.y
-	var center := Vector3(0, rise / 2.0, GRID / 2.0) + normal * ROOF_THICKNESS / 2.0
-	_planked_box(d, Vector3(GRID, ROOF_THICKNESS, length), center, basis, ROOF_COLOR, 0, -GRID / 2.0)
+	_roof_slab(d, -GRID / 2.0, GRID / 2.0, 0.0, GRID, rise, ROOF_COLOR)
 	_socket(d, Vector3.ZERO, PI, "roof_low")
+	_socket(d, Vector3.ZERO, PI, "eave_spot" + pitch)
 	_socket(d, Vector3(0, rise, GRID), 0.0, "roof_high" + pitch)
 	_socket(d, Vector3(GRID / 2.0, rise / 2.0, GRID / 2.0), PI / 2.0, "roof_side_right" + pitch)
 	_socket(d, Vector3(-GRID / 2.0, rise / 2.0, GRID / 2.0), -PI / 2.0, "roof_side_left" + pitch)
@@ -779,10 +805,139 @@ static func _roof_corner(d: Dictionary, rise: float, pitch: String, inner: bool)
 	else:
 		_socket(d, Vector3.ZERO, PI, "roof_low")
 		_socket(d, Vector3(half, 0, half), PI / 2.0, "roof_low")
+		# Eaves go along both its eaves, as along a roof's
+		_socket(d, Vector3.ZERO, PI, "eave_spot" + pitch)
+		_socket(d, Vector3(half, 0, half), PI / 2.0, "eave_spot" + pitch)
 		_socket(d, Vector3(-half, rise / 2.0, half), -PI / 2.0, "roof_side_left" + pitch)
 		_socket(d, Vector3(0, rise / 2.0, GRID), 0.0, "roof_side_right" + pitch)
 		_socket(d, Vector3(half, 0, 0), PI / 2.0, "roof_corner")
 	d["roof"] = true
+
+
+# ---- Roof slabs and overhangs ----
+
+## Overhangs: how far an eave reaches out (measured level), how wide a gable overhang is, and the
+## fascia board along their outer edges (thickness, and how far it hangs below the underside)
+const OVERHANG := 0.5
+const FASCIA_THICKNESS := 0.03
+const FASCIA_DROP := 0.1
+const FASCIA_COLOR := Color(0.36, 0.25, 0.16)
+
+
+# A piece of roof slab: x0 to x1 across, z0 to z1 along the slope (measured level), with its
+# underside on the roof's plane (height z * rise / GRID, so it lines up with any roof of the same
+# pitch) and its ends cut plumb. Drawn as boards along X, like a roof; solid unless told not to be.
+static func _roof_slab(d: Dictionary, x0: float, x1: float, z0: float, z1: float, rise: float, color: Color, solid := true) -> void:
+	var st: SurfaceTool = d["surface"]
+	var lift := ROOF_THICKNESS / cos(atan2(rise, GRID))
+	var section := _slab_section(z0, z1, rise, 0.0, lift)
+	var x := x0
+	while x < x1 - 0.001:
+		var k := floori(x / BOARD + 0.001)
+		var next := minf((k + 1) * BOARD, x1)
+		_prism_x(st, section, x, next, _board_color(color, k))
+		x = next
+	if solid:
+		var points := PackedVector3Array()
+		for p in section:
+			points.append(Vector3(x0, p.y, p.x))
+			points.append(Vector3(x1, p.y, p.x))
+		var shape := ConvexPolygonShape3D.new()
+		shape.points = points
+		_collision(d, shape, Transform3D.IDENTITY)
+
+
+# A slab's outline seen from the side, as (z, y) corners: from `below` under the roof's plane to
+# `above` over it, cut plumb at z0 and z1
+static func _slab_section(z0: float, z1: float, rise: float, below: float, above: float) -> PackedVector2Array:
+	var k := rise / GRID
+	return PackedVector2Array([Vector2(z0, z0 * k - below), Vector2(z1, z1 * k - below), Vector2(z1, z1 * k + above), Vector2(z0, z0 * k + above)])
+
+
+# A straight solid with this side outline ((z, y) corners, convex), running x0 to x1 along X
+static func _prism_x(st: SurfaceTool, section: PackedVector2Array, x0: float, x1: float, color: Color) -> void:
+	var middle := Vector2.ZERO
+	for p in section:
+		middle += p
+	middle /= section.size()
+	for i in range(1, section.size() - 1):
+		for x in [x0, x1]:
+			var n := Vector3.LEFT if x == x0 else Vector3.RIGHT
+			_triangle(st, Vector3(x, section[0].y, section[0].x), Vector3(x, section[i].y, section[i].x), Vector3(x, section[i + 1].y, section[i + 1].x), n, color)
+	for i in section.size():
+		var a := section[i]
+		var b := section[(i + 1) % section.size()]
+		var out := Vector2(b.y - a.y, -(b.x - a.x)).normalized()
+		if out.dot((a + b) / 2.0 - middle) < 0.0:
+			out = -out
+		_quad(st, Vector3(x0, a.y, a.x), Vector3(x0, b.y, b.x), Vector3(x1, b.y, b.x), Vector3(x1, a.y, a.x), Vector3(0, out.y, out.x), color)
+
+
+# A fascia board standing along a slab's outer end at level distance z (from x0 to x1), facing
+# outward (`outward` is -1 or +1 along Z)
+static func _fascia_end(d: Dictionary, x0: float, x1: float, z: float, outward: float, rise: float) -> void:
+	var lift := ROOF_THICKNESS / cos(atan2(rise, GRID))
+	var y := z * rise / GRID
+	# Its top flush with the slab's, level with the barge boards it meets at a corner
+	var height := lift + FASCIA_DROP
+	var center := Vector3((x0 + x1) / 2.0, y - FASCIA_DROP + height / 2.0, z + outward * FASCIA_THICKNESS / 2.0)
+	_box_mesh(d["surface"], Vector3(x1 - x0, height, FASCIA_THICKNESS), Transform3D(Basis.IDENTITY, center), FASCIA_COLOR)
+
+
+# A barge board along a slab's side at x, from z0 to z1 along the slope, on the outward side. It
+# stops just under the slab's top, so where it ends up on the inner side (against the roof's edge,
+# the same piece fitting either side of a roof) it hides under the roof without a lip or flicker.
+static func _fascia_side(d: Dictionary, x: float, outward: float, z0: float, z1: float, rise: float) -> void:
+	var lift := ROOF_THICKNESS / cos(atan2(rise, GRID))
+	var section := _slab_section(z0, z1, rise, FASCIA_DROP, lift - 0.005)
+	var x_out := x + outward * FASCIA_THICKNESS
+	_prism_x(d["surface"], section, minf(x, x_out), maxf(x, x_out), FASCIA_COLOR)
+
+
+# An eave: carries a roof's low edge on outward and down along the same slope, 2 m wide and
+# OVERHANG deep (level), with a fascia board along its outer edge. Snaps to a roof's low edge
+# (by its inner edge, at its origin) and end to end with other eaves and eave corners.
+static func _eave(d: Dictionary, rise: float, pitch: String) -> void:
+	var half := GRID / 2.0
+	_roof_slab(d, -half, half, -OVERHANG, 0.0, rise, ROOF_COLOR)
+	_fascia_end(d, -half, half, -OVERHANG, -1.0, rise)
+	_socket(d, Vector3.ZERO, 0.0, "eave_base" + pitch)
+	d["overhang"] = true
+	var mid := Vector3(0, -OVERHANG / 2.0 * rise / GRID, -OVERHANG / 2.0)
+	_socket(d, mid + Vector3(half, 0, 0), PI / 2.0, "eave_side_right" + pitch)
+	_socket(d, mid - Vector3(half, 0, 0), -PI / 2.0, "eave_side_left" + pitch)
+
+
+# A gable overhang: carries a roof on past its side edge (beyond the gable wall), OVERHANG wide and
+# 2 m along the slope like the roof, with a barge board along each side (the inner one tucks into
+# the gable wall under the roof's edge, so the same piece fits either side). Snaps to a roof's side
+# edge, up the slope to another, and back to back with another at the ridge.
+static func _gable_overhang(d: Dictionary, rise: float, pitch: String) -> void:
+	var half := OVERHANG / 2.0
+	_roof_slab(d, -half, half, 0.0, GRID, rise, ROOF_COLOR)
+	_fascia_side(d, half, 1.0, 0.0, GRID, rise)
+	_fascia_side(d, -half, -1.0, 0.0, GRID, rise)
+	_socket(d, Vector3(-half, rise / 2.0, GRID / 2.0), -PI / 2.0, "overhang_left" + pitch)
+	_socket(d, Vector3(half, rise / 2.0, GRID / 2.0), PI / 2.0, "overhang_right" + pitch)
+	_socket(d, Vector3.ZERO, PI, "overhang_low" + pitch)
+	_socket(d, Vector3(0, rise, GRID), 0.0, "overhang_high" + pitch)
+	d["overhang"] = true
+
+
+# An eave corner: fills the square where an eave meets a gable overhang, OVERHANG × OVERHANG, on
+# the eave's slope, with fascia boards round its outer edges. Snaps under a gable overhang's low
+# end, and end to end with eaves.
+static func _eave_corner(d: Dictionary, rise: float, pitch: String) -> void:
+	var half := OVERHANG / 2.0
+	_roof_slab(d, -half, half, -OVERHANG, 0.0, rise, ROOF_COLOR)
+	_fascia_end(d, -half - FASCIA_THICKNESS, half + FASCIA_THICKNESS, -OVERHANG, -1.0, rise)
+	_fascia_side(d, half, 1.0, -OVERHANG, 0.0, rise)
+	_fascia_side(d, -half, -1.0, -OVERHANG, 0.0, rise)
+	_socket(d, Vector3.ZERO, 0.0, "corner_top" + pitch)
+	d["overhang"] = true
+	var mid := Vector3(0, -OVERHANG / 2.0 * rise / GRID, -OVERHANG / 2.0)
+	_socket(d, mid + Vector3(half, 0, 0), PI / 2.0, "eave_side_right" + pitch)
+	_socket(d, mid - Vector3(half, 0, 0), -PI / 2.0, "eave_side_left" + pitch)
 
 
 # A ridge cap: an upside-down V of boards, 2 m long, sitting over the ridge where two roofs of
@@ -907,6 +1062,18 @@ const IRON_COLOR := Color(0.32, 0.32, 0.34)
 const SOOT_COLOR := Color(0.08, 0.07, 0.06)
 
 
+## The solid box (width, height, depth) of furniture shown as a Meshy model: each model's own
+## proportions at a sensible size, standing on its bottom middle with its back at -Z
+const MODEL_BOXES := {
+	"chopping_block": Vector3(0.65, 0.33, 0.65),
+	"tool_rack": Vector3(1.3, 0.86, 0.31),
+	"storage_shelf": Vector3(1.25, 1.17, 0.44),
+	"fireplace": Vector3(1.4, 1.19, 0.91),
+}
+## Where the fireplace's flames burn, in its own space (inside the model's hearth)
+const HEARTH_FIRE := Vector3(0, 0.2, 0.05)
+
+
 static func _furniture(d: Dictionary, shape: String) -> void:
 	var st: SurfaceTool = d["surface"]
 	var size := Vector3.ONE
@@ -982,9 +1149,13 @@ static func _furniture(d: Dictionary, shape: String) -> void:
 			_box_mesh(st, Vector3(0.6, 0.1, 0.12), _at(0, 0.25, -0.05), BARK_COLOR)
 			_box_mesh(st, Vector3(0.12, 0.1, 0.5), _at(0.1, 0.33, -0.08), BARK_COLOR.lightened(0.1))
 	var solid := BoxShape3D.new()
+	# Furniture shown as a model is solid as the model's own box, so it collides, backs up to walls
+	# and fits where it looks like it does (BuildPiece fits the model into this box)
+	size = MODEL_BOXES.get(shape, size)
 	solid.size = size
 	_collision(d, solid, _at(0, size.y / 2.0, 0))
 	d["furniture"] = true
+	d["hearth_at"] = HEARTH_FIRE
 	# These back up flush against a wall when placed near one (their back is -Z)
 	d["backs_to_wall"] = shape in ["bed", "storage_shelf", "tool_rack"]
 	# The fireplace burns and warms like a campfire (see BuildPiece)

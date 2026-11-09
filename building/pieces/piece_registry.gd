@@ -8,6 +8,12 @@ extends Node
 signal changed
 
 const CLEAR_ZONE_SCENE := preload("res://building/clear_zone.tscn")
+## The pieces' textured surface, and the Poly Haven textures it uses (2K copies; the 4K originals
+## are in assets/textures/hd/, kept out of git). Roofs use the wood too: the reed thatch in hd/
+## has a ridge band along its top edge, so it doesn't tile down a slope.
+const SURFACE_SHADER := preload("res://building/pieces/piece_surface.gdshader")
+const WOOD_FOLDER := "res://assets/textures/wood_planks_dirt/wood_planks_dirt"
+const STONE_FOLDER := "res://assets/textures/rock_wall_13/rock_wall_13"
 
 ## Where pieces are added (the world). Set by the build placer.
 var world: Node
@@ -18,6 +24,8 @@ var _next_id := 1
 # Each shape's look, collision and snap points, made once: shape -> PieceShapes.build()
 var _shapes := {}
 var _material: StandardMaterial3D
+# The textured surfaces, one per kind ("wood", "roof", "stone"...), made when first needed
+var _surfaces := {}
 
 
 func _ready() -> void:
@@ -29,6 +37,7 @@ func _exit_tree() -> void:
 	# Let go of the meshes and shapes, so nothing is reported as leaked when the game closes
 	_shapes.clear()
 	_material = null
+	_surfaces.clear()
 
 
 ## A shape's look, collision and snap points (see PieceShapes.build)
@@ -38,7 +47,48 @@ func shape_of(shape: String) -> Dictionary:
 	return _shapes[shape]
 
 
-## The plain wood material every piece without a model of its own is drawn with
+## The material a piece of this shape is drawn with (see piece_surface.gdshader): textured wood
+## planks mapped to suit the piece (walls, floors, roofs with thatch on top, curved and round
+## pieces, beams, posts), stone for stone pieces, or the plain painted colours for furniture
+func material_for(shape: String) -> Material:
+	var def := shape_of(shape)
+	var kind := "wood"
+	if def.get("furniture", false):
+		return wood_material()
+	if shape.contains("stone"):
+		kind = "stone_round" if shape.begins_with("round") else "stone"
+	elif shape == "cone_roof":
+		kind = "cone"
+	elif def.get("roof", false) or def.get("overhang", false):
+		kind = "roof"
+	elif shape.begins_with("curved_wall") or shape.begins_with("round"):
+		kind = "round"
+	elif shape == "beam_1" or shape == "beam_2":
+		kind = "beam"
+	elif shape.begins_with("pole") or shape.begins_with("pillar") or shape == "ladder":
+		kind = "post"
+	if not _surfaces.has(kind):
+		_surfaces[kind] = _make_surface(kind)
+	return _surfaces[kind]
+
+
+func _make_surface(kind: String) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = SURFACE_SHADER
+	material.set_shader_parameter("wood_albedo", load(WOOD_FOLDER + "_diff_2k.jpg"))
+	material.set_shader_parameter("wood_normal", load(WOOD_FOLDER + "_nor_gl_2k.png"))
+	material.set_shader_parameter("wood_rough", load(WOOD_FOLDER + "_rough_2k.png"))
+	if kind.begins_with("stone"):
+		material.set_shader_parameter("alt_albedo", load(STONE_FOLDER + "_diff_2k.jpg"))
+		material.set_shader_parameter("alt_normal", load(STONE_FOLDER + "_nor_gl_2k.png"))
+		material.set_shader_parameter("alt_rough", load(STONE_FOLDER + "_rough_2k.png"))
+	material.set_shader_parameter("mode", {"round": 1, "stone_round": 1, "cone": 2, "beam": 3, "post": 4}.get(kind, 0))
+	material.set_shader_parameter("alt_everywhere", kind.begins_with("stone"))
+	return material
+
+
+## The plain painted material (each face its own colour): furniture, and anything else drawn
+## without textures
 func wood_material() -> StandardMaterial3D:
 	if _material == null:
 		_material = StandardMaterial3D.new()
@@ -55,11 +105,12 @@ func wood_material() -> StandardMaterial3D:
 ## Puts a piece in the world. A new piece gets the next id; a loaded one keeps its own.
 func spawn(piece: PieceBuildable, where: Transform3D, paid: Dictionary, id := 0, owner_plot := "", state := {}) -> BuildPiece:
 	var built: BuildPiece = piece.scene.instantiate()
-	built.setup(piece, shape_of(piece.shape), wood_material())
+	built.setup(piece, shape_of(piece.shape), material_for(piece.shape))
 	if id <= 0:
 		id = _next_id
 	_next_id = maxi(_next_id, id + 1)
 	built.piece_id = id
+	built.weather()
 	built.owner_plot = owner_plot
 	built.paid = paid.duplicate()
 	world.add_child(built)

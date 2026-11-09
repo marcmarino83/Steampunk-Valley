@@ -3,10 +3,12 @@
 [ext_resource type="Script" path="res://building/pieces/piece_buildable.gd" id="1_piece"]
 [ext_resource type="PackedScene" path="res://building/pieces/build_piece.tscn" id="2_scene"]
 [ext_resource type="Texture2D" path="res://assets/icons/build/chopping_block.png" id="3_icon"]
+[ext_resource type="PackedScene" path="res://assets/buildables/chopping_block/chopping_block.fbx" id="4_model"]
 
 [resource]
 script = ExtResource("1_piece")
 shape = "chopping_block"
+model_scene = ExtResource("4_model")
 display_name = "Chopping Block"
 starts_locked = true
 unlocked_by = "Craft"

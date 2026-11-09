@@ -32,7 +32,7 @@ func setup(piece: PieceBuildable, def: Dictionary, material: Material) -> void:
 	name = "Piece"
 	add_to_group("build_pieces")
 	if piece.model_scene:
-		add_child(piece.model_scene.instantiate())
+		add_child(fitted_model(piece, def))
 	else:
 		var look := MeshInstance3D.new()
 		look.mesh = def["mesh"]
@@ -53,6 +53,61 @@ func setup(piece: PieceBuildable, def: Dictionary, material: Material) -> void:
 		add_child(solid)
 		if part["door"]:
 			_door_parts.append({"node": solid, "rest": part["transform"]})
+
+
+## Gives its textured surface (see piece_surface.gdshader) this piece's own slight colour and
+## brightness, picked from its id so it stays the same every time, and its box, for the grime
+## toward its edges. Called once it has its id.
+func weather() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(piece_id * 7919 + 17)
+	var bright := rng.randf_range(0.92, 1.05)
+	var warm := rng.randf_range(-0.035, 0.035)
+	var tint := Color(bright * (1.0 + warm), bright, bright * (1.0 - warm * 1.4))
+	var box := PieceShapes.bounds_of(_def)
+	for child in get_children():
+		if child is MeshInstance3D and (child as MeshInstance3D).material_override is ShaderMaterial:
+			var look := child as MeshInstance3D
+			look.set_instance_shader_parameter("tint", tint)
+			look.set_instance_shader_parameter("box_min", box.position)
+			look.set_instance_shader_parameter("box_max", box.end)
+			look.set_instance_shader_parameter("frame_offset", _def.get("frame_offset", 0.0))
+
+
+## A piece's model, scaled evenly to fit its solid box and placed in it: standing on the box's
+## floor, centred side to side, its back against the box's back (-Z). Used for the piece itself and
+## its placement preview.
+static func fitted_model(piece: PieceBuildable, def: Dictionary) -> Node3D:
+	var model: Node3D = piece.model_scene.instantiate()
+	var box := PieceShapes.bounds_of(def)
+	var own := _model_bounds(model)
+	if own.size.x <= 0.0 or own.size.y <= 0.0 or own.size.z <= 0.0:
+		return model
+	var s := minf(minf(box.size.x / own.size.x, box.size.y / own.size.y), box.size.z / own.size.z)
+	var holder := Node3D.new()
+	holder.name = "Model"
+	holder.add_child(model)
+	model.scale = Vector3.ONE * s
+	var centre := own.get_center() * s
+	model.position = Vector3(box.get_center().x - centre.x, box.position.y - own.position.y * s, box.position.z - own.position.z * s)
+	return holder
+
+
+# The box round every mesh in a model, in the model's own space
+static func _model_bounds(model: Node3D) -> AABB:
+	var box := AABB()
+	var first := true
+	for found in model.find_children("*", "MeshInstance3D", true, false):
+		var look := found as MeshInstance3D
+		var xform := Transform3D.IDENTITY
+		var n: Node = look
+		while n != model and n is Node3D:
+			xform = (n as Node3D).transform * xform
+			n = n.get_parent()
+		var part: AABB = xform * look.mesh.get_aabb()
+		box = part if first else box.merge(part)
+		first = false
+	return box
 
 
 func display_name() -> String:
@@ -97,7 +152,6 @@ func backs_to_wall() -> bool:
 # group, so the player's warmth and a warm night's sleep count it.
 
 const HEARTH_HEAT_RADIUS := 6.0
-const HEARTH_FIRE := Vector3(0, 0.42, -0.1)
 
 var _hearth_light: OmniLight3D
 var _hearth_flame: MeshInstance3D
@@ -120,12 +174,14 @@ func _make_hearth_fire() -> void:
 	_hearth_light.light_energy = 1.8
 	_hearth_light.omni_range = 7.0
 	_hearth_light.shadow_enabled = true
-	_hearth_light.position = HEARTH_FIRE + Vector3(0, 0.15, 0.35)
+	# Where the flames burn, inside the hearth (PieceShapes.HEARTH_FIRE); the light just in front
+	var fire: Vector3 = _def.get("hearth_at", Vector3.ZERO)
+	_hearth_light.position = fire + Vector3(0, 0.2, 0.4)
 	add_child(_hearth_light)
 	# A plain glowing flame in the hearth, flickering with the light
 	_hearth_flame = MeshInstance3D.new()
 	var flame := PrismMesh.new()
-	flame.size = Vector3(0.36, 0.42, 0.16)
+	flame.size = Vector3(0.3, 0.32, 0.14)
 	_hearth_flame.mesh = flame
 	var glow := StandardMaterial3D.new()
 	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -135,7 +191,7 @@ func _make_hearth_fire() -> void:
 	glow.emission_energy_multiplier = 2.5
 	_hearth_flame.material_override = glow
 	_hearth_flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_hearth_flame.position = HEARTH_FIRE + Vector3(0, 0.21, 0)
+	_hearth_flame.position = fire + Vector3(0, 0.16, 0)
 	add_child(_hearth_flame)
 
 
@@ -168,6 +224,12 @@ func set_highlight(glow: Material) -> void:
 ## Slender: a pillar, pole, beam or ladder (these only bump into each other)
 func is_slender() -> bool:
 	return _def.get("slender", false)
+
+
+## An eave, gable overhang or eave corner: these only bump into each other (they tuck over wall
+## tops and gables), and don't count as roof for shelter
+func is_overhang() -> bool:
+	return _def.get("overhang", false)
 
 
 ## A ladder: W climbs it while you look at it

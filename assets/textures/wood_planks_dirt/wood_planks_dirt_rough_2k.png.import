@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://qcx4ff46fhna"
-path.s3tc="res://.godot/imported/workbench_metallic_roughness.png-48e398c16943cbe33c8f275450d6e8ee.s3tc.ctex"
+uid="uid://ci7vaexrlrcc8"
+path.s3tc="res://.godot/imported/wood_planks_dirt_rough_2k.png-1f6e2053b494bf84c5d5c6a3d8ecf86e.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/buildables/workbench/workbench_metallic_roughness.png"
-dest_files=["res://.godot/imported/workbench_metallic_roughness.png-48e398c16943cbe33c8f275450d6e8ee.s3tc.ctex"]
+source_file="res://assets/textures/wood_planks_dirt/wood_planks_dirt_rough_2k.png"
+dest_files=["res://.godot/imported/wood_planks_dirt_rough_2k.png-1f6e2053b494bf84c5d5c6a3d8ecf86e.s3tc.ctex"]
 
 [params]
 
@@ -37,5 +37,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=1024
+process/size_limit=0
 detect_3d/compress_to=1

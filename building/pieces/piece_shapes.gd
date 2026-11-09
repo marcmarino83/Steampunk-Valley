@@ -117,6 +117,9 @@ const SNAP_RULES := {
 	"overhang_high_45": {"overhang_high_45": [PI], "overhang_low_45": [PI]},
 	"corner_top_26": {"overhang_low_26": [PI]},
 	"corner_top_45": {"overhang_low_45": [PI]},
+	# Chimneys: a section on the fireplace's chimney or another section; the top on either too
+	"chimney_base": {"chimney_spot": QUARTER_TURNS},
+	"chimney_cap_base": {"chimney_spot": QUARTER_TURNS},
 	"stairs_foot": {"floor_center": QUARTER_TURNS},
 	# Stairs: the bottom on a floor or foundation edge, the top on one a level up, and end to end
 	"stairs_bottom": {"floor_edge": [PI], "stairs_top": [PI]},
@@ -257,6 +260,8 @@ static func build(shape: String) -> Dictionary:
 			_round_foundation(d, shape == "round_foundation_stone")
 		"bed", "foraging_basket", "chopping_block", "tool_rack", "sorting_table", "storage_shelf", "fireplace":
 			_furniture(d, shape)
+		"chimney_section", "chimney_top":
+			_chimney(d, shape)
 		_:
 			push_error("PieceShapes: no shape called %s" % shape)
 	# Turning a symmetric piece by this much looks the same, so those turns aren't offered twice
@@ -1072,6 +1077,21 @@ const MODEL_BOXES := {
 }
 ## Where the fireplace's flames burn, in its own space (inside the model's hearth)
 const HEARTH_FIRE := Vector3(0, 0.2, 0.05)
+## The middle of the top of the fireplace model's chimney stack, in the fireplace piece's space
+## (measured from the fitted model), and the stack's width: chimney pieces are this square
+const FIREPLACE_CHIMNEY := Vector3(-0.147, 1.187, -0.19)
+const CHIMNEY_WIDTH := 0.41
+## A chimney section's height, and the top's (the Stone Basin model scaled evenly to the width)
+const CHIMNEY_SECTION_HEIGHT := 1.0
+const CHIMNEY_TOP_HEIGHT := 0.402
+## How each chimney model is fitted (see BuildPiece.fitted_model): its stone body's middle (x, z)
+## and the range of heights kept (anything past them is flattened onto them, so the corner posts
+## end flush with the stones and pieces stack without gaps), in the model's own units, and the
+## scale that makes the body CHIMNEY_WIDTH square and a section CHIMNEY_SECTION_HEIGHT tall
+const CHIMNEY_FITS := {
+	"chimney_section": {"centre": Vector2(0.0, -0.003), "keep": Vector2(-0.476, 0.425), "scale": Vector3(0.6766, 1.1099, 0.7009)},
+	"chimney_top": {"centre": Vector2(-0.006, -0.037), "keep": Vector2(-0.369, 0.358), "scale": Vector3(0.5578, 0.554, 0.5503)},
+}
 
 
 static func _furniture(d: Dictionary, shape: String) -> void:
@@ -1156,10 +1176,32 @@ static func _furniture(d: Dictionary, shape: String) -> void:
 	_collision(d, solid, _at(0, size.y / 2.0, 0))
 	d["furniture"] = true
 	d["hearth_at"] = HEARTH_FIRE
+	if shape == "fireplace":
+		# The top of its chimney, where chimney sections and tops stack
+		_socket(d, FIREPLACE_CHIMNEY, 0.0, "chimney_spot")
 	# These back up flush against a wall when placed near one (their back is -Z)
 	d["backs_to_wall"] = shape in ["bed", "storage_shelf", "tool_rack"]
 	# The fireplace burns and warms like a campfire (see BuildPiece)
 	d["hearth"] = shape == "fireplace"
+
+
+# A chimney section or top: solid as a CHIMNEY_WIDTH square box standing on its bottom middle,
+# shown as its fitted model. A section stacks on the fireplace's chimney or another section, the
+# top on either. Chimneys pass through roofs (see PiecePlacer._check).
+static func _chimney(d: Dictionary, shape: String) -> void:
+	var top := shape == "chimney_top"
+	var h := CHIMNEY_TOP_HEIGHT if top else CHIMNEY_SECTION_HEIGHT
+	var solid := BoxShape3D.new()
+	solid.size = Vector3(CHIMNEY_WIDTH, h, CHIMNEY_WIDTH)
+	_collision(d, solid, _at(0, h / 2.0, 0))
+	# A plain stone box, only shown if the model is missing
+	_box_mesh(d["surface"], solid.size, _at(0, h / 2.0, 0), STONE_COLOR)
+	_socket(d, Vector3.ZERO, 0.0, "chimney_cap_base" if top else "chimney_base")
+	if not top:
+		_socket(d, Vector3(0, h, 0), 0.0, "chimney_spot")
+	d["chimney"] = true
+	d["chimney_height"] = h
+	d["model_fit"] = CHIMNEY_FITS[shape]
 
 
 static func _at(x: float, y: float, z: float) -> Transform3D:

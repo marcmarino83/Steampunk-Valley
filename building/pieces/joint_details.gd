@@ -1,9 +1,10 @@
 class_name JointDetails
 extends Node
 ## The details that belong to where pieces meet rather than to one piece: a rough log post (with
-## rope lashings) wherever two or more walls, railings or fences meet end to end at an angle, and a
+## rope lashings) wherever two or more walls, railings or fences meet end to end at an angle, a
 ## log along the peak wherever two roofs (or gable overhangs) meet back to back, unless a ridge cap
-## is already there. They're worked out from the pieces whenever pieces are added or taken away, so
+## is already there, and a lip of stone (or logs) reaching past every foundation edge no other
+## foundation shares, so walls on the edge sit on top with a little stone showing. They're worked out from the pieces whenever pieces are added or taken away, so
 ## nothing about them is saved. They're only drawn close up, like the pieces' detailed looks.
 
 ## How close two ends must be to count as meeting, and how far apart in angle walls must be (as
@@ -12,6 +13,12 @@ const MEET := 0.05
 const STRAIGHT := 0.985
 ## Drawn only this close (like the pieces' close-up looks)
 const RANGE := 60.0
+## How long a foundation's edge is, by its snap point's type (for its lip)
+const EDGE_LENGTHS := {
+	"floor_edge": PieceShapes.GRID,
+	"floor_edge_long": PieceShapes.LONG_EDGE,
+	"floor_edge_short": PieceShapes.SHORT_EDGE,
+}
 
 var registry: PieceRegistry
 
@@ -36,11 +43,23 @@ func _rebuild() -> void:
 	var ends := {}
 	var ridges := {}
 	var caps := {}
+	var foundation_edges := {}
 	for piece in registry.all_pieces():
 		var bp := piece as BuildPiece
 		if bp.is_queued_for_deletion():
 			continue
 		var box := PieceShapes.bounds_of(bp.shape_def())
+		var shape := bp.buildable.shape
+		if shape.contains("foundation"):
+			var stone := shape.contains("stone")
+			if shape.begins_with("round"):
+				# A round wedge's curved outside is always outside
+				var half := 11.25 if shape.ends_with("_22") else 22.5
+				wanted["arc%d" % bp.piece_id] = {"kind": "arc", "xform": bp.global_transform, "half": half, "stone": stone, "seed": bp.piece_id}
+			for socket in bp.world_sockets():
+				var length: float = EDGE_LENGTHS.get(socket["type"], 0.0)
+				if length > 0.0:
+					foundation_edges.get_or_add(_key(socket["position"]), []).append({"at": socket["position"], "yaw": socket["yaw"], "length": length, "stone": stone})
 		for socket in bp.world_sockets():
 			var type: String = socket["type"]
 			var at: Vector3 = socket["position"]
@@ -50,7 +69,6 @@ func _rebuild() -> void:
 				var yaw: float = socket["yaw"]
 				ends.get_or_add(_key(at), []).append({"at": at, "dir": Vector3(sin(yaw), 0, cos(yaw)), "top": at.y + box.end.y})
 			elif type.begins_with("roof_high") or type.begins_with("overhang_high"):
-				var shape := bp.buildable.shape
 				# Only straight roof panels and gable overhangs (corners meet at an angle)
 				if shape == "roof" or shape == "roof_45" or shape.begins_with("gable_overhang"):
 					var width := PieceShapes.GRID if shape.begins_with("roof") else PieceShapes.OVERHANG
@@ -83,6 +101,16 @@ func _rebuild() -> void:
 		var lift := PieceShapes.ROOF_THICKNESS / cos(atan2(float(a["rise"]), PieceShapes.GRID))
 		var at: Vector3 = (a["at"] as Vector3) + Vector3.UP * (lift + PieceDetail.RIDGE_RADIUS * 0.4)
 		wanted["ridge" + str(key)] = {"kind": "ridge", "at": at, "dir": a["dir"], "length": float(a["width"]) + 0.04, "seed": hash(key)}
+	# A foundation edge no other foundation shares is outside: it gets a lip
+	for key in foundation_edges:
+		var list: Array = foundation_edges[key]
+		if list.size() != 1:
+			continue
+		var e: Dictionary = list[0]
+		var yaw: float = e["yaw"]
+		var out := Vector3(sin(yaw), 0, cos(yaw))
+		var xform := Transform3D(Basis(Vector3.UP.cross(out), Vector3.UP, out), e["at"])
+		wanted["lip" + str(key)] = {"kind": "lip", "xform": xform, "length": e["length"], "stone": e["stone"], "seed": hash(key)}
 	# Take away what's no longer wanted, add what's new
 	for key in _shown.keys():
 		if not wanted.has(key) or _made_for[key] != wanted[key]:
@@ -100,6 +128,14 @@ func _rebuild() -> void:
 			look.mesh = PieceDetail.post_mesh(spec["height"], spec["seed"])
 			registry.world.add_child(look)
 			look.global_position = spec["at"]
+		elif spec["kind"] == "lip":
+			look.mesh = PieceDetail.lip_mesh(spec["length"], spec["stone"], spec["seed"])
+			registry.world.add_child(look)
+			look.global_transform = spec["xform"]
+		elif spec["kind"] == "arc":
+			look.mesh = PieceDetail.lip_arc_mesh(spec["half"], spec["stone"], spec["seed"])
+			registry.world.add_child(look)
+			look.global_transform = spec["xform"]
 		else:
 			look.mesh = PieceDetail.ridge_mesh(spec["length"], spec["seed"])
 			registry.world.add_child(look)

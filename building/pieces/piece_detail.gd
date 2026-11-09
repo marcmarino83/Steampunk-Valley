@@ -22,16 +22,29 @@ const DARK := 4
 const TEX := 2.0
 const BOARDS := 8.0
 ## Planks: how tall wall planks are, the gaps between them, and their bevel
-const PLANK_MIN := 0.17
-const PLANK_MAX := 0.27
-const GAP_MIN := 0.006
-const GAP_MAX := 0.013
-const BEVEL := 0.012
+const PLANK_MIN := 0.2
+const PLANK_MAX := 0.3
+const GAP_MIN := 0.008
+const GAP_MAX := 0.016
+const BEVEL := 0.016
+## How much darker a plank's narrow sides (in the gaps) and its bevelled edges are, so each plank
+## reads on its own
+const SIDE_SHADE := 0.5
+const BEVEL_SHADE := 0.75
+## Stones: their rounded bevel, how far a stone may stand out or sit back, and how dark the dirt
+## gets toward the bottom of the visible courses
+const STONE_BEVEL := 0.045
+const STONE_JUT := 0.025
+const DIRT := 0.45
+## Rope thickness (its tube's radius)
+const ROPE_THICK := 0.021
+## How far a foundation's lip reaches past its edge (see lip_mesh)
+const LIP := 0.12
 ## Roofs: the boards the shakes lie on, how far each row of shakes shows, shake sizes
 const DECK := 0.09
-const SHAKE_EXPOSURE := 0.19
-const SHAKE_LENGTH := 0.44
-const SHAKE_THICK := 0.018
+const SHAKE_EXPOSURE := 0.27
+const SHAKE_LENGTH := 0.6
+const SHAKE_THICK := 0.024
 ## Logs on wood foundations, stone courses, and how deep below a foundation's top the visible
 ## courses go (the rest is underground, left as the dark core)
 const LOG_SIDES := 7
@@ -177,7 +190,82 @@ static func post_mesh(height: float, seed_value: int) -> ArrayMesh:
 	for i in ties:
 		var y := height * (0.22 + 0.62 * float(i) / maxf(ties - 1, 1)) + b.rng.randf_range(-0.05, 0.05)
 		for k in 2:
-			b.rope_ring(Vector3(0, y + k * 0.03, 0), Vector3.UP, r + 0.012, 0.014)
+			b.rope_ring(Vector3(0, y + k * 0.043, 0), Vector3.UP, r + 0.012, 0.014)
+	return b.commit()
+
+
+## A foundation's lip along an exposed edge: stone courses (or logs) reaching LIP past the edge, so
+## a wall standing on the edge sits on top with a little stone showing. In its own space the edge
+## runs along X (`length` long, centred), the outside is +Z and the foundation's top is y = 0. It
+## carries on LIP past both ends, to close the corners with the next exposed edge.
+static func lip_mesh(length: float, stone: bool, seed_value: int) -> ArrayMesh:
+	var b := PieceDetail.new(seed_value)
+	var a := Vector2(-length / 2.0, 0)
+	var e := Vector2(length / 2.0, 0)
+	if stone:
+		var y := -0.01
+		var row := 0
+		while y > -STONE_SHOWN_DEPTH:
+			var h := b.rng.randf_range(0.26, 0.4)
+			b._stone_row(a, e, Vector2(0, -1), y, h, row, LIP, LIP + 0.1, PackedVector2Array(), LIP)
+			y -= h
+			row += 1
+	else:
+		var course := PieceShapes.COURSE
+		var y := -0.06 - course / 2.0
+		var k := 0
+		while y > -SHOWN_DEPTH:
+			var r := course / 2.0 * b.rng.randf_range(0.92, 1.04)
+			var z := LIP - r
+			var reach := length / 2.0 + LIP + (0.06 if k % 2 == 0 else -0.02)
+			var shade := b._wood_shade(0.85) * (1.0 - 0.35 * clampf(-y / SHOWN_DEPTH, 0.0, 1.0))
+			b.log_part(Vector3(-reach, y, z), Vector3(reach, y, z), r, LOG_SIDES, 0.07, shade, WOOD)
+			y -= course
+			k += 1
+	return b.commit()
+
+
+## The same for a round foundation's curved outside: a lip round its arc (`half_angle` degrees each
+## side of +Z, on the ring), in the wedge's own space
+static func lip_arc_mesh(half_angle: float, stone: bool, seed_value: int) -> ArrayMesh:
+	var b := PieceDetail.new(seed_value)
+	var R := PieceShapes.RING_RADIUS
+	var half := deg_to_rad(half_angle)
+	var steps := roundi(half_angle * 2.0 / PieceShapes.ARC_STEP_DEGREES)
+	var top := -0.01 if stone else -0.06
+	var bottom := -STONE_SHOWN_DEPTH if stone else -SHOWN_DEPTH
+	var y := top
+	var row := 0
+	while y > bottom:
+		var h := b.rng.randf_range(0.26, 0.4) if stone else PieceShapes.COURSE
+		for i in steps:
+			var a0 := -half + 2.0 * half * i / steps
+			var a1 := -half + 2.0 * half * (i + 1) / steps
+			var p0 := Vector2(R * sin(a0), R * cos(a0))
+			var p1 := Vector2(R * sin(a1), R * cos(a1))
+			if stone:
+				b._stone_row(p0, p1, -((p0 + p1) / 2.0).normalized(), y, h, row + i, LIP, LIP + 0.1, PackedVector2Array(), 0.01)
+			else:
+				var r := h / 2.0 * b.rng.randf_range(0.92, 1.04)
+				var out0 := p0.normalized() * (LIP - r)
+				var out1 := p1.normalized() * (LIP - r)
+				var shade := b._wood_shade(0.85) * (1.0 - 0.35 * clampf(-y / SHOWN_DEPTH, 0.0, 1.0))
+				b.log_part(Vector3(p0.x + out0.x, y - h / 2.0, p0.y + out0.y), Vector3(p1.x + out1.x, y - h / 2.0, p1.y + out1.y), r, LOG_SIDES, 0.07, shade, WOOD)
+		y -= h
+		row += 1
+	return b.commit()
+
+
+## A few charred logs laid crosswise for a fire, about 40 cm across, resting on y = 0
+static func hearth_logs_mesh(seed_value: int) -> ArrayMesh:
+	var b := PieceDetail.new(seed_value)
+	var charred := Color(0.45, 0.36, 0.3)
+	for i in 3:
+		var a := deg_to_rad(-35.0 + 35.0 * i + b.rng.randf_range(-8.0, 8.0))
+		var dir := Vector3(cos(a), 0, sin(a))
+		var r := b.rng.randf_range(0.035, 0.05)
+		var y := r + (0.05 if i == 1 else 0.0)
+		b.log_part(-dir * 0.2 + Vector3(0, y, 0), dir * 0.2 + Vector3(0, y + b.rng.randf_range(-0.01, 0.02), 0), r, 7, 0.1, charred * b.rng.randf_range(0.7, 1.0), WOOD)
 	return b.commit()
 
 
@@ -191,7 +279,7 @@ static func ridge_mesh(length: float, seed_value: int) -> ArrayMesh:
 		spots = [0.0]
 	for x in spots:
 		b.rope_ring(Vector3(x, 0, 0), Vector3.RIGHT, RIDGE_RADIUS + 0.012, 0.014)
-		b.rope_ring(Vector3(x + 0.035, 0, 0), Vector3.RIGHT, RIDGE_RADIUS + 0.012, 0.014)
+		b.rope_ring(Vector3(x + 0.043, 0, 0), Vector3.RIGHT, RIDGE_RADIUS + 0.012, 0.014)
 	return b.commit()
 
 
@@ -250,6 +338,13 @@ func _wall(width: float, height: float, holes: Array) -> void:
 		var shade := _wood_shade(0.82)
 		box_part(Vector3(hr.position.x - jamb / 2.0 + 0.02, hr.end.y / 2.0 + hr.position.y / 2.0, 0), Vector3(jamb, hr.size.y, depth), Basis.IDENTITY, BEVEL, shade, WOOD, 1)
 		box_part(Vector3(hr.end.x + jamb / 2.0 - 0.02, hr.end.y / 2.0 + hr.position.y / 2.0, 0), Vector3(jamb, hr.size.y, depth), Basis.IDENTITY, BEVEL, shade, WOOD, 1)
+		if hr.position.y < 0.05:
+			# A doorway: stops behind the door's edges and top, so no light shows round a shut door
+			var stop := 0.045
+			var z := -0.05
+			box_part(Vector3(hr.position.x + stop / 2.0, hr.end.y / 2.0, z), Vector3(stop, hr.size.y, 0.03), Basis.IDENTITY, 0.004, _wood_shade(0.7), WOOD, 1)
+			box_part(Vector3(hr.end.x - stop / 2.0, hr.end.y / 2.0, z), Vector3(stop, hr.size.y, 0.03), Basis.IDENTITY, 0.004, _wood_shade(0.7), WOOD, 1)
+			box_part(Vector3(hr.get_center().x, hr.end.y - stop / 2.0, z), Vector3(hr.size.x, stop, 0.03), Basis.IDENTITY, 0.004, _wood_shade(0.7), WOOD, 0)
 		var lintel_h := minf(0.15, height - hr.end.y + 0.02)
 		box_part(Vector3(hr.get_center().x, hr.end.y + lintel_h / 2.0 - 0.01, 0), Vector3(hr.size.x + jamb * 2.0 + 0.06, lintel_h, depth), Basis.IDENTITY, BEVEL, _wood_shade(0.78), WOOD, 0)
 		if hr.position.y > 0.05:
@@ -268,9 +363,10 @@ func _wall_plank(x0: float, x1: float, y0: float, y1: float, t: float, course: i
 	var hi := y1 - gap / 2.0
 	var tilt := rng.randf_range(-0.006, 0.006)
 	var c := Vector2((a + b) / 2.0, (lo + hi) / 2.0)
-	var poly := PackedVector2Array([Vector2(a, lo), Vector2(b, lo), Vector2(b, hi), Vector2(a, hi)])
+	# Rough, irregular ends: each corner trimmed back a different amount
+	var poly := PackedVector2Array([Vector2(a + rng.randf_range(0.0, 0.025), lo), Vector2(b - rng.randf_range(0.0, 0.025), lo), Vector2(b - rng.randf_range(0.0, 0.025), hi), Vector2(a + rng.randf_range(0.0, 0.025), hi)])
 	poly = _turned(poly, c, tilt)
-	var thick := rng.randf_range(t - 0.03, t)
+	var thick := t - 0.015 + rng.randf_range(-0.015, 0.015)
 	var shift := rng.randf_range(-0.004, 0.004)
 	var shade := _wood_shade(0.86 if course == 0 else 1.0)
 	prism(poly, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -thick / 2.0 + shift, thick / 2.0 + shift, BEVEL, shade, WOOD, _plank_uv(c.y, hi - lo), 0)
@@ -342,6 +438,8 @@ func _door() -> void:
 	var h := PieceShapes.DOOR_HEIGHT - 0.02
 	var half := w / 2.0
 	var boards := 5
+	# A dark core between the boards, so a lit room doesn't shine through their gaps
+	box_part(Vector3(0, h / 2.0, 0), Vector3(w - 0.02, h - 0.03, 0.03), Basis.IDENTITY, 0.0, Color(1, 1, 1), DARK, 0)
 	for i in boards:
 		var a := -half + w * i / boards + 0.004
 		var b := -half + w * (i + 1) / boards - 0.004
@@ -414,7 +512,7 @@ func _foundation_wood(outline: PackedVector2Array, edges: Array) -> void:
 			var stretch := (b - a).normalized() * (0.04 if (k % 2 == 0) else -0.02)
 			var pa := a + inward * r - stretch
 			var pb := b + inward * r + stretch
-			log_part(Vector3(pa.x, y, pa.y), Vector3(pb.x, y, pb.y), r, LOG_SIDES, 0.07, _wood_shade(0.85), WOOD)
+			log_part(Vector3(pa.x, y, pa.y), Vector3(pb.x, y, pb.y), r, LOG_SIDES, 0.07, _wood_shade(0.85) * (1.0 - 0.35 * clampf(-y / SHOWN_DEPTH, 0.0, 1.0)), WOOD)
 		y -= course
 		k += 1
 
@@ -431,39 +529,49 @@ func _foundation_stone(outline: PackedVector2Array, edges: Array) -> void:
 			var z0 := j * cell + rng.randf_range(-0.04, 0.04)
 			var flag := PieceShapes._clip(PieceShapes._clip(outline, Vector2(1, 0), x0 + 0.015, x0 + cell - 0.015), Vector2(0, 1), z0 + 0.015, z0 + cell - 0.015)
 			if flag.size() >= 3 and _area(flag) > 0.01:
-				prism(flag, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, -0.08, -rng.randf_range(0.0, 0.008), 0.018, _stone_shade(), STONE, _stone_uv(), 0)
+				prism(flag, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, -0.08, -rng.randf_range(0.0, 0.008), 0.03, _stone_shade(), STONE, _stone_uv(), 0)
 	var centre := _centroid(outline)
 	var y := -0.08
 	var row := 0
 	while y > -STONE_SHOWN_DEPTH:
-		var h := rng.randf_range(0.24, 0.36)
+		var h := rng.randf_range(0.26, 0.4)
 		for e in edges:
 			var edge: Array = e
-			var a: Vector2 = edge[0]
-			var b: Vector2 = edge[1]
-			var along := b - a
-			var length := along.length()
-			var dir := along / length
-			var inward := _inward(a, b, centre)
-			var t := -rng.randf_range(0.0, 0.25) if row % 2 == 1 else 0.0
-			while t < length:
-				var l := rng.randf_range(0.4, 0.75)
-				var t0 := maxf(t, 0.0) + 0.012
-				var t1 := minf(t + l, length) - 0.012
-				t += l
-				if t1 - t0 < 0.08:
-					continue
-				var inset := rng.randf_range(0.0, 0.012)
-				var depth := STONE_DEPTH * rng.randf_range(0.9, 1.1)
-				var foot := PackedVector2Array([a + dir * t0 + inward * inset, a + dir * t1 + inward * inset, a + dir * t1 + inward * (inset + depth), a + dir * t0 + inward * (inset + depth)])
-				foot = _turned(foot, _centroid(foot), rng.randf_range(-0.035, 0.035))
-				foot = _clip_to(foot, outline)
-				if foot.size() < 3:
-					continue
-				var y_top := y - 0.012 - rng.randf_range(0.0, 0.01)
-				prism(foot, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, y - h + 0.012, y_top, 0.025, _stone_shade(), STONE, _stone_uv(), 0)
+			_stone_row(edge[0], edge[1], _inward(edge[0], edge[1], centre), y, h, row, 0.0, STONE_DEPTH, outline)
 		y -= h
 		row += 1
+
+
+# One course of stones, `h` tall, along an edge from a to b: blocks of random length (staggered
+# every other row), rounded, each standing out or sitting back a little and turned a touch. `out`
+# is how far past the edge they reach (0, or LIP for a lip), `depth` how deep they go inward, and
+# `extend` how far past the edge's ends they carry on (round a lip's corners). Clipped to
+# `outline` unless it's empty.
+func _stone_row(a: Vector2, b: Vector2, inward: Vector2, y: float, h: float, row: int, out: float, depth: float, outline: PackedVector2Array, extend := 0.0) -> void:
+	var along := b - a
+	var length := along.length()
+	var dir := along / length
+	var t := -extend - (rng.randf_range(0.0, 0.3) if row % 2 == 1 else 0.0)
+	while t < length + extend:
+		var l := rng.randf_range(0.35, 0.8)
+		var t0 := maxf(t, -extend) + 0.014
+		var t1 := minf(t + l, length + extend) - 0.014
+		t += l
+		if t1 - t0 < 0.1:
+			continue
+		var jut := rng.randf_range(-STONE_JUT, STONE_JUT) if out > 0.0 else -rng.randf_range(0.0, STONE_JUT)
+		var face := -out - jut
+		var d := depth * rng.randf_range(0.9, 1.1)
+		var foot := PackedVector2Array([a + dir * t0 + inward * face, a + dir * t1 + inward * face, a + dir * t1 + inward * (face + d), a + dir * t0 + inward * (face + d)])
+		foot = _turned(foot, _centroid(foot), rng.randf_range(-0.04, 0.04))
+		if not outline.is_empty():
+			foot = _clip_to(foot, outline)
+		if foot.size() < 3:
+			continue
+		# Each stone its own height inside the course, so the rows look laid by hand
+		var top := y - 0.014 - rng.randf_range(0.0, 0.025)
+		var bottom := y - h + 0.014 + rng.randf_range(0.0, 0.02)
+		prism(foot, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, bottom, top, STONE_BEVEL, _stone_shade_at(y - h / 2.0, STONE_SHOWN_DEPTH), STONE, _stone_uv(), 0)
 
 
 # ---- Roofs ----
@@ -560,7 +668,7 @@ func _ridge_cap(rise: float) -> void:
 	log_part(Vector3(-1.0, y, 0), Vector3(1.0, y, 0), RIDGE_RADIUS, 8, 0.08, _wood_shade(0.85), WOOD)
 	for x in [-0.6, 0.6]:
 		rope_ring(Vector3(x, y, 0), Vector3.RIGHT, RIDGE_RADIUS + 0.012, 0.014)
-		rope_ring(Vector3(x + 0.035, y, 0), Vector3.RIGHT, RIDGE_RADIUS + 0.012, 0.014)
+		rope_ring(Vector3(x + 0.043, y, 0), Vector3.RIGHT, RIDGE_RADIUS + 0.012, 0.014)
 
 
 # A cone roof wedge: each arc step its own flat facet, decked and shaked
@@ -604,9 +712,9 @@ func _shakes(o: Vector3, u: Vector3, s: Vector3, n: Vector3, poly: PackedVector2
 		var v0 := row * SHAKE_EXPOSURE
 		var x := left - rng.randf_range(0.0, 0.14)
 		while x < right:
-			var w := rng.randf_range(0.13, 0.28) * wide
-			var gap := rng.randf_range(0.008, 0.02)
-			var length := SHAKE_LENGTH * rng.randf_range(0.92, 1.06)
+			var w := rng.randf_range(0.25, 0.35) * wide
+			var gap := rng.randf_range(0.01, 0.022)
+			var length := SHAKE_LENGTH * rng.randf_range(0.85, 1.15)
 			var yaw := rng.randf_range(-0.04, 0.04)
 			var slip := 0.0
 			if rng.randf() < 0.06:
@@ -620,10 +728,10 @@ func _shakes(o: Vector3, u: Vector3, s: Vector3, n: Vector3, poly: PackedVector2
 			if rect.size() < 3 or _area(rect) < 0.004:
 				continue
 			# Its butt end rests on the row below, so it leans down toward the slope's top
-			var raise := 0.016
+			var raise := 0.022
 			var lean := -raise / length
 			var base := DECK + raise + raise * a / length
-			prism(rect, o, u, s, n, base, base + SHAKE_THICK, 0.0, _shake_shade(), WOOD, _plank_uv(x - w / 2.0, w - gap), 1, 2, lean)
+			prism(rect, o, u, s, n, base, base + SHAKE_THICK, 0.006, _shake_shade(), WOOD, _plank_uv(x - w / 2.0, w - gap), 1, 2, lean)
 		row += 1
 
 
@@ -662,7 +770,7 @@ func _wood_pillar() -> void:
 	var h := PieceShapes.PILLAR_HEIGHT
 	log_part(Vector3(0, 0, 0), Vector3(0, h, 0), PieceShapes.WOOD_PILLAR / 2.0, 9, 0.08, _wood_shade(0.85), WOOD)
 	rope_ring(Vector3(0, h - 0.18, 0), Vector3.UP, PieceShapes.WOOD_PILLAR / 2.0 + 0.012, 0.014)
-	rope_ring(Vector3(0, h - 0.15, 0), Vector3.UP, PieceShapes.WOOD_PILLAR / 2.0 + 0.012, 0.014)
+	rope_ring(Vector3(0, h - 0.137, 0), Vector3.UP, PieceShapes.WOOD_PILLAR / 2.0 + 0.012, 0.014)
 
 
 # Stacked irregular stone blocks, one or two to a course, with dark mortar between
@@ -679,13 +787,13 @@ func _stone_pillar() -> void:
 		var yaw := rng.randf_range(-0.07, 0.07) + (k % 2) * PI / 2.0
 		var basis := Basis(Vector3.UP, yaw)
 		if rng.randf() < 0.4:
-			box_part(Vector3(0, y + c / 2.0, 0), Vector3(w * rng.randf_range(0.93, 1.0), c - 0.022, w * rng.randf_range(0.93, 1.0)), basis, 0.03, _stone_shade(), STONE, 0, _stone_uv())
+			box_part(Vector3(0, y + c / 2.0, 0), Vector3(w * rng.randf_range(0.93, 1.0), c - 0.022, w * rng.randf_range(0.93, 1.0)), basis, STONE_BEVEL, _stone_shade_at(y - h, h), STONE, 0, _stone_uv())
 		else:
 			var split := rng.randf_range(-0.05, 0.05)
 			for side in [-1.0, 1.0]:
 				var part: float = (w / 2.0 + side * split) - 0.012
 				var x: float = side * (w / 2.0 - part / 2.0 - 0.006)
-				box_part(Vector3(0, y + c / 2.0, 0) + basis * Vector3(x, 0, 0), Vector3(part, c - 0.022, w * rng.randf_range(0.92, 1.0)), basis, 0.025, _stone_shade(), STONE, 0, _stone_uv())
+				box_part(Vector3(0, y + c / 2.0, 0) + basis * Vector3(x, 0, 0), Vector3(part, c - 0.022, w * rng.randf_range(0.92, 1.0)), basis, 0.035, _stone_shade_at(y - h, h), STONE, 0, _stone_uv())
 		y += c
 		k += 1
 
@@ -789,11 +897,16 @@ func prism(poly: PackedVector2Array, o: Vector3, u: Vector3, v: Vector3, n: Vect
 		if out2.dot((p + q) / 2.0 - middle) < 0.0:
 			out2 = -out2
 		var out := (u * out2.x + v * out2.y).normalized()
-		_quad_flat(at.call(p, d0 + bevel), at.call(q, d0 + bevel), at.call(q, d1 - bevel), at.call(p, d1 - bevel), out, color, kind, g, c, h, uvx)
+		# Wood: the narrow sides (in the gaps) and bevelled edges darker, so each plank stands out
+		var side_color := color * SIDE_SHADE if kind == WOOD else color
+		var edge_color := color * BEVEL_SHADE if kind == WOOD else color
+		side_color.a = 1.0
+		edge_color.a = 1.0
+		_quad_flat(at.call(p, d0 + bevel), at.call(q, d0 + bevel), at.call(q, d1 - bevel), at.call(p, d1 - bevel), out, side_color, kind, g, c, h, uvx)
 		if bevel > 0.0:
-			_quad_flat(at.call(p, d1 - bevel), at.call(q, d1 - bevel), at.call(inner[(i + 1) % k], d1), at.call(inner[i], d1), (out + n).normalized(), color, kind, g, c, h, uvx)
+			_quad_flat(at.call(p, d1 - bevel), at.call(q, d1 - bevel), at.call(inner[(i + 1) % k], d1), at.call(inner[i], d1), (out + n).normalized(), edge_color, kind, g, c, h, uvx)
 			if caps & 1:
-				_quad_flat(at.call(p, d0 + bevel), at.call(q, d0 + bevel), at.call(inner[(i + 1) % k], d0), at.call(inner[i], d0), (out - n).normalized(), color, kind, g, c, h, uvx)
+				_quad_flat(at.call(p, d0 + bevel), at.call(q, d0 + bevel), at.call(inner[(i + 1) % k], d0), at.call(inner[i], d0), (out - n).normalized(), edge_color, kind, g, c, h, uvx)
 
 
 ## A box (centre, size, turned by basis), its grain along one of its own axes
@@ -853,7 +966,12 @@ func log_part(a: Vector3, b: Vector3, r: float, sides: int, wobble: float, color
 
 
 ## A ring of rope round an axis (radius R, rope thickness 2 × tube)
-func rope_ring(centre: Vector3, axis: Vector3, R: float, tube: float, segments := 10, sides := 4) -> void:
+func rope_ring(centre: Vector3, axis: Vector3, R: float, tube: float, segments := 12, sides := 6) -> void:
+	# Thick hemp: the tube grown to ROPE_THICK (1.5× for thin ones), the ring widened to match so
+	# it still sits on the surface it's wrapped round
+	var thick := maxf(tube * 1.5, ROPE_THICK)
+	R += thick - tube
+	tube = thick
 	axis = axis.normalized()
 	var x0 := axis.cross(Vector3.UP)
 	if x0.length() < 0.1:
@@ -980,8 +1098,9 @@ func _stone_uv() -> Transform2D:
 
 # Weathered planks each a little lighter or darker, a few warmer or cooler
 func _wood_shade(base: float) -> Color:
-	var b := base * rng.randf_range(0.8, 1.08)
-	var warm := rng.randf_range(-0.04, 0.05)
+	# Never cooler than neutral: some planks a little warmer, none blue
+	var b := base * rng.randf_range(0.84, 1.08)
+	var warm := rng.randf_range(0.0, 0.06)
 	return Color(b * (1.0 + warm), b, b * (1.0 - warm))
 
 
@@ -991,9 +1110,17 @@ func _shake_shade() -> Color:
 
 
 func _stone_shade() -> Color:
-	var b := rng.randf_range(0.75, 1.1)
-	var t := rng.randf_range(-0.04, 0.04)
-	return Color(b * (1.0 + t), b, b * (1.0 - t * 0.5))
+	var b := rng.randf_range(0.85, 1.08)
+	var t := rng.randf_range(0.0, 0.04)
+	return Color(b * (1.0 + t), b, b * (1.0 - t))
+
+
+# A stone's shade at this height (0 = the foundation's top, down to `bottom`): dirtier lower down
+func _stone_shade_at(y: float, bottom: float) -> Color:
+	var dirt := clampf(-y / absf(bottom), 0.0, 1.0)
+	var c := _stone_shade() * (1.0 - DIRT * dirt)
+	c.a = 1.0
+	return c
 
 
 # ---- Outlines ----

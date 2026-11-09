@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="PieceBuildable" format=3]
+
+[ext_resource type="Script" path="res://building/pieces/piece_buildable.gd" id="1_piece"]
+[ext_resource type="PackedScene" path="res://building/pieces/build_piece.tscn" id="2_scene"]
+[ext_resource type="Texture2D" path="res://assets/icons/build/chimney_top.png" id="3_icon"]
+[ext_resource type="PackedScene" path="res://assets/buildables/chimney_top/chimney_top.fbx" id="4_model"]
+
+[resource]
+script = ExtResource("1_piece")
+shape = "chimney_top"
+model_scene = ExtResource("4_model")
+display_name = "Chimney Top"
+starts_locked = true
+unlocked_by = "Build"
+unlock_item = "Fireplace"
+unlock_hint = "Build a fireplace to unlock"
+scene = ExtResource("2_scene")
+section = "Furniture"
+menu_order = 18
+costs = Array[Dictionary]([{
+"Stone": 6
+}])
+icon_color = Color(0.5, 0.47, 0.41, 1)
+icon = ExtResource("3_icon")

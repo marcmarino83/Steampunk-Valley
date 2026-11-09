@@ -53,6 +53,7 @@ func _exit_tree() -> void:
 	_surfaces.clear()
 	_details.clear()
 	_detail_material = null
+	BuildPiece.clear_fitted_cache()
 
 
 ## A shape's look, collision and snap points (see PieceShapes.build)

@@ -25,6 +25,8 @@ var _door_parts: Array = []
 var _door_tween: Tween
 # The plain textured box look, which only shows from far off once it has a close-up look
 var _plain_looks: Array[MeshInstance3D] = []
+# Chimney models fitted and flattened once (model path -> ArrayMesh), shared by every piece
+static var _fitted_meshes := {}
 
 ## Beyond this distance a piece shows its plain textured box instead of its close-up look
 const DETAIL_RANGE := 60.0
@@ -67,6 +69,14 @@ func setup(piece: PieceBuildable, def: Dictionary, material: Material) -> void:
 ## shown within DETAIL_RANGE; its plain textured box takes over beyond that. A door's panel gets
 ## its own close-up look, which swings with it. Nothing changes for a shape without one.
 func dress(detail: Dictionary, material: Material) -> void:
+	if _def.get("hearth", false):
+		# Logs for the fire to burn on, in the hearth
+		var logs := MeshInstance3D.new()
+		logs.name = "HearthLogs"
+		logs.mesh = PieceDetail.hearth_logs_mesh(piece_id)
+		logs.material_override = material
+		logs.position = _def.get("hearth_at", Vector3.ZERO)
+		add_child(logs)
 	if detail.is_empty() or detail.get("mesh") == null and detail.get("door_mesh") == null:
 		return
 	for plain in _plain_looks:
@@ -110,6 +120,8 @@ func weather() -> void:
 ## floor, centred side to side, its back against the box's back (-Z). Used for the piece itself and
 ## its placement preview.
 static func fitted_model(piece: PieceBuildable, def: Dictionary) -> Node3D:
+	if def.has("model_fit"):
+		return _flattened_model(piece, def["model_fit"])
 	var model: Node3D = piece.model_scene.instantiate()
 	var box := PieceShapes.bounds_of(def)
 	var own := _model_bounds(model)
@@ -123,6 +135,69 @@ static func fitted_model(piece: PieceBuildable, def: Dictionary) -> Node3D:
 	var centre := own.get_center() * s
 	model.position = Vector3(box.get_center().x - centre.x, box.position.y - own.position.y * s, box.position.z - own.position.z * s)
 	return holder
+
+
+# A model fitted exactly by the numbers in `fit` (see PieceShapes.CHIMNEY_FITS): its meshes merged
+# into one, every point past the kept heights flattened onto them (so the top and bottom are flat
+# and pieces stack cleanly), scaled, and placed with its body's bottom middle at the origin. Made
+# once per model and shared.
+static func _flattened_model(piece: PieceBuildable, fit: Dictionary) -> Node3D:
+	var key := piece.model_scene.resource_path
+	if not _fitted_meshes.has(key):
+		var model: Node3D = piece.model_scene.instantiate()
+		var keep: Vector2 = fit["keep"]
+		var merged := ArrayMesh.new()
+		for found in model.find_children("*", "MeshInstance3D", true, false):
+			var look := found as MeshInstance3D
+			var xform := Transform3D.IDENTITY
+			var n: Node = look
+			while n != model and n is Node3D:
+				xform = (n as Node3D).transform * xform
+				n = n.get_parent()
+			for s in look.mesh.get_surface_count():
+				var arrays := look.mesh.surface_get_arrays(s)
+				var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+				var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+				for i in verts.size():
+					var p := xform * verts[i]
+					p.y = clampf(p.y, keep.x, keep.y)
+					verts[i] = p
+					if i < normals.size():
+						normals[i] = (xform.basis * normals[i]).normalized()
+				arrays[Mesh.ARRAY_VERTEX] = verts
+				if not normals.is_empty():
+					arrays[Mesh.ARRAY_NORMAL] = normals
+				arrays[Mesh.ARRAY_TANGENT] = null
+				merged.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+				merged.surface_set_material(merged.get_surface_count() - 1, look.get_active_material(s))
+		model.free()
+		_fitted_meshes[key] = merged
+	var holder := Node3D.new()
+	holder.name = "Model"
+	var shown := MeshInstance3D.new()
+	shown.mesh = _fitted_meshes[key]
+	var centre: Vector2 = fit["centre"]
+	var size: Vector3 = fit["scale"]
+	var keep2: Vector2 = fit["keep"]
+	shown.scale = size
+	shown.position = -Vector3(centre.x * size.x, keep2.x * size.y, centre.y * size.z)
+	holder.add_child(shown)
+	return holder
+
+
+## Lets go of the shared fitted chimney meshes (when the world closes, so nothing is reported leaked)
+static func clear_fitted_cache() -> void:
+	_fitted_meshes.clear()
+
+
+## A chimney section or top: passes through roofs, and carries the fireplace's smoke up
+func is_chimney() -> bool:
+	return _def.get("chimney", false)
+
+
+## For a chimney piece: the middle of its top, in the world
+func chimney_top() -> Vector3:
+	return global_transform * Vector3(0, _def.get("chimney_height", 0.0), 0)
 
 
 # The box round every mesh in a model, in the model's own space
@@ -185,8 +260,14 @@ func backs_to_wall() -> bool:
 
 const HEARTH_HEAT_RADIUS := 6.0
 
+## The hearth light: a soft warm amber, faint by day and brighter at night (by the sun's daylight)
+const HEARTH_COLOR := Color(1.0, 0.76, 0.5)
+const HEARTH_DAY_ENERGY := 0.35
+const HEARTH_NIGHT_ENERGY := 1.15
+
 var _hearth_light: OmniLight3D
-var _hearth_flame: MeshInstance3D
+var _hearth_flame: Node3D
+var _hearth_energy := HEARTH_NIGHT_ENERGY
 
 
 ## A fire that's burning (only the fireplace, which always is)
@@ -202,39 +283,88 @@ func heat_radius() -> float:
 func _make_hearth_fire() -> void:
 	add_to_group("campfires")
 	_hearth_light = OmniLight3D.new()
-	_hearth_light.light_color = Color(1.0, 0.62, 0.3)
-	_hearth_light.light_energy = 1.8
-	_hearth_light.omni_range = 7.0
+	_hearth_light.light_color = HEARTH_COLOR
+	_hearth_light.light_energy = HEARTH_NIGHT_ENERGY
+	_hearth_light.omni_range = 6.0
+	_hearth_light.omni_attenuation = 1.4
 	_hearth_light.shadow_enabled = true
 	# Where the flames burn, inside the hearth (PieceShapes.HEARTH_FIRE); the light just in front
 	var fire: Vector3 = _def.get("hearth_at", Vector3.ZERO)
-	_hearth_light.position = fire + Vector3(0, 0.2, 0.4)
+	_hearth_light.position = fire + Vector3(0, 0.25, 0.4)
 	add_child(_hearth_light)
-	# A plain glowing flame in the hearth, flickering with the light
-	_hearth_flame = MeshInstance3D.new()
-	var flame := PrismMesh.new()
-	flame.size = Vector3(0.3, 0.32, 0.14)
-	_hearth_flame.mesh = flame
-	var glow := StandardMaterial3D.new()
-	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	glow.albedo_color = Color(1.0, 0.55, 0.15)
-	glow.emission_enabled = true
-	glow.emission = Color(1.0, 0.45, 0.1)
-	glow.emission_energy_multiplier = 2.5
-	_hearth_flame.material_override = glow
-	_hearth_flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_hearth_flame.position = fire + Vector3(0, 0.16, 0)
+	# A particle fire burning on logs in the hearth (the logs come with the close-up look, see dress)
+	_hearth_flame = FireEffects.make_fire(0.85)
+	_hearth_flame.position = fire + Vector3(0, 0.06, 0)
 	add_child(_hearth_flame)
+	_hearth_smoke = FireEffects.make_smoke()
+	_hearth_smoke.name = "ChimneySmoke"
+	_hearth_smoke.top_level = true
+	_hearth_smoke.emitting = false
+	add_child(_hearth_smoke)
 
 
-func _process(_delta: float) -> void:
+# ---- Chimney smoke ----
+#
+# While the fireplace burns, soft grey smoke rises from the top of the chimney stacked on it: from
+# a chimney top if there is one, or else from the highest section (it's never drawn from the
+# fireplace's own chimney, which reads as part of the stack). Looked for again every second.
+
+const SMOKE_CHECK := 1.0
+## How close (sideways) a chimney piece's bottom must be to the top it stands on to count
+const STACK_SNAP := 0.06
+
+var _hearth_smoke: GPUParticles3D
+var _smoke_check_in := 0.0
+
+
+# Where the smoke comes out: the top of the chimney stack standing on this fireplace, or null if
+# nothing's stacked on it
+func _stack_top() -> Variant:
+	var spot: Vector3 = global_transform * PieceShapes.FIREPLACE_CHIMNEY
+	var found := false
+	for i in 32:
+		var next: BuildPiece = null
+		for piece in get_tree().get_nodes_in_group("build_pieces"):
+			var bp := piece as BuildPiece
+			if bp == null or not bp.is_chimney() or bp.is_queued_for_deletion():
+				continue
+			var at := bp.global_position
+			if Vector2(at.x - spot.x, at.z - spot.z).length() < STACK_SNAP and absf(at.y - spot.y) < STACK_SNAP:
+				next = bp
+				break
+		if next == null:
+			break
+		found = true
+		spot = next.chimney_top()
+		if not next.buildable.shape == "chimney_section":
+			break
+	return spot if found else null
+
+
+func _update_smoke(delta: float) -> void:
+	_smoke_check_in -= delta
+	if _smoke_check_in > 0.0:
+		return
+	_smoke_check_in = SMOKE_CHECK
+	var top = _stack_top()
+	var burning := is_lit() and top != null
+	_hearth_smoke.emitting = burning
+	if burning:
+		_hearth_smoke.global_position = (top as Vector3) + Vector3.UP * 0.05
+
+
+func _process(delta: float) -> void:
 	if _hearth_light == null:
 		set_process(false)
 		return
+	_update_smoke(delta)
+	# Faint by day, cosy at night, easing between them; flickering either way
+	var sun = get_tree().get_first_node_in_group("sun")
+	var daylight: float = sun.daylight if sun else 0.0
+	_hearth_energy = lerpf(_hearth_energy, lerpf(HEARTH_NIGHT_ENERGY, HEARTH_DAY_ENERGY, daylight), 1.0 - exp(-2.0 * delta))
 	var t := Time.get_ticks_msec() * 0.001 + float(piece_id)
-	var flicker := sin(t * 11.0) * 0.5 + sin(t * 6.7) * 0.5
-	_hearth_light.light_energy = 1.8 + flicker * 0.35
-	_hearth_flame.scale = Vector3(1.0, 1.0 + flicker * 0.12, 1.0)
+	var flicker := sin(t * 11.0) * 0.5 + sin(t * 6.7) * 0.3 + sin(t * 23.0) * 0.2
+	_hearth_light.light_energy = _hearth_energy * (1.0 + flicker * 0.18)
 
 
 ## The middle of its solid parts, in the world: a plot owns it if this is inside the plot

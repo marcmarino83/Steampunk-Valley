@@ -503,12 +503,16 @@ func _check(where: Transform3D, target: BuildPiece) -> String:
 		query.exclude = [target.get_rid()]
 	var placing_slender: bool = _shape.get("slender", false)
 	var placing_overhang: bool = _shape.get("overhang", false)
+	var placing_chimney: bool = _shape.get("chimney", false)
+	var placing_roof: bool = _shape.get("roof", false) or placing_overhang
 	for part in _test_parts:
 		query.shape = part["shape"]
 		query.transform = where * (part["transform"] as Transform3D)
 		for found in space.intersect_shape(query, MAX_OVERLAPS):
 			var other: Object = found["collider"]
 			if other.is_in_group("terrain_ground"):
+				continue
+			if other is BuildPiece and _passes_through(placing_chimney, placing_roof, other):
 				continue
 			# Overhangs (eaves, gable overhangs, corners) only bump into each other
 			if other is BuildPiece and other.is_overhang() != placing_overhang:
@@ -574,12 +578,24 @@ func piece_blocked(piece: BuildPiece, where: Transform3D, skip: Array[RID]) -> O
 			var other: Object = found["collider"]
 			if other.is_in_group("terrain_ground"):
 				continue
+			if other is BuildPiece and _passes_through(piece.is_chimney(), piece.is_roof() or overhang, other):
+				continue
 			if other is BuildPiece and other.is_overhang() != overhang:
 				continue
 			if other is BuildPiece and other.is_slender() != slender:
 				continue
 			return other
 	return null
+
+
+# A chimney passes straight through roofs, roof corners, ridge caps and overhangs (and they through
+# it): neither shows red for the other. Walls, floors and furniture still count.
+func _passes_through(chimney: bool, roof: bool, other: BuildPiece) -> bool:
+	if chimney:
+		return other.is_roof() or other.is_overhang()
+	if roof:
+		return other.is_chimney()
+	return false
 
 
 # A shape's solid parts, each shrunk a little so pieces may touch (made once per shape)

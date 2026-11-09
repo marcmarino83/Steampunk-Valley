@@ -6,6 +6,13 @@
 - Don't commit; I'll commit myself after testing.
 - Edit files only with the editor tools, never with shell commands (sed, echo, PowerShell redirects). If a file gets corrupted, stop and tell me instead of repairing it line by line.
 
+## Running the game for checks or screenshots:
+
+- Every scripted run must end itself: the capture script calls get_tree().quit() once it has taken its screenshots, and also passes --quit-after <frames> on the command line as a backup (for example --quit-after 3000).
+- Always wrap the run in a hard time limit (about 120 seconds) that kills the Godot process if it’s still running, so a hang can never block you. On Windows, start it with a timeout and stop the process afterwards if needed.
+- Never leave a Godot game window open after a check. If a run had to be killed, say so in the report.
+
+
 ## New assets
 
 - I drop new Meshy models straight into assets/. When you find new model files there, move each into a sensible folder (tools, pickups, buildables, etc.), rename it in lowercase with underscores (e.g. lean_to.glb), and keep its textures with it.

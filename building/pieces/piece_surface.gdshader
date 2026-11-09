@@ -187,8 +187,13 @@ void fragment() {
 
 	// Weathered silver-grey wood, to match the close-up look (piece_detail.gdshader) it stands in for
 	if (!alt) {
-		float g = dot(color, vec3(0.3, 0.59, 0.11));
-		color = mix(color, vec3(g), 0.8) * vec3(1.0, 0.97, 0.91) * 1.7;
+		float k = dot(color, vec3(0.3, 0.59, 0.11)) / 0.124;
+		k = k < 1.0 ? pow(k, 1.25) : 1.0 + (k - 1.0) * 0.3;
+		color = vec3(0.37, 0.28, 0.185) * min(k, 1.3) * 0.85;
+	} else {
+		float k = dot(color, vec3(0.3, 0.59, 0.11)) / 0.066;
+		k = k < 1.0 ? mix(0.55, 1.0, k) : 1.0 + (k - 1.0) * 0.25;
+		color = vec3(0.38, 0.33, 0.228) * min(k, 1.35);
 	}
 	ALBEDO = color * tint.rgb * (1.0 - grime);
 	ROUGHNESS = clamp(rough + grime * 0.15, 0.0, 1.0);

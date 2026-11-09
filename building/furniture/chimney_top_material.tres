@@ -1,0 +1,9 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/buildables/chimney_top/chimney_top.png" id="1_albedo"]
+
+[resource]
+resource_name = "chimney_top"
+albedo_texture = ExtResource("1_albedo")
+metallic_specular = 0.3
+roughness = 0.95

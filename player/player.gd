@@ -982,8 +982,9 @@ func _check_shelter(delta: float) -> void:
 	if _shelter_check_in > 0.0:
 		return
 	_shelter_check_in = SHELTER_CHECK_SECONDS
-	var feet := global_position
-	var overhead := _piece_hit(feet + Vector3.UP * 1.6, feet + Vector3.UP * SHELTER_REACH)
+	# The body's origin is its middle: the feet are half its height below
+	var feet := global_position + Vector3.DOWN * _half_height
+	var overhead := _roof_hit(feet + Vector3.UP * 1.6, feet + Vector3.UP * SHELTER_REACH)
 	_under_roof = overhead != null and (overhead.is_roof() or overhead.is_floor())
 	_enclosed = false
 	if not _under_roof:
@@ -996,9 +997,7 @@ func _check_shelter(delta: float) -> void:
 		var reach := INF
 		for height in [0.5, 1.0]:
 			var from: Vector3 = feet + Vector3.UP * height
-			var query := PhysicsRayQueryParameters3D.create(from, from + direction * SHELTER_REACH)
-			query.exclude = [get_rid()]
-			var hit := get_world_3d().direct_space_state.intersect_ray(query)
+			var hit := _wall_hit(from, from + direction * SHELTER_REACH)
 			# A gap, something that isn't part of the building, or a door standing open
 			if hit.is_empty() or not hit["collider"] is BuildPiece or not hit["collider"].is_closed():
 				return
@@ -1006,10 +1005,46 @@ func _check_shelter(delta: float) -> void:
 		# The ceiling must cover the room, not just the spot you're standing on
 		if i % 4 == 0:
 			var inside := feet + direction * reach * 0.7 + Vector3.UP * 1.6
-			var ceiling := _piece_hit(inside, inside + Vector3.UP * SHELTER_REACH)
+			var ceiling := _roof_hit(inside, inside + Vector3.UP * SHELTER_REACH)
 			if ceiling == null or not (ceiling.is_roof() or ceiling.is_floor()):
 				return
 	_enclosed = true
+
+
+# What a level ray across a room meets, looking past furniture, chimneys and the workbench, chest
+# and campfire (things standing in the room, not part of its walls)
+func _wall_hit(from: Vector3, to: Vector3) -> Dictionary:
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	var skip: Array[RID] = [get_rid()]
+	for i in 8:
+		query.exclude = skip
+		var hit := get_world_3d().direct_space_state.intersect_ray(query)
+		if hit.is_empty():
+			return hit
+		var other: Object = hit["collider"]
+		var in_room: bool = (other is BuildPiece and (other.is_furniture() or other.is_chimney())) \
+				or (other is Node and (other as Node).is_in_group("buildings"))
+		if not in_room:
+			return hit
+		skip.append(hit["rid"])
+	return {}
+
+
+# Like _piece_hit, looking up for a roof: chimneys and furniture (a chimney stack passing through
+# the roof, a tall shelf) are looked past, so they never break the shelter or enclosure check
+func _roof_hit(from: Vector3, to: Vector3) -> BuildPiece:
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	var skip: Array[RID] = [get_rid()]
+	for i in 8:
+		query.exclude = skip
+		var hit := get_world_3d().direct_space_state.intersect_ray(query)
+		if hit.is_empty() or not hit["collider"] is BuildPiece:
+			return null
+		var piece: BuildPiece = hit["collider"]
+		if not (piece.is_chimney() or piece.is_furniture()):
+			return piece
+		skip.append(piece.get_rid())
+	return null
 
 
 # The building piece a line from one point to another meets first, or null if it meets something

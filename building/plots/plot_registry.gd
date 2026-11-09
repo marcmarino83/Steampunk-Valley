@@ -62,8 +62,11 @@ func create(type: PlotType, where: Transform3D, plot_size: Vector2, plot_name :=
 	return plot
 
 
-## Removes just the plot: everything it owned stays standing, owned by no plot
+## Removes just the plot: everything it owned stays standing, owned by no plot. Its ghosts (a
+## template's pieces not built yet) go with it.
 func remove_plot(plot: Plot) -> void:
+	for ghost in ghosts_of(plot):
+		remove_ghost(ghost)
 	for item in owned_items(plot):
 		set_plot_of(item, "")
 	_plots.erase(plot.plot_id)
@@ -95,13 +98,64 @@ func owner_for(spot: Vector3, viewer: Vector3) -> String:
 	return best.plot_id if best else ""
 
 
-## Every piece, furniture item, workbench, chest and campfire the plot owns
-func owned_items(plot: Plot) -> Array:
+## Every built piece, furniture item, workbench, chest and campfire the plot owns; with
+## `with_ghosts`, its ghosts too (a placed template's pieces not built yet), as for moving it
+func owned_items(plot: Plot, with_ghosts := false) -> Array:
 	var found := pieces.pieces_owned_by(plot.plot_id)
+	if not with_ghosts:
+		found = found.filter(func(p): return not p.is_ghost())
 	for building in _buildings():
 		if building.get_meta(OWNER_META, "") == plot.plot_id:
 			found.append(building)
+	if with_ghosts:
+		for ghost in ghost_buildings():
+			if ghost.get_meta(OWNER_META, "") == plot.plot_id:
+				found.append(ghost)
 	return found
+
+
+## The plot's ghosts: pieces, furniture and buildings of a placed template still to be built
+func ghosts_of(plot: Plot) -> Array:
+	var found := pieces.pieces_owned_by(plot.plot_id).filter(func(p): return p.is_ghost())
+	for ghost in ghost_buildings():
+		if ghost.get_meta(OWNER_META, "") == plot.plot_id:
+			found.append(ghost)
+	return found
+
+
+## How far along its building is: {"done": built pieces and buildings, "total": those plus ghosts}
+func build_progress(plot: Plot) -> Dictionary:
+	var ghosts := ghosts_of(plot).size()
+	var built := owned_items(plot).size()
+	return {"done": built, "total": built + ghosts}
+
+
+## What it would take to build every ghost left in the plot (each one's first way of paying)
+func materials_needed(plot: Plot) -> Dictionary:
+	var needed := {}
+	for ghost in ghosts_of(plot):
+		var buildable: Buildable = ghost.buildable
+		if buildable == null or buildable.costs.is_empty():
+			continue
+		var cost: Dictionary = buildable.costs[0]
+		for item in cost:
+			needed[item] = int(needed.get(item, 0)) + int(cost[item])
+	return needed
+
+
+## Takes a ghost away (free: nothing was paid for it)
+func remove_ghost(ghost: Node3D) -> void:
+	if ghost is BuildPiece:
+		pieces.remove(ghost)
+	elif is_instance_valid(ghost):
+		ghost.remove_from_group("ghost_buildings")
+		ghost.queue_free()
+	mark_dirty()
+
+
+## Every ghost workbench, chest and campfire (see GhostBuilding)
+func ghost_buildings() -> Array:
+	return get_tree().get_nodes_in_group("ghost_buildings").filter(func(b): return is_instance_valid(b) and not b.is_queued_for_deletion())
 
 
 ## Every piece and building, owned or not

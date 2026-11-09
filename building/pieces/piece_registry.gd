@@ -163,6 +163,42 @@ func spawn(piece: PieceBuildable, where: Transform3D, paid: Dictionary, id := 0,
 	return built
 
 
+## Builds a ghost piece for real: it was paid for with `paid` (all of which comes back if it's
+## demolished)
+func fill(piece: BuildPiece, paid: Dictionary) -> void:
+	piece.paid = paid.duplicate()
+	piece.set_ghost(false)
+	changed.emit()
+
+
+## Two pieces of the same shape this close (meters) and this nearly the same way round (allowing
+## for the shape's symmetry) are the same piece placed twice
+const DUPLICATE_DISTANCE := 0.05
+const DUPLICATE_TURN := deg_to_rad(5.0)
+
+
+## An identical piece already at `where` (the same shape, within DUPLICATE_DISTANCE and
+## DUPLICATE_TURN, its symmetry allowed for), ghosts included; null if there's none. `ignore`
+## never counts.
+func duplicate_of(shape_name: String, where: Transform3D, ignore: BuildPiece = null) -> BuildPiece:
+	var symmetry: float = shape_of(shape_name).get("symmetry", 0.0)
+	var step := symmetry if symmetry > 0.0 else TAU
+	var yaw := atan2(where.basis.z.x, where.basis.z.z)
+	for piece in pieces_near(where.origin, DUPLICATE_DISTANCE):
+		if piece == ignore or piece.is_queued_for_deletion() or piece.buildable.shape != shape_name:
+			continue
+		var other_yaw := atan2(piece.global_basis.z.x, piece.global_basis.z.z)
+		var apart := wrapf(yaw - other_yaw + step / 2.0, 0.0, step) - step / 2.0
+		if absf(apart) <= DUPLICATE_TURN:
+			return piece
+	return null
+
+
+## Every ghost piece (a placed template's pieces still to be built)
+func ghost_pieces() -> Array:
+	return all_pieces().filter(func(p): return p.is_ghost())
+
+
 ## Takes a piece out of the world (and lets the grass grow back under a floor)
 func remove(piece: BuildPiece) -> void:
 	_pieces.erase(piece.piece_id)

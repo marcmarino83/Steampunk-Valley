@@ -61,8 +61,9 @@ const GOOD_COLOR := Color(0.25, 1.0, 0.35, 0.45)
 const BAD_COLOR := Color(1.0, 0.2, 0.15, 0.45)
 const MARKER_COLOR := Color(0.55, 0.85, 1.0, 0.8)
 const ACTIVE_MARKER_COLOR := Color(1.0, 0.85, 0.2, 1.0)
-const BLOCKED := "Something's in the way"
 const MAX_OVERLAPS := 16
+## The physics layers people are on: the player (1) and settlers (Settler.LAYER)
+const PERSON_LAYERS := 1 | 4
 
 var registry: PieceRegistry
 ## The plots, to tell which one a new piece belongs to
@@ -492,38 +493,45 @@ func _fits(socket: Dictionary) -> Array:
 	return PieceShapes.fits(own, socket, _shape["symmetry"])
 
 
-# Why the piece can't go here, or empty if it can: anything solid in the way (other pieces,
-# trees, boulders, buildings, you), other than the ground and the piece it's snapping to, or a
-# scattered rock. Slender pieces (pillars, poles, beams, ladders) only bump into each other: a
-# floor or roof resting on several pillar tops, or a wall against a beam, overlaps them a little.
-func _check(where: Transform3D, target: BuildPiece) -> String:
+# Why the piece can't go here, or empty if it can. Pieces and furniture may overlap anything
+# (other pieces, furniture, terrain, trees, rocks): only someone standing inside it, or an
+# identical piece already in its place, stops it (see blocked_reason).
+func _check(where: Transform3D, _target: BuildPiece) -> String:
+	return blocked_reason(_buildable.shape, where)
+
+
+## Why a piece of this shape can't go here, or empty if it can (Valheim-style: overlapping
+## anything is fine):
+##   - you or a settler would be inside it: "You're in the way" / "Someone's in the way"
+##   - an identical piece is already there (within DUPLICATE_DISTANCE and DUPLICATE_TURN, allowing
+##     for the shape's symmetry): "Already placed"
+## `ignore` is a piece that doesn't count as the duplicate (the one being moved, say).
+func blocked_reason(shape_name: String, where: Transform3D, ignore: BuildPiece = null) -> String:
+	var someone := person_inside(shape_name, where)
+	if someone == _player:
+		return "You're in the way"
+	if someone:
+		return "Someone's in the way"
+	var twin := registry.duplicate_of(shape_name, where, ignore)
+	if twin:
+		return "Already placed" + (": build its ghost instead" if twin.is_ghost() else "")
+	return ""
+
+
+## You or a settler, if either would be inside a piece of this shape put here (its solid parts,
+## shrunk a little, so standing against it is fine), or null
+func person_inside(shape_name: String, where: Transform3D) -> Object:
 	var space := _player.get_world_3d().direct_space_state
 	var query := PhysicsShapeQueryParameters3D.new()
-	if target:
-		query.exclude = [target.get_rid()]
-	var placing_slender: bool = _shape.get("slender", false)
-	var placing_overhang: bool = _shape.get("overhang", false)
-	var placing_chimney: bool = _shape.get("chimney", false)
-	var placing_roof: bool = _shape.get("roof", false) or placing_overhang
-	for part in _test_parts:
+	query.collision_mask = PERSON_LAYERS
+	for part in _test_parts_of(shape_name):
 		query.shape = part["shape"]
 		query.transform = where * (part["transform"] as Transform3D)
 		for found in space.intersect_shape(query, MAX_OVERLAPS):
 			var other: Object = found["collider"]
-			if other.is_in_group("terrain_ground"):
-				continue
-			if other is BuildPiece and _passes_through(placing_chimney, placing_roof, other):
-				continue
-			# Overhangs (eaves, gable overhangs, corners) only bump into each other
-			if other is BuildPiece and other.is_overhang() != placing_overhang:
-				continue
-			if other is BuildPiece and other.is_slender() != placing_slender:
-				continue
-			return BLOCKED
-	var foliage = _foliage()
-	if foliage and foliage.rock_in_box(where * _bounds):
-		return "A rock is in the way"
-	return ""
+			if other == _player or other is Settler:
+				return other
+	return null
 
 
 func _foliage() -> Node:
@@ -541,8 +549,7 @@ func _place() -> void:
 	if cost.is_empty():
 		_player.flash("Not enough: you need %s" % _buildable.missing_text(_player.inventory))
 		return
-	for item in cost:
-		_player.remove_item(item, cost[item])
+	cost = _player.pay(cost)
 	var plot := _plot_here()
 	registry.spawn(_buildable, _where, cost, 0, plot.plot_id if plot else "")
 	_player.report_progress("Build", _buildable.display_name)
@@ -563,39 +570,10 @@ func _make_test_parts() -> void:
 	_bounds = PieceShapes.bounds_of(_shape)
 
 
-## What a placed piece, put at `where`, would bump into (other than the ground, the bodies in
-## `skip`, and pieces it may rest against), or null if nothing: for moving a plot's pieces
-func piece_blocked(piece: BuildPiece, where: Transform3D, skip: Array[RID]) -> Object:
-	var space := _player.get_world_3d().direct_space_state
-	var query := PhysicsShapeQueryParameters3D.new()
-	query.exclude = skip
-	var slender := piece.is_slender()
-	var overhang := piece.is_overhang()
-	for part in _test_parts_of(piece.buildable.shape):
-		query.shape = part["shape"]
-		query.transform = where * (part["transform"] as Transform3D)
-		for found in space.intersect_shape(query, MAX_OVERLAPS):
-			var other: Object = found["collider"]
-			if other.is_in_group("terrain_ground"):
-				continue
-			if other is BuildPiece and _passes_through(piece.is_chimney(), piece.is_roof() or overhang, other):
-				continue
-			if other is BuildPiece and other.is_overhang() != overhang:
-				continue
-			if other is BuildPiece and other.is_slender() != slender:
-				continue
-			return other
-	return null
-
-
-# A chimney passes straight through roofs, roof corners, ridge caps and overhangs (and they through
-# it): neither shows red for the other. Walls, floors and furniture still count.
-func _passes_through(chimney: bool, roof: bool, other: BuildPiece) -> bool:
-	if chimney:
-		return other.is_roof() or other.is_overhang()
-	if roof:
-		return other.is_chimney()
-	return false
+## You or a settler, if either would be inside a placed piece put at `where` (moving a plot,
+## building a ghost), or null. Overlapping anything else is fine.
+func piece_blocked(piece: BuildPiece, where: Transform3D, _skip: Array[RID] = []) -> Object:
+	return person_inside(piece.buildable.shape, where)
 
 
 # A shape's solid parts, each shrunk a little so pieces may touch (made once per shape)

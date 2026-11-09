@@ -28,6 +28,38 @@ var _plain_looks: Array[MeshInstance3D] = []
 # Chimney models fitted and flattened once (model path -> ArrayMesh), shared by every piece
 static var _fitted_meshes := {}
 
+## The glowing outline look a template's placement preview wears in green or red over its real
+## look (see outline_glow.gdshader)
+const GHOST_SHADER := preload("res://building/templates/outline_glow.gdshader")
+## Ghost pieces: a clean blueprint, one see-through blue that doesn't stack (ghost_fill.gdshader)
+## with crisp, brighter edges (ghost_edge.gdshader); the ghost under the crosshair brightens
+const GHOST_FILL_SHADER := preload("res://building/templates/ghost_fill.gdshader")
+const GHOST_EDGE_SHADER := preload("res://building/templates/ghost_edge.gdshader")
+const GHOST_COLOR := Color(0.32, 0.6, 1.0, 0.25)
+const GHOST_TARGET_COLOR := Color(0.45, 0.72, 1.0, 0.36)
+const GHOST_EDGE_COLOR := Color(0.55, 0.82, 1.0, 0.95)
+const GHOST_TARGET_EDGE_COLOR := Color(0.8, 0.93, 1.0, 1.0)
+## Model ghosts (furniture) brighten toward their silhouette instead of having edge lines
+const GHOST_MODEL_RIM := 0.6
+## Drawn after other see-through things: every ghost's depth pass, then their colour, then edges
+const GHOST_DEPTH_PRIORITY := 20
+const GHOST_FILL_PRIORITY := 21
+const GHOST_EDGE_PRIORITY := 22
+## Two edges of the plain shape meeting at more than this angle (degrees) draw a line
+const GHOST_CREASE_DEGREES := 20.0
+# [plain, plain targeted, model, model targeted] fills, and [edge, edge targeted]
+static var _ghost_fills: Array = []
+static var _ghost_edges: Array = []
+# A plain mesh's edge lines, made once: Mesh -> ArrayMesh (PRIMITIVE_LINES)
+static var _edge_meshes := {}
+
+# A ghost (a template's piece still to be built): what each look wore before (material, shadow,
+# shown, distance range), its edge lines, and the collision layer it had
+var _ghost := false
+var _ghost_saved := {}
+var _ghost_lines: Array[MeshInstance3D] = []
+var _solid_layer := 1
+
 ## Beyond this distance a piece shows its plain textured box instead of its close-up look
 const DETAIL_RANGE := 60.0
 const DETAIL_FADE := 4.0
@@ -69,6 +101,30 @@ func setup(piece: PieceBuildable, def: Dictionary, material: Material) -> void:
 ## shown within DETAIL_RANGE; its plain textured box takes over beyond that. A door's panel gets
 ## its own close-up look, which swings with it. Nothing changes for a shape without one.
 func dress(detail: Dictionary, material: Material) -> void:
+	_dress_looks(detail, material)
+	_nudge_looks()
+
+
+## How far (meters, at most) each piece's look is nudged, so faces of overlapping pieces that
+## lie in exactly the same plane don't flicker against each other
+const NUDGE := 0.0025
+
+
+# Every piece's look (not its collision) sits a hair off its true place, in a direction of its own
+# picked from its id: overlapping pieces whose faces coincide then draw cleanly, one just in front
+func _nudge_looks() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(piece_id * 104729 + 31)
+	var nudge := Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)).normalized() * NUDGE * rng.randf_range(0.4, 1.0)
+	for child in get_children():
+		if child is MeshInstance3D or (child is Node3D and child.name == "Model"):
+			(child as Node3D).position += nudge
+	for part in _door_parts:
+		if part["node"] is MeshInstance3D:
+			part["rest"] = (part["rest"] as Transform3D).translated(nudge)
+
+
+func _dress_looks(detail: Dictionary, material: Material) -> void:
 	if _def.get("hearth", false):
 		# Logs for the fire to burn on, in the hearth
 		var logs := MeshInstance3D.new()
@@ -190,6 +246,243 @@ static func _flattened_model(piece: PieceBuildable, fit: Dictionary) -> Node3D:
 ## Lets go of the shared fitted chimney meshes (when the world closes, so nothing is reported leaked)
 static func clear_fitted_cache() -> void:
 	_fitted_meshes.clear()
+	_ghost_fills.clear()
+	_ghost_edges.clear()
+	_edge_meshes.clear()
+
+
+# ---- Ghosts ----
+#
+# A ghost is a piece of a placed template that hasn't been built yet, drawn as a clean blueprint:
+# its plain shape (the distance version, not the detailed planks, shakes and rafters) in one
+# see-through blue that doesn't stack where ghosts overlap, with crisp brighter edges; furniture
+# keeps its model's silhouette. Nothing solid (the player, settlers and every physics check pass
+# through it), and it doesn't count as built for requirements, shelter or settlers. The hammer
+# finds ghosts by their boxes (see GhostBuilder); filling one with materials turns it into the
+# real piece.
+
+## The ghost fill (a depth-only pass, then the blue): for a plain shape, or for a model (brighter
+## toward its silhouette); the brighter one for the ghost under the crosshair
+static func ghost_material(targeted := false, model := false) -> ShaderMaterial:
+	if _ghost_fills.is_empty():
+		for is_model in [false, true]:
+			for is_target in [false, true]:
+				var colour := ShaderMaterial.new()
+				colour.shader = GHOST_FILL_SHADER
+				colour.set_shader_parameter("color", GHOST_TARGET_COLOR if is_target else GHOST_COLOR)
+				colour.set_shader_parameter("rim", GHOST_MODEL_RIM if is_model else 0.0)
+				colour.render_priority = GHOST_FILL_PRIORITY
+				# First pass: nothing but depth, so the colour lands only on the nearest ghost surface
+				var depth := ShaderMaterial.new()
+				depth.shader = GHOST_FILL_SHADER
+				depth.set_shader_parameter("color", Color(0, 0, 0, 0))
+				depth.render_priority = GHOST_DEPTH_PRIORITY
+				depth.next_pass = colour
+				_ghost_fills.append(depth)
+		for is_target in [false, true]:
+			var edge := ShaderMaterial.new()
+			edge.shader = GHOST_EDGE_SHADER
+			edge.set_shader_parameter("color", GHOST_TARGET_EDGE_COLOR if is_target else GHOST_EDGE_COLOR)
+			edge.render_priority = GHOST_EDGE_PRIORITY
+			_ghost_edges.append(edge)
+	return _ghost_fills[(2 if model else 0) + (1 if targeted else 0)]
+
+
+## The ghost edge lines' material (brighter for the ghost under the crosshair)
+static func ghost_edge_material(targeted := false) -> ShaderMaterial:
+	ghost_material()
+	return _ghost_edges[1 if targeted else 0]
+
+
+## A mesh's outline as lines: every edge on its border or where its faces meet at a crease (more
+## than GHOST_CREASE_DEGREES), not the seams across flat faces. Made once per mesh.
+static func ghost_edges(mesh: Mesh) -> ArrayMesh:
+	if _edge_meshes.has(mesh):
+		return _edge_meshes[mesh]
+	# Every triangle: [corners, normal]
+	var triangles := []
+	for s in mesh.get_surface_count():
+		if mesh.surface_get_primitive_type(s) != Mesh.PRIMITIVE_TRIANGLES:
+			continue
+		var arrays := mesh.surface_get_arrays(s)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var index: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		var count := index.size() if not index.is_empty() else verts.size()
+		for t in range(0, count - 2, 3):
+			var corners: Array[Vector3] = []
+			for k in 3:
+				corners.append(verts[index[t + k] if not index.is_empty() else t + k])
+			var normal := (corners[1] - corners[0]).cross(corners[2] - corners[0])
+			if normal.length_squared() < 1e-12:
+				continue
+			triangles.append([corners, normal.normalized()])
+	triangles = _outer_faces(triangles)
+	# Edge (its two ends, rounded to a millimetre, in order) -> [end, end, face normals]
+	var edges := {}
+	for triangle in triangles:
+		var corners: Array[Vector3] = triangle[0]
+		var normal: Vector3 = triangle[1]
+		for k in 3:
+			var a: Vector3 = corners[k].snapped(Vector3.ONE * 0.001)
+			var b: Vector3 = corners[(k + 1) % 3].snapped(Vector3.ONE * 0.001)
+			if a == b:
+				continue
+			var key := [a, b] if a < b else [b, a]
+			if not edges.has(key):
+				edges[key] = [corners[k], corners[(k + 1) % 3], []]
+			(edges[key][2] as Array).append(normal)
+	var crease := cos(deg_to_rad(GHOST_CREASE_DEGREES))
+	var lines := PackedVector3Array()
+	for key in edges:
+		var normals: Array = edges[key][2]
+		var show := normals.size() == 1
+		for i in normals.size():
+			for j in range(i + 1, normals.size()):
+				if (normals[i] as Vector3).dot(normals[j]) < crease:
+					show = true
+		if show:
+			lines.append(edges[key][0])
+			lines.append(edges[key][1])
+	var out := ArrayMesh.new()
+	if not lines.is_empty():
+		var arrays := []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = lines
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, arrays)
+	_edge_meshes[mesh] = out
+	return out
+
+
+# Leaves out the hidden faces inside a shape: where two parts touch face to face (the boards a
+# plain wall or roof is stacked from), each part's face lies on the other's, back to back. A
+# triangle whose middle sits on a back-to-back face of the same plane is dropped.
+static func _outer_faces(triangles: Array) -> Array:
+	# Plane (normal and distance, rounded) -> its triangles
+	var planes := {}
+	for triangle in triangles:
+		var normal: Vector3 = triangle[1]
+		var key := _plane_key(normal, (triangle[0][0] as Vector3).dot(normal))
+		if not planes.has(key):
+			planes[key] = []
+		planes[key].append(triangle)
+	var kept := []
+	for triangle in triangles:
+		var corners: Array[Vector3] = triangle[0]
+		var normal: Vector3 = triangle[1]
+		var middle := (corners[0] + corners[1] + corners[2]) / 3.0
+		var hidden := false
+		for other in planes.get(_plane_key(-normal, corners[0].dot(-normal)), []):
+			var c: Array[Vector3] = other[0]
+			if Geometry3D.ray_intersects_triangle(middle + normal * 0.01, -normal, c[0], c[1], c[2]) != null \
+				or Geometry3D.ray_intersects_triangle(middle + normal * 0.01, -normal, c[0], c[2], c[1]) != null:
+				hidden = true
+				break
+		if not hidden:
+			kept.append(triangle)
+	return kept
+
+
+static func _plane_key(normal: Vector3, distance: float) -> String:
+	var n := normal.snapped(Vector3.ONE * 0.01)
+	return "%.2f,%.2f,%.2f|%.3f" % [n.x + 0.0, n.y + 0.0, n.z + 0.0, snappedf(distance, 0.002) + 0.0]
+
+
+func is_ghost() -> bool:
+	return _ghost
+
+
+## Turns it into a ghost, or back into the real piece
+func set_ghost(on: bool) -> void:
+	if on == _ghost:
+		return
+	_ghost = on
+	if on:
+		_solid_layer = collision_layer
+		collision_layer = 0
+		for look in find_children("*", "GeometryInstance3D", true, false):
+			if look is GPUParticles3D:
+				continue
+			var shown := look as GeometryInstance3D
+			_ghost_saved[shown] = [shown.material_override, shown.cast_shadow, shown.visible, shown.visibility_range_begin, shown.visibility_range_end]
+			shown.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			if _plain_looks.has(shown):
+				# The plain shape, close up too, with its outline
+				shown.visible = true
+				shown.visibility_range_begin = 0.0
+				shown.visibility_range_end = 0.0
+				shown.material_override = ghost_material()
+				var mesh: Mesh = (shown as MeshInstance3D).mesh
+				if mesh:
+					var lines := MeshInstance3D.new()
+					lines.name = "GhostEdges"
+					lines.mesh = ghost_edges(mesh)
+					lines.material_override = ghost_edge_material()
+					lines.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+					shown.add_child(lines)
+					_ghost_lines.append(lines)
+			elif _is_model_part(shown):
+				# Furniture: its model's silhouette
+				shown.material_override = ghost_material(false, true)
+			else:
+				# The detailed look (planks, shakes, rafters, hearth logs) stays hidden
+				shown.visible = false
+	else:
+		collision_layer = _solid_layer
+		for lines in _ghost_lines:
+			if is_instance_valid(lines):
+				lines.queue_free()
+		_ghost_lines.clear()
+		for shown in _ghost_saved:
+			if is_instance_valid(shown):
+				var saved: Array = _ghost_saved[shown]
+				shown.material_override = saved[0]
+				shown.cast_shadow = saved[1]
+				shown.visible = saved[2]
+				shown.visibility_range_begin = saved[3]
+				shown.visibility_range_end = saved[4]
+		_ghost_saved.clear()
+	# A ghost fireplace doesn't burn
+	if _hearth_light:
+		_hearth_light.visible = not on
+		_hearth_flame.visible = not on
+		_hearth_smoke.emitting = false
+		if on:
+			remove_from_group("campfires")
+		else:
+			add_to_group("campfires")
+
+
+## The ghost under the crosshair shows brighter
+func set_ghost_targeted(targeted: bool) -> void:
+	if not _ghost:
+		return
+	for shown in _ghost_saved:
+		if is_instance_valid(shown) and shown.visible:
+			shown.material_override = ghost_material(targeted, _is_model_part(shown))
+	for lines in _ghost_lines:
+		if is_instance_valid(lines):
+			lines.material_override = ghost_edge_material(targeted)
+
+
+# True for a part of the piece's fitted model (furniture), not its plain or detailed look
+func _is_model_part(look: Node) -> bool:
+	var node := look.get_parent()
+	while node and node != self:
+		if node.name == "Model":
+			return true
+		node = node.get_parent()
+	return false
+
+
+## For a template's preview: shown only (never solid, never counted as a piece or a fire)
+func make_preview_only() -> void:
+	collision_layer = 0
+	collision_mask = 0
+	remove_from_group("build_pieces")
+	remove_from_group("campfires")
+	if _hearth_smoke:
+		_hearth_smoke.emitting = false
+		_hearth_smoke.visible = false
 
 
 ## A chimney section or top: passes through roofs, and carries the fireplace's smoke up
@@ -274,7 +567,7 @@ var _hearth_energy := HEARTH_NIGHT_ENERGY
 
 ## A fire that's burning (only the fireplace, which always is)
 func is_lit() -> bool:
-	return _def.get("hearth", false)
+	return _def.get("hearth", false) and not _ghost
 
 
 ## How close you need to be to feel its heat
@@ -328,7 +621,7 @@ func _stack_top() -> Variant:
 		var next: BuildPiece = null
 		for piece in get_tree().get_nodes_in_group("build_pieces"):
 			var bp := piece as BuildPiece
-			if bp == null or not bp.is_chimney() or bp.is_queued_for_deletion():
+			if bp == null or not bp.is_chimney() or bp.is_ghost() or bp.is_queued_for_deletion():
 				continue
 			var at := bp.global_position
 			if Vector2(at.x - spot.x, at.z - spot.z).length() < STACK_SNAP and absf(at.y - spot.y) < STACK_SNAP:
@@ -452,11 +745,18 @@ func _set_door_angle(degrees: float) -> void:
 		part["node"].transform = swing * (part["rest"] as Transform3D)
 
 
-## What the save keeps of it beyond where it is (a door's open or shut)
+## What the save keeps of it beyond where it is (a door's open or shut, and whether it's a ghost)
 func save_state() -> Dictionary:
-	return {"open": true} if _door_open else {}
+	var state := {}
+	if _door_open:
+		state["open"] = true
+	if _ghost:
+		state["ghost"] = true
+	return state
 
 
 func load_state(state: Dictionary) -> void:
 	if state.get("open", false):
 		set_open(true, true)
+	if state.get("ghost", false):
+		set_ghost(true)

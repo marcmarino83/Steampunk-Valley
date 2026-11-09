@@ -168,6 +168,28 @@ static func style_button(button: Button) -> void:
 	button.add_theme_color_override("font_disabled_color", TEXT_DIM.darkened(0.3))
 
 
+## The slider look: a dark recessed track with a brass fill up to the grabber (brighter while
+## hovered or focused)
+static func style_slider(slider: Slider) -> void:
+	var track := StyleBoxFlat.new()
+	track.bg_color = BAR_BACK
+	track.border_color = BRASS_DARK
+	track.set_border_width_all(1)
+	track.set_corner_radius_all(3)
+	track.content_margin_top = 4
+	track.content_margin_bottom = 4
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = BRASS
+	fill.set_corner_radius_all(3)
+	fill.content_margin_top = 4
+	fill.content_margin_bottom = 4
+	var lit := fill.duplicate() as StyleBoxFlat
+	lit.bg_color = BRASS_LIGHT
+	slider.add_theme_stylebox_override("slider", track)
+	slider.add_theme_stylebox_override("grabber_area", fill)
+	slider.add_theme_stylebox_override("grabber_area_highlight", lit)
+
+
 ## The faint gear for an empty inventory or chest slot, centred in `rect`
 static func draw_slot_gear(canvas: CanvasItem, rect: Rect2) -> void:
 	draw_gear(canvas, rect.get_center(), minf(rect.size.x, rect.size.y) * 0.3, Color(BRASS.r, BRASS.g, BRASS.b, GEAR_ALPHA), 10)

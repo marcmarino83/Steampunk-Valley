@@ -12,7 +12,8 @@ const DROP_DISTANCE := 300.0
 const ROTATE_STEP := PI / 4.0
 const GOOD_COLOR := Color(0.25, 1.0, 0.35, 0.45)
 const BAD_COLOR := Color(1.0, 0.2, 0.15, 0.45)
-const BLOCKED := "Something's in the way"
+## Placeable, with a warning (steep ground, water)
+const WARN_COLOR := Color(1.0, 0.85, 0.2, 0.45)
 ## How many things a spot's overlap check can report. Terrain chunks use up to four of them.
 const MAX_OVERLAPS := 16
 ## Every building keeps the grass and ferns out of its footprint, plus this much around it (m)
@@ -28,6 +29,11 @@ var plots: PlotRegistry
 var _player: CharacterBody3D
 var _pieces: PiecePlacer
 var _plot_placer: PlotPlacer
+# Placing a template, and building a placed template's ghosts
+var _templates: TemplatePlacer
+var _ghosts: GhostBuilder
+# A ghost was taken away on the middle button's press: its release does nothing more
+var _ghost_removed := false
 var _buildable: Buildable
 var _preview: Node3D
 var _material: StandardMaterial3D
@@ -41,6 +47,8 @@ var _on_floor := false
 var _snap_text := ""
 # Why it can't go where the preview is. Empty means it can.
 var _problem := ""
+# Worth knowing but not stopping it (water or steep ground under it), shown in yellow
+var _warning := ""
 
 
 func _ready() -> void:
@@ -64,12 +72,61 @@ func _ready() -> void:
 	_plot_placer.pieces = _pieces
 	_plot_placer.builder = self
 	add_child(_plot_placer)
+	_templates = TemplatePlacer.new()
+	_templates.registry = registry
+	_templates.plots = plots
+	_templates.pieces = _pieces
+	_templates.builder = self
+	add_child(_templates)
+	_ghosts = GhostBuilder.new()
+	_ghosts.registry = registry
+	_ghosts.plots = plots
+	_ghosts.pieces = _pieces
+	_ghosts.builder = self
+	add_child(_ghosts)
 
 
-## True while placing something (or marking out, moving or resizing a plot): the clicks, R and Esc
-## are ours then
+## True while placing something (or a template, or marking out, moving or resizing a plot): the
+## clicks, R and Esc are ours then
 func is_placing() -> bool:
-	return _buildable != null or _pieces.is_placing() or _plot_placer.is_active()
+	return _buildable != null or _pieces.is_placing() or _plot_placer.is_active() or _templates.is_active()
+
+
+# ---- Ghosts (a placed template's pieces still to be built; see GhostBuilder) ----
+
+## Called every frame: `active` while the hammer is out, nothing is being placed and no menu is open
+func update_ghosts(delta: float, active: bool) -> void:
+	_ghosts.update(delta, active and not is_placing())
+
+
+## Left-click with the hammer, nothing being placed: builds the ghost under the crosshair (and keeps
+## going while held). False if there's no ghost there.
+func press_ghost() -> bool:
+	return _ghosts.press()
+
+
+func release_ghost() -> void:
+	_ghosts.release()
+
+
+## Puts a ghost workbench, chest or campfire down for a plot (placing a template, or loading a save)
+func place_ghost_building(buildable: Buildable, where: Transform3D, plot_id: String) -> GhostBuilding:
+	var ghost := GhostBuilding.create(buildable)
+	if not plot_id.is_empty():
+		ghost.set_meta(PlotRegistry.OWNER_META, plot_id)
+	_player.get_parent().add_child(ghost)
+	ghost.global_transform = Transform3D(Basis(Vector3.UP, where.basis.get_euler().y), where.origin)
+	return ghost
+
+
+## Builds a ghost workbench, chest or campfire for real (paid for already), in its place and plot
+func fill_ghost_building(ghost: GhostBuilding, _paid: Dictionary) -> Node3D:
+	var built := build(ghost.buildable, ghost.global_position, ghost.global_rotation.y)
+	var plot_id := str(ghost.get_meta(PlotRegistry.OWNER_META, ""))
+	if not plot_id.is_empty():
+		plots.set_plot_of(built, plot_id)
+	plots.remove_ghost(ghost)
+	return built
 
 
 ## True while marking out, moving or resizing a plot
@@ -81,6 +138,9 @@ func is_plot_mode() -> bool:
 ## being placed before, as when switching from the build menu while placing.
 func begin(buildable: Buildable, keep := false) -> void:
 	cancel()
+	if buildable is TemplateBuildable:
+		_templates.begin(buildable)
+		return
 	if buildable is PlotType:
 		_plot_placer.begin_new(buildable)
 		return
@@ -112,6 +172,8 @@ func current_buildable() -> Buildable:
 		return _buildable
 	if _pieces.is_placing():
 		return _pieces.current()
+	if _templates.is_active():
+		return _templates.current()
 	return _plot_placer.placing_type()
 
 
@@ -135,6 +197,7 @@ func cancel() -> void:
 	set_physics_process(false)
 	_pieces.cancel()
 	_plot_placer.cancel()
+	_templates.cancel()
 
 
 ## Lifts a plot and everything it owns, to put down somewhere else (see PlotPlacer)
@@ -162,14 +225,20 @@ func try_grab_plot() -> bool:
 # held, and comes down on release) or holding X. Placing carries on afterwards as it was (the
 # same piece, height and turn). See PiecePlacer.
 
-## Middle button pressed: picks the piece under the crosshair
+## Middle button pressed: on a ghost, takes it away at once (free); otherwise picks the piece under
+## the crosshair
 func press_demolish() -> void:
-	_pieces.press_demolish()
+	_ghost_removed = not is_placing() and _ghosts.remove_targeted()
+	if not _ghost_removed:
+		_pieces.press_demolish()
 
 
 ## Middle button released: takes the picked piece down, if still aimed at (`active` is false if
 ## the hammer was put away or a menu opened meanwhile)
 func release_demolish(active: bool) -> void:
+	if _ghost_removed:
+		_ghost_removed = false
+		return
 	_pieces.release_demolish(active)
 
 
@@ -180,6 +249,8 @@ func update_demolish(delta: float, active: bool, holding_x: bool) -> void:
 
 ## Takes the keys and clicks that mean something while placing. Returns true if it used this one.
 func handle_input(event: InputEvent) -> bool:
+	if _templates.is_active():
+		return _templates.handle_input(event)
 	if _plot_placer.is_active():
 		return _plot_placer.handle_input(event)
 	if _pieces.is_placing():
@@ -216,6 +287,8 @@ func handle_input(event: InputEvent) -> bool:
 ## [[label, key], ...], "info": the piece panel, or empty}. Placing, or just holding the hammer;
 ## holding X shows the piece it would demolish.
 func hud_state() -> Dictionary:
+	if _templates.is_active():
+		return _templates.hud_state()
 	if _plot_placer.is_active():
 		return _plot_placer.hud_state()
 	var state: Dictionary
@@ -229,6 +302,8 @@ func hud_state() -> Dictionary:
 		details.append(_snap_text if not _snap_text.is_empty() else ("Free" if _pieces.snapping_now() else "Snap off"))
 		if not _problem.is_empty():
 			details.append(_problem)
+		elif not _warning.is_empty():
+			details.append(_warning)
 		state = {
 			"controls": [["Place", "LMB"], ["Rotate", "R"], ["Snap", "Z"], ["Demolish", "MMB / Hold X"], ["Cancel", "RMB"]],
 			"info": {
@@ -238,7 +313,14 @@ func hud_state() -> Dictionary:
 				"cost_bad": not _buildable.can_afford(_player.inventory),
 				"detail": "  ·  ".join(details),
 				"detail_bad": not _problem.is_empty(),
+				"detail_warn": _problem.is_empty() and not _warning.is_empty(),
 			},
+		}
+	elif not _ghosts.info().is_empty():
+		# Aimed at a ghost: its name and cost, and how to build it
+		state = {
+			"controls": [["Build", "LMB"], ["Keep building", "Hold LMB"], ["Remove ghost", "MMB"], ["Build menu", "Tab"], ["Plot view", "P"]],
+			"info": _ghosts.info(),
 		}
 	else:
 		var controls := [["Build menu", "Tab"], ["Demolish", "MMB / Hold X"], ["Snap", "Z"], ["Plot view", "P"]]
@@ -275,7 +357,7 @@ func _physics_process(_delta: float) -> void:
 	_on_floor = spot["on_floor"]
 	_snap_text = spot["snap"]
 	_problem = _check_spot(spot)
-	_material.albedo_color = GOOD_COLOR if _problem.is_empty() else BAD_COLOR
+	_material.albedo_color = BAD_COLOR if not _problem.is_empty() else (WARN_COLOR if not _warning.is_empty() else GOOD_COLOR)
 
 
 func _cast_ray(from: Vector3, to: Vector3) -> Dictionary:
@@ -284,34 +366,39 @@ func _cast_ray(from: Vector3, to: Vector3) -> Dictionary:
 	return _player.get_world_3d().direct_space_state.intersect_ray(query)
 
 
-# Why this spot won't do, or an empty string if it will. On a floor it only mustn't overlap
-# walls, furniture or anything else solid (its own box, so it can stand flush against a wall); on
-# the ground it also needs dry, gentle ground and its whole footprint clear, as before.
+# Why this spot won't do, or an empty string if it will. Like building pieces, it may overlap
+# anything: only you or a settler standing in its box stops it. Water or steep ground under it is a
+# warning (shown in yellow), not a block.
 func _check_spot(spot: Dictionary) -> String:
 	var where: Transform3D = spot["where"]
-	if spot["on_floor"]:
-		return BLOCKED if _box_overlaps(where) else ""
-	var valley = get_tree().get_first_node_in_group("valley")
-	if valley and where.origin.y < valley.global_position.y + valley.water_height():
-		return "Can't build in water"
-	if rad_to_deg((spot["normal"] as Vector3).angle_to(Vector3.UP)) > _buildable.max_slope_degrees:
-		return "Too steep"
-	if _overlaps_something(where.origin):
-		return BLOCKED
+	_warning = ""
+	if not spot["on_floor"]:
+		var valley = get_tree().get_first_node_in_group("valley")
+		if valley and where.origin.y < valley.global_position.y + valley.water_height():
+			_warning = "In the water"
+		elif rad_to_deg((spot["normal"] as Vector3).angle_to(Vector3.UP)) > _buildable.max_slope_degrees:
+			_warning = "Steep ground"
+	var someone := _person_in_box(where)
+	if someone == _player:
+		return "You're in the way"
+	if someone:
+		return "Someone's in the way"
 	return ""
 
 
-# Anything solid (other than the ground and floors) inside its own box, shrunk a hair
-func _box_overlaps(where: Transform3D) -> bool:
+# You or a settler inside its own box (shrunk a hair), or null
+func _person_in_box(where: Transform3D) -> Object:
 	var box := BoxShape3D.new()
 	box.size = (_bounds.size - Vector3.ONE * 0.04).max(Vector3.ONE * 0.02)
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape = box
+	query.collision_mask = PiecePlacer.PERSON_LAYERS
 	query.transform = where * Transform3D(Basis.IDENTITY, _bounds.get_center() + Vector3.UP * 0.02)
 	for found in _player.get_world_3d().direct_space_state.intersect_shape(query, MAX_OVERLAPS):
-		if not _is_ground(found["collider"]):
-			return true
-	return false
+		var other: Object = found["collider"]
+		if other == _player or other is Settler:
+			return other
+	return null
 
 
 # The box round a preview's meshes, in its own space
@@ -324,17 +411,6 @@ func _mesh_bounds(preview: Node3D) -> AABB:
 			box = part if first else box.merge(part)
 			first = false
 	return box
-
-
-# Anything solid in the buildable's footprint, other than the ground. That includes you.
-func _overlaps_something(spot: Vector3) -> bool:
-	var query := PhysicsShapeQueryParameters3D.new()
-	query.shape = _footprint
-	query.transform = Transform3D(Basis.IDENTITY, spot + Vector3.UP * _footprint.height * 0.5)
-	for found in _player.get_world_3d().direct_space_state.intersect_shape(query, MAX_OVERLAPS):
-		if not _is_ground(found["collider"]):
-			return true
-	return false
 
 
 # The ground, or a built floor: a campfire, workbench or chest can stand on either
@@ -351,8 +427,7 @@ func _place() -> void:
 		_player.flash("You no longer have enough for a %s" % _buildable.display_name)
 		cancel()
 		return
-	for item in cost:
-		_player.remove_item(item, cost[item])
+	_player.pay(cost)
 
 	var built := build(_buildable, _preview.global_position, _preview.global_rotation.y)
 	var plot := _plot_here()
@@ -403,13 +478,30 @@ func save_data() -> Dictionary:
 		if built.has_meta(PlotRegistry.OWNER_META):
 			entry["plot"] = built.get_meta(PlotRegistry.OWNER_META)
 		list.append(entry)
-	return {"list": list, "snapping": _pieces.snapping}
+	# Ghost workbenches, chests and campfires (a placed template's, not built yet)
+	var ghosts: Array = []
+	for ghost in plots.ghost_buildings():
+		ghosts.append({
+			"buildable": ghost.get_meta(BUILDABLE_META, ""),
+			"position": SaveGame.from_vector(ghost.global_position),
+			"turn": ghost.global_rotation.y,
+			"plot": ghost.get_meta(PlotRegistry.OWNER_META, ""),
+		})
+	return {"list": list, "ghosts": ghosts, "snapping": _pieces.snapping}
 
 
 func load_data(data: Dictionary) -> void:
 	_pieces.snapping = bool(data.get("snapping", true))
 	for built in get_tree().get_nodes_in_group("buildings"):
 		built.queue_free()
+	for ghost in plots.ghost_buildings():
+		ghost.remove_from_group("ghost_buildings")
+		ghost.queue_free()
+	for entry in data.get("ghosts", []):
+		var ghost_of := load(str(entry.get("buildable", ""))) as Buildable
+		if ghost_of:
+			var where := Transform3D(Basis(Vector3.UP, float(entry.get("turn", 0.0))), SaveGame.to_vector(entry.get("position")))
+			place_ghost_building(ghost_of, where, str(entry.get("plot", "")))
 	for entry in data.get("list", []):
 		var buildable := load(str(entry.get("buildable", ""))) as Buildable
 		if buildable == null:
@@ -430,9 +522,9 @@ func _plot_here() -> Plot:
 	return plots.find(plots.owner_for(_preview.global_position, _player.global_position))
 
 
-## What a workbench, chest or campfire, put at `where`, would bump into in its footprint (other
-## than the ground, a floor or the bodies in `skip`), or null if nothing: for moving a plot
-func building_blocked(building: Node3D, where: Transform3D, skip: Array[RID]) -> Object:
+## You or a settler, if either would be inside a workbench, chest or campfire put at `where` (its
+## footprint), or null: for moving a plot or placing a template. Overlapping anything else is fine.
+func building_blocked(building: Node3D, where: Transform3D, skip: Array[RID] = []) -> Object:
 	var buildable := load(str(building.get_meta(BUILDABLE_META, ""))) as Buildable
 	if buildable == null:
 		return null
@@ -442,17 +534,22 @@ func building_blocked(building: Node3D, where: Transform3D, skip: Array[RID]) ->
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape = footprint
 	query.exclude = skip
+	query.collision_mask = PiecePlacer.PERSON_LAYERS
 	# Raised a little, so the ground it stands on doesn't count
 	query.transform = Transform3D(Basis.IDENTITY, where.origin + Vector3.UP * (footprint.height * 0.5 + 0.1))
 	for found in _player.get_world_3d().direct_space_state.intersect_shape(query, MAX_OVERLAPS):
-		if not _is_ground(found["collider"]):
-			return found["collider"]
+		var other: Object = found["collider"]
+		if other == _player or other is Settler:
+			return other
 	return null
 
 
 ## Takes down a piece, or a workbench, chest or campfire, and returns what it gives back: what a
 ## piece cost, or a building's (first) cost plus anything stored in it. For shrinking a plot.
 func take_down(item: Node3D) -> Dictionary:
+	if item is GhostBuilding:
+		plots.remove_ghost(item)
+		return {}
 	if item is BuildPiece:
 		var paid: Dictionary = item.paid.duplicate()
 		registry.remove(item)

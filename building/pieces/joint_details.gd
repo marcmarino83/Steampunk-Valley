@@ -46,7 +46,8 @@ func _rebuild() -> void:
 	var foundation_edges := {}
 	for piece in registry.all_pieces():
 		var bp := piece as BuildPiece
-		if bp.is_queued_for_deletion():
+		# Ghosts (not built yet) get no posts, ridge logs or lips
+		if bp.is_queued_for_deletion() or bp.is_ghost():
 			continue
 		var box := PieceShapes.bounds_of(bp.shape_def())
 		var shape := bp.buildable.shape

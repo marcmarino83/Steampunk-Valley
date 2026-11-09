@@ -23,7 +23,10 @@ const TIER_FOLDER := "res://iron_tier/crafting"
 @export var station := "hand"
 
 
+## Whether this inventory covers the cost (always, with the freebuild cheat on)
 func can_afford(inventory: Dictionary) -> bool:
+	if DevCheats.freebuild:
+		return true
 	for item in costs:
 		if inventory.get(item, 0) < costs[item]:
 			return false

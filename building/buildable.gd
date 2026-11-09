@@ -29,8 +29,11 @@ extends Blueprint
 @export_multiline var placed_message := ""
 
 
-## The first way of paying that this inventory covers, or empty if none does
+## The first way of paying that this inventory covers, or empty if none does. With the freebuild
+## cheat on, the first way, whatever you carry (the player's pay() then takes nothing).
 func cost_to_pay(inventory: Dictionary) -> Dictionary:
+	if DevCheats.freebuild and not costs.is_empty():
+		return costs[0]
 	for cost in costs:
 		if _shortfall(cost, inventory).is_empty():
 			return cost

@@ -80,12 +80,15 @@ const SNAP_RULES := {
 	"floor_edge_short": {"floor_edge_short": [PI]},
 	# The 1 m points: along 2 m floor edges (and a 1 m floor's edges), and along wall tops
 	"half_edge": {"half_edge": [PI]},
-	"wall_base": {"floor_edge": [0.0, PI], "wall_top": [0.0, PI]},
-	"small_wall_base": {"half_edge": [0.0, PI], "half_top": [0.0, PI]},
+	# Walls and small walls also stack on any wall's top points (its ends and every 1 m)
+	"wall_base": {"floor_edge": [0.0, PI], "wall_top": [0.0, PI], "top_point": [0.0, PI]},
+	"small_wall_base": {"half_edge": [0.0, PI], "half_top": [0.0, PI], "top_point": [0.0, PI]},
 	"long_wall_base": {"floor_edge_long": [0.0, PI], "long_wall_top": [0.0, PI]},
 	"short_wall_base": {"floor_edge_short": [0.0, PI], "short_wall_top": [0.0, PI]},
 	"wall_end": {"wall_end": [PI, PI / 2.0, -PI / 2.0], "pillar_top": QUARTER_TURNS, "pole_top": QUARTER_TURNS},
-	"gable_base": {"wall_top": [0.0, PI]},
+	# A gable on a wall's top, or on any wall's top points (a small wall's ends and middle, say), facing
+	# either way
+	"gable_base": {"wall_top": [0.0, PI], "top_point": [0.0, PI]},
 	"door_base": {"door_slot": [0.0, PI]},
 	# Roofs: any pitch goes on a wall top or carries on up from another roof's high edge; sides,
 	# ridges, corners and ridge caps only meet roofs of their own pitch
@@ -117,6 +120,9 @@ const SNAP_RULES := {
 	"overhang_high_45": {"overhang_high_45": [PI], "overhang_low_45": [PI]},
 	"corner_top_26": {"overhang_low_26": [PI]},
 	"corner_top_45": {"overhang_low_45": [PI]},
+	# A valley eave corner, under a valley corner's low corner (where two eaves meet inside a corner)
+	"valley_eave_base_26": {"valley_eave_spot_26": [0.0]},
+	"valley_eave_base_45": {"valley_eave_spot_45": [0.0]},
 	# Chimneys: a section on the fireplace's chimney or another section; the top on either too
 	"chimney_base": {"chimney_spot": QUARTER_TURNS},
 	"chimney_cap_base": {"chimney_spot": QUARTER_TURNS},
@@ -216,6 +222,8 @@ static func build(shape: String) -> Dictionary:
 			_gable_overhang(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
 		"eave_corner_26", "eave_corner_45":
 			_eave_corner(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
+		"valley_eave_corner_26", "valley_eave_corner_45":
+			_valley_eave_corner(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
 		"beam_1", "beam_2":
 			_beam(d, 1.0 if shape == "beam_1" else GRID)
 		"beam_diag_26":
@@ -359,15 +367,24 @@ static func _wall(d: Dictionary, shape: String) -> void:
 	_wall_top_spots(d, GRID, WALL_HEIGHT)
 
 
-# Along the top of a wall: the 1 m points small walls and short beams snap to (on 2 m walls), and
+# Along the top of a wall: the 1 m points small walls and short beams snap to (on 2 m walls),
 # spots at its ends and middle for poles, pillars and beams (only to snap to, so a wall never
-# hangs from a pillar by its top)
+# hangs from a pillar by its top), and its top points (both ends, and every 1 m out from its
+# middle, on its centre line), where gables, walls and small walls stack
 static func _wall_top_spots(d: Dictionary, width: float, height: float) -> void:
 	if absf(width - GRID) < 0.01:
 		for x in [-0.5, 0.5]:
 			_socket(d, Vector3(x, height, 0), 0.0, "half_top")
 	for x in [-width / 2.0, 0.0, width / 2.0]:
 		_socket(d, Vector3(x, height, 0), 0.0, "top_spot")
+	var points := [-width / 2.0, width / 2.0]
+	var k := 0.0
+	while k < width / 2.0 - 0.05:
+		for x in ([0.0] if k == 0.0 else [-k, k]):
+			points.append(x)
+		k += 1.0
+	for x in points:
+		_socket(d, Vector3(x, height, 0), 0.0, "top_point")
 
 
 # The 1 m points along a square floor's edges: two on each edge of a 2 m floor, the middle of
@@ -803,6 +820,9 @@ static func _roof_corner(d: Dictionary, rise: float, pitch: String, inner: bool)
 		solid.points = PackedVector3Array(low + high)
 		_collision(d, solid, Transform3D.IDENTITY)
 	if inner:
+		# Its low corner, where the two roofs' eaves meet inside the corner: a valley eave corner goes
+		# there
+		_socket(d, Vector3(half, 0, 0), 0.0, "valley_eave_spot" + pitch)
 		_socket(d, Vector3(half, rise / 2.0, half), PI / 2.0, "roof_side_right" + pitch)
 		_socket(d, Vector3(0, rise / 2.0, 0), PI, "roof_side_left" + pitch)
 		_socket(d, Vector3(-half, rise, half), -PI / 2.0, "roof_high" + pitch)
@@ -943,6 +963,54 @@ static func _eave_corner(d: Dictionary, rise: float, pitch: String) -> void:
 	var mid := Vector3(0, -OVERHANG / 2.0 * rise / GRID, -OVERHANG / 2.0)
 	_socket(d, mid + Vector3(half, 0, 0), PI / 2.0, "eave_side_right" + pitch)
 	_socket(d, mid - Vector3(half, 0, 0), -PI / 2.0, "eave_side_left" + pitch)
+
+
+# A valley eave corner: where two eaves meet inside a corner (an L-shaped house's inner corner,
+# under a valley corner), both reach into the same OVERHANG square, crossing. This fills that
+# square cleanly: its top is the higher of the two eaves' slopes, so it folds along a valley down
+# the diagonal like the roofs above, and a flat board underneath hides where the two eaves'
+# fascia boards cross. In the valley corner's frame, moved to its low corner: x from 0 to
+# OVERHANG (out past the first roof's low edge), z from -OVERHANG to 0 (out past the other's).
+static func _valley_eave_corner(d: Dictionary, rise: float, pitch: String) -> void:
+	var st: SurfaceTool = d["surface"]
+	var k := rise / GRID
+	var lift := ROOF_THICKNESS / cos(atan2(rise, GRID))
+	var o := OVERHANG
+	# The first roof's eave falls along +x, the other's along -z; the top follows the higher
+	var facets := [
+		[[Vector2(0, 0), Vector2(o, 0), Vector2(o, -o)], func(p: Vector2) -> float: return p.y * k],
+		[[Vector2(0, 0), Vector2(o, -o), Vector2(0, -o)], func(p: Vector2) -> float: return -p.x * k],
+	]
+	for i in facets.size():
+		var corners: Array = facets[i][0]
+		var height: Callable = facets[i][1]
+		var low := []
+		var high := []
+		for p in corners:
+			var h: float = height.call(p)
+			low.append(Vector3(p.x, h, p.y))
+			high.append(Vector3(p.x, h + lift, p.y))
+		var up: Vector3 = (high[1] - high[0]).cross(high[2] - high[0]).normalized()
+		if up.y < 0.0:
+			up = -up
+		var color := _board_color(ROOF_COLOR, i + 7)
+		_triangle(st, high[0], high[1], high[2], up, color)
+		_triangle(st, low[0], low[1], low[2], -up, color)
+		for e in [[0, 1], [1, 2], [2, 0]]:
+			var a: Vector3 = low[e[0]]
+			var b: Vector3 = low[e[1]]
+			var out := Vector3(b.z - a.z, 0, -(b.x - a.x)).normalized()
+			if out.dot((a + b) / 2.0 - Vector3(o / 2.0, 0, -o / 2.0)) < 0.0:
+				out = -out
+			_quad(st, a, b, high[e[1]], high[e[0]], out, ROOF_COLOR)
+		var solid := ConvexPolygonShape3D.new()
+		solid.points = PackedVector3Array(low + high)
+		_collision(d, solid, Transform3D.IDENTITY)
+	# The board underneath, level with the bottom of the fascia boards, hiding where they cross
+	var soffit_y := -o * k - FASCIA_DROP - 0.01
+	_box_mesh(st, Vector3(o, 0.02, o), _at(o / 2.0, soffit_y, -o / 2.0), FASCIA_COLOR)
+	_socket(d, Vector3.ZERO, 0.0, "valley_eave_base" + pitch)
+	d["overhang"] = true
 
 
 # A ridge cap: an upside-down V of boards, 2 m long, sitting over the ridge where two roofs of

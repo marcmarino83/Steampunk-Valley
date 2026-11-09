@@ -11,6 +11,8 @@ extends Control
 const TEXT := BrassStyle.TEXT
 const DETAIL := Color(0.78, 0.7, 0.58)
 const BAD := Color(1.0, 0.38, 0.3)
+## A warning that doesn't stop placing (steep ground)
+const WARN := Color(1.0, 0.84, 0.3)
 const KEY_TEXT := BrassStyle.BRASS_LIGHT
 const LABEL_SIZE := 16
 const KEY_SIZE := 14
@@ -72,7 +74,7 @@ func set_info(info: Dictionary) -> void:
 	_cost.add_theme_color_override("font_color", BAD if info.get("cost_bad", false) else TEXT)
 	_detail.text = info.get("detail", "")
 	_detail.visible = not _detail.text.is_empty()
-	_detail.add_theme_color_override("font_color", BAD if info.get("detail_bad", false) else DETAIL)
+	_detail.add_theme_color_override("font_color", BAD if info.get("detail_bad", false) else (WARN if info.get("detail_warn", false) else DETAIL))
 
 
 ## Where the top of the action bar is on screen, so the row sits just above it

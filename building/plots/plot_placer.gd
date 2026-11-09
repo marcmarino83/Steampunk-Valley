@@ -31,6 +31,8 @@ const LABEL_GOOD := Color(0.8, 1.0, 0.75)
 const LABEL_BAD := Color(1.0, 0.55, 0.45)
 const GHOST_GOOD := Color(0.25, 1.0, 0.35, 0.4)
 const GHOST_BAD := Color(1.0, 0.2, 0.15, 0.4)
+const GHOST_WARN := Color(1.0, 0.85, 0.2, 0.4)
+const WARN_COLOR := Color(1.0, 0.85, 0.25)
 const OUTSIDE_GLOW := Color(1.0, 0.15, 0.1, 0.5)
 const FINE_TURN := PI / 12.0
 
@@ -45,6 +47,8 @@ var _size := Vector2.ZERO
 var _turn := 0.0
 var _preview: Plot
 var _problem := ""
+# Moving: worth knowing but not stopping it (steep ground), shown in yellow
+var _warning := ""
 # Drawing: the drawing direction (kept from one plot to the next, to line them up), and the first
 # corner once it's clicked
 var _draw_turn := 0.0
@@ -109,7 +113,7 @@ func begin_move(plot: Plot) -> void:
 	_type = plot.plot_type
 	_size = plot.size
 	_turn = 0.0
-	_items = plots.owned_items(plot)
+	_items = plots.owned_items(plot, true)
 	_relative.clear()
 	_skip.clear()
 	var from := plot.global_transform.affine_inverse()
@@ -174,7 +178,7 @@ func try_grab() -> bool:
 	_start_hi = plot.size / 2.0
 	_start_lo = -plot.size / 2.0
 	_offset = Vector2.ZERO
-	_items = plots.owned_items(plot)
+	_items = plots.owned_items(plot, true)
 	_outside.clear()
 	_outside_glow = StandardMaterial3D.new()
 	_outside_glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -278,8 +282,9 @@ func hud_state() -> Dictionary:
 				"info": {
 					"title": "Moving %s" % _plot.plot_name,
 					"cost": "%d pieces" % _items.size(),
-					"detail": _problem if not _problem.is_empty() else "Its own pieces move with it",
+					"detail": _problem if not _problem.is_empty() else (_warning if not _warning.is_empty() else "Its own pieces move with it"),
 					"detail_bad": not _problem.is_empty(),
+					"detail_warn": _problem.is_empty() and not _warning.is_empty(),
 				},
 			}
 		Mode.RESIZE:
@@ -312,8 +317,9 @@ func _physics_process(_delta: float) -> void:
 				_check_in = 3
 				_problem = _move_problem()
 			var bad := not _problem.is_empty()
-			_ghost.albedo_color = GHOST_BAD if bad else GHOST_GOOD
-			_preview.set_tint(BAD_COLOR if bad else GOOD_COLOR)
+			var warned := not bad and not _warning.is_empty()
+			_ghost.albedo_color = GHOST_BAD if bad else (GHOST_WARN if warned else GHOST_GOOD)
+			_preview.set_tint(BAD_COLOR if bad else (WARN_COLOR if warned else GOOD_COLOR))
 			_preview.rebuild()
 		Mode.RESIZE:
 			if _asking:
@@ -379,9 +385,10 @@ func _draw_click() -> void:
 # ---- Moving ----
 
 # Why the plot can't go where the preview is, or empty if it can
+# (Like placing, a moved building may overlap anything: only you or a settler inside one of its
+# pieces stops it. Steep ground is a warning, in yellow.)
 func _move_problem() -> String:
-	if _slope_under(_where, _size) > MAX_SLOPE:
-		return "Too steep here"
+	_warning = "Steep ground here" if _slope_under(_where, _size) > MAX_SLOPE else ""
 	for i in _items.size():
 		var item: Node3D = _items[i]
 		if not is_instance_valid(item):
@@ -393,9 +400,9 @@ func _move_problem() -> String:
 		else:
 			hit = builder.building_blocked(item, at, _skip)
 		if hit == _player:
-			return "You're standing in the way"
+			return "You're in the way"
 		if hit:
-			return "%s would bump into something" % plots.name_of(item)
+			return "Someone's in the way"
 	return ""
 
 

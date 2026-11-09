@@ -156,7 +156,7 @@ func nearest_fire(spot: Vector3) -> Node3D:
 func doors_near(spot: Vector3, reach: float) -> Array:
 	var found := []
 	for piece in plots.pieces.pieces_near(spot, reach):
-		if piece.is_door():
+		if piece.is_door() and not piece.is_ghost():
 			found.append(piece)
 	return found
 
@@ -246,11 +246,14 @@ func _morning_arrival() -> void:
 	arrived.emit(settler)
 
 
-## Brings a refugee at once, a few steps in front of the player (the debug key, F9)
-func spawn_debug(player: Node3D) -> Settler:
+## Brings a refugee at once, a few steps in front of the player (the console's spawn_settler, and
+## F9), `sideways` meters to the right of straight ahead
+func spawn_debug(player: Node3D, sideways := 0.0) -> Settler:
 	var ahead := -player.global_basis.z
 	ahead.y = 0.0
-	var spot := player.global_position + ahead.normalized() * 3.0
+	var right := player.global_basis.x
+	right.y = 0.0
+	var spot := player.global_position + ahead.normalized() * 3.0 + right.normalized() * sideways
 	spot.y = Plot.ground_at(player, spot.x, spot.z)
 	var homes := free_homes()
 	var settler := spawn(spot, homes[0] if not homes.is_empty() else null)

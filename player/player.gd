@@ -9,6 +9,9 @@ const SPRINT_FOV := 7.0
 const SPRINT_FOV_EASE := 8.0
 const SPRINT_HUNGER := 1.5
 const MOUSE_SENSITIVITY = 0.002
+## Flying with the fly cheat: how fast (m/s), and how much faster with Shift
+const FLY_SPEED := 10.0
+const FLY_FAST := 4.0
 
 ## Stamina (0 to 100): what sprinting costs per second, and what a jump and a tool swing (chopping,
 ## mining) cost each; how fast it comes back (per second) once you've spent none for REGEN_DELAY
@@ -173,6 +176,8 @@ var _open_chest: Node3D
 var _last_stations: PackedStringArray = []
 # Seconds left on the torch in your hand (0 = a fresh one is lit when you next hold one)
 var _torch_left := 0.0
+# The developer console (debug builds only; null otherwise)
+var _console: DevConsole
 # The settlers, and a settler's panel (E aimed at one)
 var _settlers: SettlerManager
 var _settler_panel: SettlerPanel
@@ -186,7 +191,10 @@ func _ready() -> void:
 	# Walking off a low ledge keeps you on the ground (no hop); a jump still lifts you off
 	floor_snap_length = STEP_HEIGHT
 	_camera_height = camera.position.y
-	_base_fov = camera.fov
+	# The player's settings (read in on the title screen; here too when the world is run directly)
+	GameSettings.ensure_loaded()
+	_base_fov = GameSettings.fov
+	camera.fov = _base_fov
 	_half_height = ($CollisionShape3D.shape as CylinderShape3D).height / 2.0
 	# Hide the mouse and lock it to the window so it can steer the camera
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -247,12 +255,13 @@ func _ready() -> void:
 		var plot_name: String = plot.plot_name
 		_placer.plots.remove_plot(plot)
 		flash("Removed %s. Its pieces stay standing" % plot_name))
+	_plot_panel.template_requested.connect(save_template)
 	$HUD.add_child(_fade)
 	_pause_menu = PAUSE_MENU_SCENE.instantiate()
 	$HUD.add_child(_pause_menu)
 	_placer = BuildPlacer.new()
 	add_child(_placer)
-	_placer.plots.became_working.connect(func(plot): flash("%s is now working" % plot.plot_name))
+	_placer.plots.became_working.connect(func(plot): _announce("%s is now working" % plot.plot_name))
 	_settlers = SettlerManager.new()
 	_settlers.world = get_parent()
 	_settlers.plots = _placer.plots
@@ -261,6 +270,8 @@ func _ready() -> void:
 	_settlers.notice.connect(_announce)
 	_plot_panel.settlers = _settlers
 	_plot_tracker.settlers = _settlers
+	_plot_tracker.plots = _placer.plots
+	_plot_tracker.carrying = func(): return inventory
 	# Above the HUD, under the black of sleep
 	_settler_panel = SettlerPanel.new()
 	_settler_panel.manager = _settlers
@@ -271,12 +282,22 @@ func _ready() -> void:
 		_dowsing = load("res://iron_tier/dowsing.gd").new()
 		add_child(_dowsing)
 	build_menu.chosen.connect(_on_buildable_chosen)
+	# A template deleted while placing it was put aside: closing the menu doesn't bring it back
+	build_menu.template_deleted.connect(func(template: BuildingTemplate):
+		if _build_resume is TemplateBuildable and (_build_resume as TemplateBuildable).template == template:
+			_build_resume = null)
 	action_bar.held_changed.connect(_on_held_changed)
 	action_bar.contents_changed.connect(_refresh_inventory_display)
 	inventory_screen.tool_returned.connect(action_bar.remove)
 	inventory_screen.item_moved.connect(_move_item)
 	inventory_screen.crafting.craft_requested.connect(craft)
 	_refresh_inventory_display()
+	# The developer console: debug builds only (never in a release build). Its cheats start off.
+	DevCheats.reset()
+	if OS.is_debug_build():
+		_console = DevConsole.new()
+		_console.player = self
+		$HUD.add_child(_console)
 	add_to_group("saveable")
 	SaveGame.world_ready()
 
@@ -412,6 +433,9 @@ func _process(delta: float) -> void:
 	# With the hammer out: while the middle button (see _unhandled_input) or X is held, the
 	# building piece that would come down glows red
 	_placer.update_demolish(delta, _can_demolish(), Input.is_key_pressed(KEY_X))
+	# With the hammer out and nothing being placed: the ghost under the crosshair lights up, and
+	# holding left-click keeps building ghosts
+	_placer.update_ghosts(delta, _can_demolish())
 	# Plot view, with the hammer out: P toggles it, and it's on anyway while the build menu's Plots
 	# tab is open and while a plot is being drawn, moved or resized
 	_placer.update_plot_view(_plot_view_on())
@@ -482,6 +506,23 @@ func open_plot_panel(plot: Plot) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
+## Saves everything a plot owns (ghosts included) as a template under a name, with a rendered
+## picture: into the project as a built-in one (debug builds only), or into your own templates.
+## The build menu's Buildings tab lists it straight away.
+func save_template(plot: Plot, template_name: String, built_in: bool) -> void:
+	var template := BuildingTemplate.from_plot(_placer.plots, plot, template_name)
+	if template == null:
+		flash("Nothing to save: build something in %s first" % plot.plot_name)
+		return
+	var picture: Image = await TemplateThumbnail.render(self, _placer.registry, template)
+	var saved := template.write(built_in and OS.is_debug_build(), picture)
+	if saved.is_empty():
+		flash("Couldn't save the template")
+		return
+	build_menu.reload_templates()
+	flash("Saved the template \"%s\" (%d pieces)%s" % [template_name, template.items.size(), ", built in" if template.built_in else ""], 4.0)
+
+
 ## Opens a settler's panel (E aimed at a settler calls this)
 func open_settler_panel(settler: Settler) -> void:
 	if inventory_screen.visible:
@@ -508,8 +549,8 @@ func read_note(title: String, text: String) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Asleep: nothing until you wake
-	if _sleeping:
+	# Asleep: nothing until you wake. Typing in the developer console: nothing else either.
+	if _sleeping or _console_open():
 		return
 
 	# The plot panel: E or Esc closes it (or cancels its question), unless you're typing its name
@@ -537,6 +578,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	# While the build menu is open, Q and E change tab, Tab or Esc closes it, and nothing else happens
 	if build_menu.visible:
+		# A template's Rename / Delete is showing: it has the keys (Esc steps back out of it)
+		if build_menu.template_actions_open():
+			return
 		var key: bool = event is InputEventKey and event.pressed and not event.echo
 		if key and event.keycode == KEY_Q:
 			build_menu.cycle_tab(-1)
@@ -555,12 +599,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			_placer.release_demolish(_can_demolish())
 		return
 
+	# Letting go of left-click stops building ghosts
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		_placer.release_ghost()
+
 	# While placing a building, clicks, R and Esc belong to that
-	# In plot view, left-click on a plot's edge or corner starts dragging it
+	# With the hammer out, nothing being placed: left-click on a ghost builds it (holding keeps
+	# building); in plot view, on a plot's edge or corner it starts dragging the edge
 	if held_item == "Hammer" and not _placer.is_placing() and event is InputEventMouseButton and event.pressed \
-			and event.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED \
-			and _plot_view_on() and _placer.try_grab_plot():
-		return
+			and event.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		if _placer.press_ghost():
+			return
+		if _plot_view_on() and _placer.try_grab_plot():
+			return
 
 	if _placer.is_placing() and _placer.handle_input(event):
 		return
@@ -575,9 +626,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 
 	# Moving the mouse turns your body left/right and tilts your head up/down
+	# (as fast as the Mouse sensitivity setting says, and the other way up with Invert Y)
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(-event.relative.x * MOUSE_SENSITIVITY)
-		camera.rotate_x(-event.relative.y * MOUSE_SENSITIVITY)
+		var turn := MOUSE_SENSITIVITY * GameSettings.mouse_sensitivity
+		rotate_y(-event.relative.x * turn)
+		camera.rotate_x(-event.relative.y * turn * (-1.0 if GameSettings.invert_y else 1.0))
 		camera.rotation.x = clamp(camera.rotation.x, deg_to_rad(-89), deg_to_rad(89))
 
 	# Esc closes the inventory if it's open, otherwise frees the mouse.
@@ -622,14 +675,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_F3:
 				_fps_label.visible = not _fps_label.visible
 			KEY_F9:
-				# Debug builds only: a refugee arrives at once, in front of you
-				if OS.is_debug_build():
-					_settlers.spawn_debug(self)
+				# Debug builds only: the console's spawn_settler (a refugee arrives in front of you)
+				if _console:
+					_console.run("spawn_settler")
 			KEY_F10:
-				# Debug builds only: skip to the next dawn (tonight's meal, then the day's output)
-				if OS.is_debug_build():
-					_settlers.skip_to_dawn()
-					flash("Skipped to dawn (debug)")
+				# Debug builds only: the console's day (skip to the next dawn)
+				if _console:
+					_console.run("day")
 			KEY_I:
 				_toggle_inventory()
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9:
@@ -637,18 +689,23 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# The fly cheat: free flying through everything
+	if DevCheats.fly:
+		_fly(delta)
+		return
+
 	# Gravity pulls you down when you're in the air
 	if not is_on_floor():
 		velocity += get_gravity() * delta
 
-	# Space to jump
-	if Input.is_action_just_pressed("ui_accept") and is_on_floor() and not _sleeping:
+	# Space to jump (not while typing in the developer console)
+	if Input.is_action_just_pressed("ui_accept") and is_on_floor() and not _sleeping and not _console_open():
 		velocity.y = JUMP_VELOCITY
 		_spend_stamina(JUMP_STAMINA)
 
-	# WASD to walk (but stand still while reading or asleep)
+	# WASD to walk (but stand still while reading, asleep, or typing in the developer console)
 	var input_dir := Vector2.ZERO
-	if not _note_panel.is_open() and not _plot_panel.is_open() and not _settler_panel.is_open() and not _sleeping:
+	if not _note_panel.is_open() and not _plot_panel.is_open() and not _settler_panel.is_open() and not _sleeping and not _console_open():
 		if Input.is_key_pressed(KEY_W): input_dir.y -= 1
 		if Input.is_key_pressed(KEY_S): input_dir.y += 1
 		if Input.is_key_pressed(KEY_A): input_dir.x -= 1
@@ -712,6 +769,29 @@ func _physics_process(delta: float) -> void:
 # Steps up onto a ledge ahead, if it's low enough (STEP_HEIGHT) to walk onto: there's room to
 # rise, nothing in the way once risen, and walkable ground on top. A wall too tall to step onto,
 # or ground too steep to stand on, stays a wall. True if it stepped.
+## Flying (the fly cheat): WASD along the way you look, Space up, Ctrl down, Shift faster, passing
+## straight through the ground and everything else
+func _fly(delta: float) -> void:
+	var move := Vector3.ZERO
+	if not _console_open() and not _sleeping:
+		var look := camera.global_basis
+		if Input.is_key_pressed(KEY_W): move -= look.z
+		if Input.is_key_pressed(KEY_S): move += look.z
+		if Input.is_key_pressed(KEY_A): move -= look.x
+		if Input.is_key_pressed(KEY_D): move += look.x
+		if Input.is_key_pressed(KEY_SPACE): move += Vector3.UP
+		if Input.is_key_pressed(KEY_CTRL): move += Vector3.DOWN
+	var speed := FLY_SPEED * (FLY_FAST if Input.is_key_pressed(KEY_SHIFT) else 1.0)
+	velocity = move.normalized() * speed if move != Vector3.ZERO else Vector3.ZERO
+	global_position += velocity * delta
+	_sprinting = false
+	_ease_sprint_fov(delta)
+
+
+func _console_open() -> bool:
+	return _console != null and _console.is_open()
+
+
 func _try_step_up(delta: float) -> bool:
 	var walking := Vector3(velocity.x, 0, velocity.z)
 	if walking.length() < 0.1:
@@ -770,6 +850,8 @@ func _step_down() -> void:
 
 # Widens the view a little while sprinting, easing in and out
 func _ease_sprint_fov(delta: float) -> void:
+	# The Field of view setting, wider while sprinting
+	_base_fov = GameSettings.fov
 	var target := _base_fov + (SPRINT_FOV if _sprinting else 0.0)
 	if not is_equal_approx(camera.fov, target):
 		camera.fov = lerpf(camera.fov, target, 1.0 - exp(-SPRINT_FOV_EASE * delta))
@@ -917,7 +999,8 @@ func sleep(where: Vector3) -> void:
 		if sun.time_of_day > 0.5:
 			sun.day += 1
 		sun.time_of_day = WAKE_TIME
-		hunger = maxf(hunger - SLEEP_HUNGER, 0.0)
+		if not DevCheats.god:
+			hunger = maxf(hunger - SLEEP_HUNGER, 0.0)
 		stamina = max_stamina()
 		_winded = false
 		if _warmth_on:
@@ -927,6 +1010,16 @@ func sleep(where: Vector3) -> void:
 	night.tween_callback(func():
 		_sleeping = false
 		SaveGame.autosave())
+
+
+## Pays a cost from your pockets (building, filling a ghost, crafting) and returns what was paid,
+## which is what comes back if it's taken down again: nothing at all with the freebuild cheat on
+func pay(cost: Dictionary) -> Dictionary:
+	if DevCheats.freebuild:
+		return {}
+	for item in cost:
+		remove_item(item, cost[item])
+	return cost
 
 
 ## Takes items out of your pockets. Returns false (and takes nothing) if you don't have enough.
@@ -968,11 +1061,11 @@ func _tracked_plot() -> Plot:
 
 
 ## True while plot view shows: the hammer is out, and P has switched it on, or the build menu's
-## Plots tab is open, or a plot is being drawn, moved or resized
+## Buildings tab is open, or a plot is being drawn, moved or resized
 func _plot_view_on() -> bool:
 	if held_item != "Hammer":
 		return false
-	return _plot_view or (build_menu.visible and build_menu.current_tab_name() == "Plots") or _placer.is_plot_mode()
+	return _plot_view or (build_menu.visible and build_menu.current_tab_name() == "Buildings") or _placer.is_plot_mode()
 
 
 # The plot whose ground the crosshair points at (within PLOT_REACH): of overlapping plots, the one
@@ -1014,7 +1107,9 @@ func _update_survival(delta: float) -> void:
 
 	# Sprinting works up an appetite
 	var appetite := SPRINT_HUNGER if _sprinting and velocity.length() > 0.1 else 1.0
-	hunger = maxf(hunger - 100.0 / (FULL_BELLY_DAYS * (day_seconds + night_seconds)) * appetite * delta, 0.0)
+	# The god cheat: hunger never drops
+	if not DevCheats.god:
+		hunger = maxf(hunger - 100.0 / (FULL_BELLY_DAYS * (day_seconds + night_seconds)) * appetite * delta, 0.0)
 
 	_update_stamina(delta)
 
@@ -1036,6 +1131,8 @@ func _update_survival(delta: float) -> void:
 			warmth_change *= TORCH_CHILL
 		if _near_lit_fire():
 			warmth_change = FIRE_WARMTH
+		if DevCheats.god:
+			warmth_change = maxf(warmth_change, 0.0)
 		warmth = clampf(warmth + warmth_change * delta, 0.0, 100.0)
 
 	_vitals.set_values(hunger, stamina)
@@ -1074,8 +1171,11 @@ func swing_tool() -> bool:
 	return true
 
 
-# Takes stamina away (never below 0) and holds off its coming back; at 0 you're winded
+# Takes stamina away (never below 0) and holds off its coming back; at 0 you're winded. Not with
+# the god cheat on.
 func _spend_stamina(amount: float) -> void:
+	if DevCheats.god:
+		return
 	stamina = maxf(stamina - amount, 0.0)
 	_since_spent = 0.0
 	if stamina <= 0.0:
@@ -1298,8 +1398,7 @@ func craft(recipe: Recipe) -> void:
 	if _backpack_contents().size() >= inventory_screen.slot_count and not inventory.has(recipe.result):
 		crafting.show_status("Inventory full", true)
 		return
-	for item in recipe.costs:
-		remove_item(item, recipe.costs[item])
+	pay(recipe.costs)
 	add_item(recipe.result, recipe.result_amount)
 	crafting.show_status("%s added to your inventory" % recipe.display_name, false)
 	report_progress("Craft", recipe.result)

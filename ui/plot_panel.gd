@@ -10,6 +10,9 @@ extends Control
 signal move_requested(plot: Plot)
 ## Remove plot was pressed and confirmed
 signal remove_confirmed(plot: Plot)
+## Save as template: everything the plot owns, under this name (built-in: into the project, in
+## debug builds only)
+signal template_requested(plot: Plot, template_name: String, built_in: bool)
 ## It closed (the mouse goes back to looking around)
 signal closed
 
@@ -42,6 +45,12 @@ var _move: Button
 var _hint: Label
 var _main: Control
 var _confirm: Control
+# Saving as a template: its name, whether it's built in (debug builds only), what's in it
+var _template_part: Control
+var _template_name: LineEdit
+var _template_built_in: CheckBox
+var _template_info: Label
+var _template_plot: Plot
 var _question: Label
 var _on_yes: Callable
 var _on_no: Callable
@@ -60,6 +69,7 @@ func _ready() -> void:
 	add_child(center)
 	_main = _build_main(center)
 	_confirm = _build_confirm(center)
+	_template_part = _build_template_part(center)
 
 
 ## Opens the panel on a plot. Moving and resizing need the hammer in your hand.
@@ -87,15 +97,18 @@ func is_open() -> bool:
 	return visible
 
 
-## True while typing the plot's name (so E and Esc are letters and cancelling, not closing)
+## True while typing the plot's name or a template's (so E and Esc are letters and cancelling,
+## not closing)
 func is_typing() -> bool:
-	return _name_edit.has_focus()
+	return _name_edit.has_focus() or _template_name.has_focus()
 
 
-## Esc or E: cancels a question, or closes the panel
+## Esc or E: cancels a question or the template dialog, or closes the panel
 func dismiss() -> void:
 	if _confirm.get_parent().visible:
 		_answer(false)
+	elif _template_part.get_parent().visible:
+		_back_from_template()
 	else:
 		close()
 
@@ -311,6 +324,7 @@ func _apply_name() -> void:
 func _show_part(part: Control) -> void:
 	_main.get_parent().visible = part == _main
 	_confirm.get_parent().visible = part == _confirm
+	_template_part.get_parent().visible = part == _template_part
 
 
 # ---- Building it ----
@@ -366,6 +380,10 @@ func _build_main(center: CenterContainer) -> Control:
 	var remove := _button("Remove plot")
 	remove.pressed.connect(_ask_remove)
 	buttons.add_child(remove)
+	var save_template := _button("Save as template")
+	save_template.custom_minimum_size.x = 170
+	save_template.pressed.connect(_open_template)
+	buttons.add_child(save_template)
 	_hint = MenuStyle.note("")
 	column.add_child(_hint)
 	MenuStyle.enlarge(box)
@@ -395,6 +413,95 @@ func _build_confirm(center: CenterContainer) -> Control:
 	buttons.add_child(no)
 	MenuStyle.enlarge(box)
 	return box
+
+
+# Save as template: its name (the plot's to start with), "Save as built-in" in debug builds, Save
+# and Back
+func _build_template_part(center: CenterContainer) -> Control:
+	var box := MenuStyle.panel()
+	center.add_child(box)
+	var column := VBoxContainer.new()
+	column.custom_minimum_size.x = WIDTH
+	column.add_theme_constant_override("separation", 10)
+	box.add_child(column)
+	column.add_child(MenuStyle.title("Save as template", 24))
+	_template_info = _label("", 15, BrassStyle.TEXT_DIM)
+	_template_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(_template_info)
+	var name_row := HBoxContainer.new()
+	name_row.add_theme_constant_override("separation", 8)
+	column.add_child(name_row)
+	name_row.add_child(_label("Name", 16, BrassStyle.TEXT_DIM))
+	_template_name = LineEdit.new()
+	_template_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_template_name.max_length = 40
+	_template_name.add_theme_font_size_override("font_size", 17)
+	_template_name.add_theme_color_override("font_color", BrassStyle.TEXT)
+	_template_name.add_theme_color_override("caret_color", BrassStyle.TEXT)
+	_template_name.add_theme_stylebox_override("normal", BrassStyle.frame("slot"))
+	_template_name.add_theme_stylebox_override("focus", BrassStyle.frame("slot_hover"))
+	_template_name.text_submitted.connect(func(_t): _save_template())
+	name_row.add_child(_template_name)
+	# A developer option: writes it into the project as a built-in template
+	_template_built_in = CheckBox.new()
+	_template_built_in.text = "Save as built-in (into the project)"
+	_template_built_in.focus_mode = Control.FOCUS_NONE
+	_template_built_in.add_theme_font_size_override("font_size", 15)
+	_template_built_in.add_theme_color_override("font_color", BrassStyle.TEXT)
+	_template_built_in.visible = OS.is_debug_build()
+	column.add_child(_template_built_in)
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 12)
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.add_child(buttons)
+	var save := _button("Save")
+	save.pressed.connect(_save_template)
+	buttons.add_child(save)
+	var back := _button("Back")
+	back.pressed.connect(_back_from_template)
+	buttons.add_child(back)
+	column.add_child(MenuStyle.note("[Esc] Back"))
+	MenuStyle.enlarge(box)
+	return box
+
+
+func _open_template() -> void:
+	if _plot == null:
+		return
+	_apply_name()
+	_template_plot = _plot
+	var count := 0
+	if settlers:
+		count = settlers.plots.owned_items(_plot, true).size()
+	_template_info.text = "Saves every piece, furniture item and building in %s (%d in all), where each sits, and the plot's type and size (%s, %d × %d m). Placing it later lays it all out as ghosts to build." % [_plot.plot_name, count, _plot.plot_type.display_name, roundi(_plot.size.x), roundi(_plot.size.y)]
+	_template_name.text = _plot.plot_name
+	_template_built_in.button_pressed = false
+	_show_part(_template_part)
+	_template_name.grab_focus()
+	_template_name.select_all()
+
+
+func _save_template() -> void:
+	var wanted := _template_name.text.strip_edges()
+	if wanted.is_empty() or _template_plot == null or not is_instance_valid(_template_plot):
+		return
+	var plot := _template_plot
+	_template_name.release_focus()
+	_template_plot = null
+	close()
+	template_requested.emit(plot, wanted, _template_built_in.button_pressed and OS.is_debug_build())
+
+
+func _back_from_template() -> void:
+	_template_name.release_focus()
+	var plot := _template_plot
+	_template_plot = null
+	if plot and is_instance_valid(plot):
+		_plot = plot
+		_show_part(_main)
+		_refresh()
+	else:
+		close()
 
 
 func _ask_remove() -> void:

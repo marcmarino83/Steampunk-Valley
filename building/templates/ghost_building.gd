@@ -32,7 +32,7 @@ static func create(of: Buildable) -> GhostBuilding:
 		var copy := MeshInstance3D.new()
 		copy.mesh = look.mesh
 		copy.transform = xform
-		copy.material_override = BuildPiece.ghost_material(false, true)
+		copy.material_override = BuildPiece.ghost_material()
 		copy.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		ghost.add_child(copy)
 		var part: AABB = xform * look.mesh.get_aabb()
@@ -54,4 +54,4 @@ func display_name() -> String:
 func set_ghost_targeted(targeted: bool) -> void:
 	for look in get_children():
 		if look is MeshInstance3D:
-			(look as MeshInstance3D).material_override = BuildPiece.ghost_material(targeted, true)
+			(look as MeshInstance3D).material_override = BuildPiece.ghost_material(targeted)

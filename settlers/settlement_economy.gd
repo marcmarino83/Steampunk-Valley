@@ -3,12 +3,14 @@ extends Node
 ## The settlement's daily round of work and food (run by the SettlerManager on the sun's clock).
 ##
 ## At dawn every working workplace with a worker makes its day's output (PlotType.daily_output
-## and its slider-shared output, see Plot.daily_output) into its own storage chest; a hungry worker
-## makes half. What won't fit (no free slot for a new kind of item) is lost: "Forager's Hut: chest
-## full (4 herbs lost)". A workplace without a storage chest loses the whole day's output.
+## and its slider-shared output, see Plot.daily_output) into town storage (see TownStorage) while
+## it has room, otherwise into the workplace's own storage chest; a hungry worker makes half. What
+## fits in neither is lost: "Forager's Hut: Town storage full (4 herbs lost)" (or "chest full" with
+## no working Storehouse). With neither a chest nor town storage, the whole day's output is lost.
 ##
-## At dusk every settler eats MEAL food (berries first, then mushrooms), from the nearest storage
-## chest belonging to a working plot that has any, then from any other chest belonging to a plot.
+## At dusk every settler eats MEAL food (berries first, then mushrooms), from town storage first,
+## then from the nearest storage chest belonging to a working plot that has any, then from any
+## other chest belonging to a plot.
 ## Chests outside every plot are the player's own: settlers never eat from them. One who
 ## can't eat their fill is hungry for the day; HUNGRY_DAYS_TO_LEAVE hungry days in a row and they
 ## leave the settlement.
@@ -37,19 +39,26 @@ func dawn() -> void:
 		var made := output_today(plot, crew)
 		if made.is_empty():
 			continue
+		var town := manager.plots.town
 		var chest := chest_of(plot)
-		if chest == null:
+		if chest == null and not town.is_open():
 			notes.append("%s: no storage chest, today's output was lost" % plot.plot_name)
 			continue
+		# Into town storage while it has room, then the hut's own chest
 		var lost: PackedStringArray = []
 		for item in made:
-			if chest.can_take(item):
+			if town.can_take(item):
+				town.put(item, made[item])
+			elif chest and chest.can_take(item):
 				chest.put(item, made[item])
 			else:
 				lost.append("%d %s" % [made[item], item.to_lower()])
-		chest.changed.emit()
+		town.changed.emit()
+		if chest:
+			chest.changed.emit()
 		if not lost.is_empty():
-			notes.append("%s: chest full (%s lost)" % [plot.plot_name, ", ".join(lost)])
+			var full := "Town storage full" if town.is_open() else "chest full"
+			notes.append("%s: %s (%s lost)" % [plot.plot_name, full, ", ".join(lost)])
 	for note in notes:
 		notice.emit(note)
 
@@ -99,9 +108,16 @@ func dusk() -> void:
 		notice.emit("No food for %s tonight: they're hungry and will work at half pace." % ", ".join(hungry))
 
 
-# Eats up to a meal from the chests, nearest working plot's first; returns how much was eaten
+# Eats up to a meal from town storage first, then the chests, nearest working plot's first;
+# returns how much was eaten
 func _feed(spot: Vector3) -> int:
 	var eaten := 0
+	var town := manager.plots.town
+	for food in FOODS:
+		if eaten < MEAL:
+			eaten += town.take(food, MEAL - eaten)
+	if eaten > 0:
+		town.changed.emit()
 	for i in 8:
 		if eaten >= MEAL:
 			break
@@ -166,9 +182,11 @@ func _food_in(chest: Node) -> int:
 	return total
 
 
-## All the food settlers can eat: in every storage chest belonging to a plot
+## All the food settlers can eat: in town storage and every storage chest belonging to a plot
 func food_stored() -> int:
 	var total := 0
+	for food in FOODS:
+		total += int(manager.plots.town.contents.get(food, 0))
 	for chest in settlement_chests():
 		total += _food_in(chest)
 	return total

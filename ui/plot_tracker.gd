@@ -174,8 +174,9 @@ func _show_building(build: Dictionary) -> void:
 		label.add_theme_color_override("font_color", MISSING if missing > 0 else WORKING)
 
 
-# "Residents 1/2: Ada Cobb" and "Food stored: 6 days" (for everyone in the settlement) for a House,
-# "Worker: Ada Cobb" (or "none") for a workplace, else empty; the hungry are marked "(hungry)"
+# "Residents 1/2: Ada Cobb" and "Food stored: 6 days" (for everyone in the settlement, town storage
+# included) for a House, "Worker: Ada Cobb" (or "none") for a workplace, "Town storage: 14/24
+# slots" for a Storehouse, else empty; the hungry are marked "(hungry)"
 func _people_text() -> String:
 	if settlers == null:
 		return ""
@@ -192,6 +193,11 @@ func _people_text() -> String:
 		var working: Array = settlers.workers(_plot)
 		var names := ", ".join(working.map(named))
 		return "%s: %s" % ["Worker" if _plot.plot_type.workers == 1 else "Workers", names if not names.is_empty() else "none"]
+	# A Storehouse: the whole town storage (every working Storehouse together)
+	if _plot.plot_type.town_storage_slots > 0 and plots:
+		if not _plot.working:
+			return "Town storage: closed until it's working"
+		return "Town storage: %d/%d slots" % [plots.town.used(), plots.town.capacity()]
 	return ""
 
 

@@ -13,7 +13,8 @@ extends Node
 ##   - Resizing, in plot view: aim at an edge or corner (it lights up), hold left-click and drag.
 ##     The outline follows in 1 m steps, never below the type's smallest size. Things the plot owns
 ##     that would end up outside glow red; letting go asks first, then takes them down and refunds
-##     them.
+##     them: into town storage first (see TownStorage), then your inventory, then a bundle at your
+##     feet.
 ##
 ## Right-click or Esc cancels any of them.
 
@@ -570,11 +571,25 @@ func _apply_resize() -> void:
 	plots.mark_dirty()
 	var message := "%s is now %s m" % [plot.plot_name, _size_text(plot.size)]
 	if not refund.is_empty():
-		var left: Dictionary = _player.give_or_drop(refund, _player.global_position)
-		message += " (refunded %s" % _items_text(refund)
+		# Into town storage first, then your inventory, then a bundle at your feet
+		var rest: Dictionary = plots.town.store(refund)
+		var stored := {}
+		for item in refund:
+			if not rest.has(item):
+				stored[item] = refund[item]
+		var left: Dictionary = _player.give_or_drop(rest, _player.global_position) if not rest.is_empty() else {}
+		var parts: PackedStringArray = []
+		if not stored.is_empty():
+			parts.append("%s to town storage" % _items_text(stored))
+		var carried := {}
+		for item in rest:
+			if not left.has(item):
+				carried[item] = rest[item]
+		if not carried.is_empty():
+			parts.append("%s to you" % _items_text(carried))
 		if not left.is_empty():
-			message += "; backpack full: %s left at your feet" % _items_text(left)
-		message += ")"
+			parts.append("backpack full: %s left at your feet" % _items_text(left))
+		message += " (refunded %s)" % "; ".join(parts)
 	_player.flash(message)
 
 

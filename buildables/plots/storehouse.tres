@@ -14,6 +14,8 @@ furniture = Array[Dictionary]([{
 "summary": "2+ storage shelves"
 }])
 houses_per = ""
+town_storage_item = "Storage Shelf"
+town_storage_slots = 8
 display_name = "Storehouse"
 starts_locked = true
 unlocked_by = "Craft"

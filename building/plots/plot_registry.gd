@@ -27,6 +27,8 @@ const ROOF_REACH := 14.0
 ## Where plots are added (the world), and the pieces they own
 var world: Node
 var pieces: PieceRegistry
+## The settlement's shared town storage, held by the working Storehouses (see TownStorage)
+var town: TownStorage
 
 # id -> Plot
 var _plots := {}
@@ -41,6 +43,10 @@ var _names := {}
 func _ready() -> void:
 	add_to_group("saveable")
 	add_to_group("plot_registry")
+	town = TownStorage.new()
+	town.name = "TownStorage"
+	town.plots = self
+	add_child(town)
 
 
 ## A new plot. A loaded one keeps its id and name; a new one gets the next id and a name of its own.
@@ -72,6 +78,9 @@ func remove_plot(plot: Plot) -> void:
 	_plots.erase(plot.plot_id)
 	plot.queue_free()
 	mark_dirty()
+	# A removed Storehouse's share moves to the rest of town storage, or drops by where it stood
+	if plot.plot_type.town_storage_slots > 0:
+		town.reconcile(plot.global_position)
 
 
 func find(id: String) -> Plot:
@@ -236,6 +245,8 @@ func _check_all() -> void:
 	_recheck_in = RECHECK_SECONDS
 	for plot in all_plots():
 		check(plot)
+	# A Storehouse that stopped working or lost a shelf: what no longer fits drops by it
+	town.reconcile()
 
 
 ## Works out the plot's checklist, whether it's working, and how many settlers it holds
@@ -333,7 +344,19 @@ func save_priority() -> int:
 
 
 func save_data() -> Dictionary:
-	return {"next_id": _next_id, "list": all_plots().map(func(p): return p.save_data())}
+	# Town storage saves with the Storehouse plots, each with its share of the pool
+	var shares := town.shares()
+	var list := []
+	for plot in all_plots():
+		var entry: Dictionary = plot.save_data()
+		if shares.has(plot.plot_id) and not (shares[plot.plot_id] as Dictionary).is_empty():
+			entry["town_storage"] = shares[plot.plot_id]
+		list.append(entry)
+	var data := {"next_id": _next_id, "list": list}
+	# Should there be stock but no Storehouse at all (it can't normally happen), it's kept here
+	if shares.is_empty() and not town.contents.is_empty():
+		data["town_storage"] = town.contents.duplicate()
+	return data
 
 
 func load_data(data: Dictionary) -> void:
@@ -341,7 +364,10 @@ func load_data(data: Dictionary) -> void:
 		plot.queue_free()
 	_plots.clear()
 	_next_id = int(data.get("next_id", 1))
+	town.clear()
+	town.load_share(data.get("town_storage", {}))
 	for entry in data.get("list", []):
+		town.load_share(entry.get("town_storage", {}))
 		var type := load(str(entry.get("type", ""))) as PlotType
 		if type == null:
 			continue

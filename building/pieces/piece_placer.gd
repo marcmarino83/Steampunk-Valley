@@ -84,7 +84,7 @@ var _test_part_cache := {}
 var _bounds := AABB()
 var _free_turn := 0.0
 # How far a freely placed piece is raised (or lowered) from where the crosshair is, and how far
-# it's turned about its snap point when snapped, and which piece those are for: they're kept from
+# it's turned when snapped (see _placements), and which piece those are for: they're kept from
 # one placement to the next of the same piece
 var _height := 0.0
 var _snap_turn := 0.0
@@ -93,6 +93,8 @@ var _where := Transform3D.IDENTITY
 # The piece it's snapped to (null when placed freely), and which of its snap points
 var _target: BuildPiece
 var _snap_key := ""
+# The turns R steps through on the current snap point (see _placements), counted from its first way
+var _turn_choices: Array = []
 var _problem := ""
 # How furniture snapped this frame: "On grid", "Against wall", or "" (free, or not furniture)
 var _furniture_snap := ""
@@ -200,7 +202,7 @@ func handle_input(event: InputEvent) -> bool:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_R:
 			if _target or (is_furniture() and snapping_now()):
-				_snap_turn = wrapf(_snap_turn + _shape.get("turn_step", PI / 2.0), 0.0, TAU)
+				_next_turn()
 			else:
 				_free_turn = wrapf(_free_turn + FREE_STEP, 0.0, TAU)
 			return true
@@ -316,8 +318,8 @@ func _physics_process(_delta: float) -> void:
 
 
 # Looks for a snap point near the line from the camera to the crosshair's spot that this piece
-# fits, and if there is one, sets where the piece goes: fitted there, then turned about the snap
-# point by the player's turn. Nearest first; a snap point the piece fits without bumping into
+# fits, and if there is one, sets where the piece goes: fitted there and turned as the player
+# asked (see _placements). Nearest first; a snap point the piece fits without bumping into
 # anything wins over a nearer one where it would.
 func _snap(from: Vector3, end: Vector3) -> bool:
 	var wanted := PieceShapes.targets_for(_shape["sockets"])
@@ -336,8 +338,7 @@ func _snap(from: Vector3, end: Vector3) -> bool:
 	options.sort_custom(func(a, b): return a["gap"] < b["gap"])
 	var fallback := {}
 	for option in options.slice(0, SNAP_TRIES):
-		var pivot: Vector3 = option["socket"]["position"]
-		var fits := _fits(option["socket"]).map(func(where): return _turned(where, pivot))
+		var fits := _placements(option)
 		var good := fits.filter(func(where): return _check(where, option["piece"]).is_empty())
 		if not good.is_empty():
 			_use_snap(option, good[0])
@@ -357,16 +358,107 @@ func _use_snap(option: Dictionary, where: Transform3D) -> void:
 	_snap_key = option["key"]
 	_target = option["piece"]
 	_where = where
+	_turn_choices = option.get("choices", [])
 
 
-# A snapped placement turned about its snap point by the player's turn, and raised or lowered by
-# the height offset (Page Up / Page Down)
-func _turned(where: Transform3D, pivot: Vector3) -> Transform3D:
+# Every way the piece goes on a snap point, turned as the player asked and raised or lowered by the
+# height offset (Page Up / Page Down), the one to show first. The turn (R, Alt + wheel) works like
+# this:
+#   - A square piece (floors, 1×1 floors, foundations: anything that looks the same turned 90°)
+#     turns about its own middle, so it stays exactly where it snapped and only its planks change
+#     direction. Snapped beside another square floor or foundation, it starts with that one's plank
+#     direction (the turn then counts from there).
+#   - Any other piece keeps the same snap point attached and stays on the same side of it: of the
+#     ways it really fits there (see PieceShapes.fits), the one turned nearest to what was asked,
+#     on the side the first way puts it, nearest that. R steps through those ways (see
+#     _next_turn); a finer turn left over (Alt + wheel's 15° steps) turns it about the snap point.
+func _placements(option: Dictionary) -> Array:
+	var socket: Dictionary = option["socket"]
+	var pivot: Vector3 = socket["position"]
+	var fits := _fits(socket)
+	if fits.is_empty():
+		return []
 	var shift := Transform3D(Basis.IDENTITY, Vector3.UP * _height)
-	if is_zero_approx(_snap_turn):
-		return shift * where
-	var turn := Transform3D(Basis(Vector3.UP, _snap_turn), Vector3.ZERO)
-	return shift * Transform3D(Basis.IDENTITY, pivot) * turn * Transform3D(Basis.IDENTITY, -pivot) * where
+	var centre := _bounds.get_center()
+	if _is_square(_shape):
+		var turn := _snap_turn
+		var neighbour: BuildPiece = option["piece"]
+		if _is_square(neighbour.shape_def()) and not neighbour.shape_def().get("slender", false) and not _shape.get("slender", false):
+			# Start with the neighbour's plank direction
+			var offset := wrapf(_yaw(neighbour.global_basis) - _yaw((fits[0] as Transform3D).basis), -PI, PI)
+			turn += roundf(offset / (PI / 2.0)) * (PI / 2.0)
+		return fits.map(func(where: Transform3D): return shift * _turned_about(where, where * centre, turn))
+	var base: Transform3D = fits[0]
+	var base_centre: Vector3 = base * centre
+	var ref := Vector2(base_centre.x - pivot.x, base_centre.z - pivot.z)
+	var period: float = _shape["symmetry"] if _shape["symmetry"] > 0.0 else TAU
+	var wanted := _yaw(base.basis) + _snap_turn
+	var scored := []
+	for where in fits:
+		var middle: Vector3 = where * centre
+		var away := Vector2(middle.x - pivot.x, middle.z - pivot.z)
+		scored.append({
+			"where": where,
+			"side": 1 if away.dot(ref) < -0.01 else 0,
+			"miss": absf(wrapf(_yaw(where.basis) - wanted, -period / 2.0, period / 2.0)),
+			"distance": middle.distance_to(base_centre),
+		})
+	scored.sort_custom(func(a, b):
+		if a["side"] != b["side"]:
+			return a["side"] < b["side"]
+		if absf(a["miss"] - b["miss"]) > 0.01:
+			return a["miss"] < b["miss"]
+		return a["distance"] < b["distance"])
+	# The turns R steps through here: each way on this side, counted from the first way
+	var choices: Array[float] = []
+	for entry in scored:
+		if entry["side"] == 0:
+			var turn := fposmod(_yaw((entry["where"] as Transform3D).basis) - _yaw(base.basis), period)
+			if choices.all(func(c): return absf(c - turn) > 0.01 and absf(c - turn) < period - 0.01):
+				choices.append(turn)
+	choices.sort()
+	option["choices"] = choices
+	var placements := scored.map(func(entry): return entry["where"])
+	# A finer turn left over (Alt + wheel) turns it about the snap point
+	var chosen: Transform3D = placements[0]
+	var rest := wrapf(wanted - _yaw(chosen.basis), -period / 2.0, period / 2.0)
+	if absf(rest) > 0.001 and absf(rest) < _shape.get("turn_step", PI / 2.0) / 2.0 - 0.001:
+		placements[0] = _turned_about(chosen, pivot, rest)
+	return placements.map(func(where: Transform3D): return shift * where)
+
+
+# A placement turned about an upright line through `pivot`
+static func _turned_about(where: Transform3D, pivot: Vector3, turn: float) -> Transform3D:
+	if is_zero_approx(turn):
+		return where
+	var spin := Transform3D(Basis(Vector3.UP, turn), Vector3.ZERO)
+	return Transform3D(Basis.IDENTITY, pivot) * spin * Transform3D(Basis.IDENTITY, -pivot) * where
+
+
+# True for a piece that looks the same turned 90° (square floors and foundations, pillars, poles)
+static func _is_square(def: Dictionary) -> bool:
+	var symmetry: float = def.get("symmetry", 0.0)
+	return symmetry > 0.0 and absf(symmetry - PI / 2.0) < 0.001
+
+
+static func _yaw(basis: Basis) -> float:
+	return atan2(basis.z.x, basis.z.z)
+
+
+# R while snapped: a square piece turns 90° in place; any other piece steps to its next way of
+# fitting this snap point on the same side (nothing happens if there's only one)
+func _next_turn() -> void:
+	var step: float = _shape.get("turn_step", PI / 2.0)
+	if _is_square(_shape) or is_furniture() or _turn_choices.size() < 2:
+		_snap_turn = wrapf(_snap_turn + step, 0.0, TAU)
+		return
+	var period: float = _shape["symmetry"] if _shape["symmetry"] > 0.0 else TAU
+	var now := fposmod(_snap_turn, period)
+	for choice in _turn_choices:
+		if choice > now + 0.01:
+			_snap_turn = choice
+			return
+	_snap_turn = _turn_choices[0]
 
 
 ## Snapping as it is right now: on or off (Z)

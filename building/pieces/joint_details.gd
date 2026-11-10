@@ -26,6 +26,38 @@ var _dirty := false
 # key -> MeshInstance3D, and what each was made for (so unchanged ones stay)
 var _shown := {}
 var _made_for := {}
+## Meshes made once and shared: kind, size and one of MESH_VARIANTS -> ArrayMesh. Posts, logs and
+## lips of the same size share a few versions, so Godot draws them together.
+const MESH_VARIANTS := 4
+var _meshes := {}
+
+
+# The shared mesh for a detail (see _meshes), made the first time it's wanted
+func _mesh_for(spec: Dictionary) -> ArrayMesh:
+	var variant := posmod(int(spec["seed"]), MESH_VARIANTS)
+	var kind: String = spec["kind"]
+	var key := ""
+	match kind:
+		"post":
+			key = "post:%.3f:%d" % [spec["height"], variant]
+		"lip":
+			key = "lip:%.3f:%s:%d" % [spec["length"], spec["stone"], variant]
+		"arc":
+			key = "arc:%.3f:%s:%d" % [spec["half"], spec["stone"], variant]
+		_:
+			key = "ridge:%.3f:%d" % [spec["length"], variant]
+	if not _meshes.has(key):
+		var seed_value := variant * 7919 + 13
+		match kind:
+			"post":
+				_meshes[key] = PieceDetail.post_mesh(spec["height"], seed_value)
+			"lip":
+				_meshes[key] = PieceDetail.lip_mesh(spec["length"], spec["stone"], seed_value)
+			"arc":
+				_meshes[key] = PieceDetail.lip_arc_mesh(spec["half"], spec["stone"], seed_value)
+			_:
+				_meshes[key] = PieceDetail.ridge_mesh(spec["length"], seed_value)
+	return _meshes[key]
 
 
 ## Pieces were added or taken away: work it all out again, once, at the end of this frame
@@ -137,20 +169,16 @@ func _rebuild() -> void:
 		var look := MeshInstance3D.new()
 		look.material_override = registry.detail_material()
 		look.visibility_range_end = RANGE
+		look.mesh = _mesh_for(spec)
 		if spec["kind"] == "post":
-			look.mesh = PieceDetail.post_mesh(spec["height"], spec["seed"])
 			registry.world.add_child(look)
 			look.global_position = spec["at"]
-		elif spec["kind"] == "lip":
-			look.mesh = PieceDetail.lip_mesh(spec["length"], spec["stone"], spec["seed"])
-			registry.world.add_child(look)
-			look.global_transform = spec["xform"]
-		elif spec["kind"] == "arc":
-			look.mesh = PieceDetail.lip_arc_mesh(spec["half"], spec["stone"], spec["seed"])
+		elif spec["kind"] == "lip" or spec["kind"] == "arc":
+			# Low along the ground, under the walls: its shadow would never show
+			look.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			registry.world.add_child(look)
 			look.global_transform = spec["xform"]
 		else:
-			look.mesh = PieceDetail.ridge_mesh(spec["length"], spec["seed"])
 			registry.world.add_child(look)
 			var dir: Vector3 = spec["dir"]
 			look.global_transform = Transform3D(Basis(dir, Vector3.UP, dir.cross(Vector3.UP)).orthonormalized(), spec["at"])
@@ -164,6 +192,7 @@ func _exit_tree() -> void:
 			(_shown[key] as Node).queue_free()
 	_shown.clear()
 	_made_for.clear()
+	_meshes.clear()
 
 
 # Do any two of these meet at an angle (not carrying straight on)?

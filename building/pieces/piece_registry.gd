@@ -16,7 +16,7 @@ const WOOD_FOLDER := "res://assets/textures/wood_planks_dirt/wood_planks_dirt"
 const STONE_FOLDER := "res://assets/textures/rock_wall_13/rock_wall_13"
 ## The close-up look (see PieceDetail) and how many versions of it each shape has
 const DETAIL_SHADER := preload("res://building/pieces/piece_detail.gdshader")
-const DETAIL_VARIANTS := 8
+const DETAIL_VARIANTS := 4
 
 ## Where pieces are added (the world). Set by the build placer.
 var world: Node
@@ -104,13 +104,41 @@ func _make_surface(kind: String) -> ShaderMaterial:
 
 
 ## A piece's close-up look (see PieceDetail): one of DETAIL_VARIANTS made once per shape, picked
-## by the piece's id, so neighbours differ and a piece always looks the same
+## by the piece's id, so neighbours differ and a piece always looks the same. Pieces with the same
+## variant share its mesh, so Godot draws them together; each piece's own slight colour comes
+## from the shader (see BuildPiece.weather).
 func detail_mesh(shape: String, piece_id: int) -> Dictionary:
 	var variant := posmod(piece_id, DETAIL_VARIANTS)
 	var key := "%s#%d" % [shape, variant]
 	if not _details.has(key):
 		_details[key] = PieceDetail.build(shape, hash(shape) + variant * 7919)
 	return _details[key]
+
+
+## The same variant's simplified look, for the middle distance (see PieceDetail.build: simple).
+## "shadow_from_mid" is set when it has fewer triangles than the shape's plain box (a foundation's
+## box reaches far underground), so its shadow is cast with it instead (see BuildPiece.dress).
+func mid_mesh(shape: String, piece_id: int) -> Dictionary:
+	var variant := posmod(piece_id, DETAIL_VARIANTS)
+	var key := "%s#%d#mid" % [shape, variant]
+	if not _details.has(key):
+		var mid := PieceDetail.build(shape, hash(shape) + variant * 7919, true)
+		if mid.get("mesh") != null:
+			mid["shadow_from_mid"] = _triangles(mid["mesh"]) < _triangles(shape_of(shape)["mesh"])
+		_details[key] = mid
+	return _details[key]
+
+
+# How many triangles a mesh has
+static func _triangles(mesh: Mesh) -> int:
+	var array_mesh := mesh as ArrayMesh
+	if array_mesh == null:
+		return 0
+	var count := 0
+	for s in array_mesh.get_surface_count():
+		var indices := array_mesh.surface_get_array_index_len(s)
+		count += (indices if indices > 0 else array_mesh.surface_get_array_len(s)) / 3
+	return count
 
 
 ## The material the close-up looks (and corner posts and ridge logs) are drawn with
@@ -150,7 +178,7 @@ func spawn(piece: PieceBuildable, where: Transform3D, paid: Dictionary, id := 0,
 		id = _next_id
 	_next_id = maxi(_next_id, id + 1)
 	built.piece_id = id
-	built.dress(detail_mesh(piece.shape, id), detail_material())
+	built.dress(detail_mesh(piece.shape, id), detail_material(), mid_mesh(piece.shape, id))
 	built.weather()
 	built.owner_plot = owner_plot
 	built.paid = paid.duplicate()

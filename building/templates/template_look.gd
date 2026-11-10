@@ -19,7 +19,7 @@ static func build(registry: PieceRegistry, template: BuildingTemplate) -> Node3D
 			var bp: BuildPiece = piece.scene.instantiate()
 			bp.setup(piece, registry.shape_of(piece.shape), registry.material_for(piece.shape))
 			bp.piece_id = id
-			bp.dress(registry.detail_mesh(piece.shape, id), registry.detail_material())
+			bp.dress(registry.detail_mesh(piece.shape, id), registry.detail_material(), registry.mid_mesh(piece.shape, id))
 			bp.weather()
 			bp.make_preview_only()
 			part = bp

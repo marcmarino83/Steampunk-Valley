@@ -1,6 +1,6 @@
 class_name GameSettings
 extends RefCounted
-## The player's settings: volumes, window mode, resolution, V-Sync, mouse sensitivity, invert Y,
+## The player's settings: volumes, window mode, resolution, V-Sync, render scale, mouse sensitivity, invert Y,
 ## field of view and which snap points show while building. Kept in user://settings.cfg (in Godot's user folder, beside the saves),
 ## applied as soon as they're read and whenever one changes (see SettingsPanel). The title screen
 ## and the player read them in (ensure_loaded); the player uses the mouse ones and the field of
@@ -22,6 +22,9 @@ static var window_mode := "windowed"
 ## The window's size in windowed mode (zero: leave it as the project starts it)
 static var resolution := Vector2i.ZERO
 static var vsync := true
+## How much of the screen's resolution the 3D world is drawn at, 50 to 100 (%); below 100 it's
+## scaled up to the screen with AMD FSR (the HUD and menus stay sharp at full resolution)
+static var render_scale := 100.0
 ## How fast the mouse turns the view (1 = normal), whether up and down are swapped, and the field
 ## of view in degrees
 static var mouse_sensitivity := 1.0
@@ -48,6 +51,7 @@ static func ensure_loaded() -> void:
 		window_mode = str(file.get_value("display", "window_mode", window_mode))
 		resolution = file.get_value("display", "resolution", resolution)
 		vsync = bool(file.get_value("display", "vsync", vsync))
+		render_scale = clampf(float(file.get_value("display", "render_scale", render_scale)), 50.0, 100.0)
 		mouse_sensitivity = float(file.get_value("controls", "mouse_sensitivity", mouse_sensitivity))
 		invert_y = bool(file.get_value("controls", "invert_y", invert_y))
 		fov = float(file.get_value("controls", "fov", fov))
@@ -73,6 +77,8 @@ static func value_of(key: String) -> float:
 			return mouse_sensitivity
 		"fov":
 			return fov
+		"render_scale":
+			return render_scale
 	return 0.0
 
 
@@ -90,6 +96,9 @@ static func set_value(key: String, value: float) -> void:
 			mouse_sensitivity = value
 		"fov":
 			fov = value
+		"render_scale":
+			render_scale = clampf(value, 50.0, 100.0)
+			apply_render_scale()
 	if key in ["master", "music", "effects"]:
 		apply_audio()
 
@@ -103,6 +112,7 @@ static func save() -> void:
 	file.set_value("display", "window_mode", window_mode)
 	file.set_value("display", "resolution", resolution)
 	file.set_value("display", "vsync", vsync)
+	file.set_value("display", "render_scale", render_scale)
 	file.set_value("controls", "mouse_sensitivity", mouse_sensitivity)
 	file.set_value("controls", "invert_y", invert_y)
 	file.set_value("controls", "fov", fov)
@@ -130,6 +140,7 @@ static func apply_display() -> void:
 	if DisplayServer.get_name() == "headless":
 		return
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
+	apply_render_scale()
 	match window_mode:
 		"fullscreen":
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
@@ -143,6 +154,21 @@ static func apply_display() -> void:
 				var size := Vector2i(mini(resolution.x, screen.size.x), mini(resolution.y, screen.size.y))
 				DisplayServer.window_set_size(size)
 				DisplayServer.window_set_position(screen.position + (screen.size - size) / 2)
+
+
+## Draws the 3D world at render_scale % of the window's resolution, scaled up with FSR (at 100%
+## it's drawn at full size, with no upscaling)
+static func apply_render_scale() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return
+	var root := tree.root
+	if render_scale >= 99.5:
+		root.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+		root.scaling_3d_scale = 1.0
+	else:
+		root.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+		root.scaling_3d_scale = render_scale / 100.0
 
 
 ## The windowed resolutions that fit this screen

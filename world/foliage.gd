@@ -16,6 +16,10 @@ extends Node3D
 @export var rock_count := 4000
 
 const PLANT_SHADER = preload("res://world/plant.gdshader")
+## The render layer grass, ferns and scattered rocks are drawn on (layer 2). Cameras and the sun
+## see every layer; a fireplace's light leaves this one out of its shadows (a patch of grass or a
+## region of rocks is one big object, so a small light's shadow would draw all of it six times).
+const FOLIAGE_LAYER := 1 << 1
 ## Size of the grid squares scattered rocks are filed under, so looking for one only checks nearby
 const ROCK_CELL_SIZE := 16.0
 ## The rock mesh's rough radius, before each rock's own size
@@ -33,9 +37,14 @@ var _plant_material: ShaderMaterial
 # Which chunks have plants right now: chunk (x, z) -> the node holding them
 var _patches := {}
 var _patch_noise := FastNoiseLite.new()
-# The scattered rocks, for mining: which ones are in each grid square, and hits left on any
-# that have been started
-var _rock_multimesh: MultiMesh
+# The scattered rocks: drawn in one MultiMesh per ROCK_REGION square of map (so Godot only draws,
+# and casts shadows from, the squares in view, not all of them every time). Each rock keeps its
+# index over the whole map (saves and mining use it): which square's MultiMesh it's in and where.
+# Then, for mining, which ones are in each grid square, and hits left on any that have been started.
+const ROCK_REGION := 128.0
+var _rock_parts: Array[MultiMesh] = []
+var _rock_part_of := PackedInt32Array()
+var _rock_slot_of := PackedInt32Array()
 var _rock_cells := {}
 var _rock_hits := {}
 # Rocks being mined or mined out: how each one stood before the first hit, to come back to
@@ -190,11 +199,35 @@ func build_rocks(material: Material) -> void:
 		spots.append(Transform3D(turn * Basis.from_scale(shape), Vector3(x, h - shape.y * 0.3, z)))
 		tints.append(Color.WHITE)
 
-	var rocks := _make_scatter(_make_rock(), spots, tints, material, true, 700.0)
+	# One MultiMesh per square of map
+	var rock_mesh := _make_rock()
+	var regions := {}
+	_rock_part_of.resize(spots.size())
+	_rock_slot_of.resize(spots.size())
+	for i in spots.size():
+		var region := Vector2i(floori(spots[i].origin.x / ROCK_REGION), floori(spots[i].origin.z / ROCK_REGION))
+		if not regions.has(region):
+			regions[region] = []
+		var members: Array = regions[region]
+		_rock_slot_of[i] = members.size()
+		members.append(i)
+	var rocks := Node3D.new()
 	rocks.name = "Rocks"
 	add_child(rocks)
+	_rock_parts.clear()
+	for region in regions:
+		var members: Array = regions[region]
+		var part_spots: Array[Transform3D] = []
+		var part_tints: Array[Color] = []
+		for i in members:
+			part_spots.append(spots[i])
+			part_tints.append(tints[i])
+			_rock_part_of[i] = _rock_parts.size()
+		var part := _make_scatter(rock_mesh, part_spots, part_tints, material, true, 700.0)
+		part.name = "Rocks_%d_%d" % [region.x, region.y]
+		rocks.add_child(part)
+		_rock_parts.append(part.multimesh)
 	if not Engine.is_editor_hint():
-		_rock_multimesh = rocks.multimesh
 		for i in spots.size():
 			var cell := _rock_cell(spots[i].origin)
 			if not _rock_cells.has(cell):
@@ -202,11 +235,26 @@ func build_rocks(material: Material) -> void:
 			_rock_cells[cell].append(i)
 
 
+## How many scattered rocks there are over the whole map
+func scattered_rock_count() -> int:
+	return _rock_part_of.size()
+
+
+## Where scattered rock `index` stands (a scale of zero: mined out or taken away)
+func rock_transform(index: int) -> Transform3D:
+	return _rock_parts[_rock_part_of[index]].get_instance_transform(_rock_slot_of[index])
+
+
+## Moves, shrinks or hides (scale zero) scattered rock `index`
+func set_rock_transform(index: int, place: Transform3D) -> void:
+	_rock_parts[_rock_part_of[index]].set_instance_transform(_rock_slot_of[index], place)
+
+
 ## A scattered rock you're looking at, for a pickaxe. They have no collision (there are thousands
 ## and you can walk through them), so this checks the line of sight against each one nearby.
 ## Returns something E can use, or null.
 func rock_on_line(from: Vector3, to: Vector3) -> RockTarget:
-	if _rock_multimesh == null:
+	if _rock_parts.is_empty():
 		return null
 	var center := _rock_cell(from)
 	var best := -1
@@ -228,70 +276,70 @@ func rock_on_line(from: Vector3, to: Vector3) -> RockTarget:
 
 ## Chips at a scattered rock, which shrinks with each hit and then is gone
 func mine_rock(index: int) -> void:
-	var place := _rock_multimesh.get_instance_transform(index)
+	var place := rock_transform(index)
 	if not _rock_hits.has(index):
 		_rock_hits[index] = mini(2 + int(place.basis.get_scale().x), ROCK_MOST_HITS)
 		_rock_whole[index] = place
 	_rock_hits[index] -= 1
 	if _rock_hits[index] <= 0:
 		_rock_hits.erase(index)
-		_rock_multimesh.set_instance_transform(index, place.scaled_local(Vector3.ZERO))
+		set_rock_transform(index, place.scaled_local(Vector3.ZERO))
 		# It comes back whole after the Valley's Boulder Respawn Days
 		valley.scattered_rock_mined(index, to_global(place.origin))
 	else:
-		_rock_multimesh.set_instance_transform(index, place.scaled_local(Vector3.ONE * ROCK_HIT_SHRINK))
+		set_rock_transform(index, place.scaled_local(Vector3.ONE * ROCK_HIT_SHRINK))
 
 
 ## A mined-out rock back as it was, unless a building now stands over it. True if it came back.
 func restore_rock(index: int) -> bool:
-	if _rock_multimesh == null or not _rock_whole.has(index):
+	if _rock_parts.is_empty() or not _rock_whole.has(index):
 		return false
 	var place: Transform3D = _rock_whole[index]
 	if _rock_buried.has(index) or valley.is_under_building(place.origin.x, place.origin.z):
 		return false
 	_rock_whole.erase(index)
-	_rock_multimesh.set_instance_transform(index, place)
+	set_rock_transform(index, place)
 	return true
 
 
 ## A scattered rock, mined out (used when loading a save)
 func set_rock_mined(index: int) -> void:
-	if _rock_multimesh == null or index < 0 or index >= _rock_multimesh.instance_count:
+	if _rock_parts.is_empty() or index < 0 or index >= scattered_rock_count():
 		return
-	var place := _rock_multimesh.get_instance_transform(index)
+	var place := rock_transform(index)
 	if not _rock_whole.has(index):
 		_rock_whole[index] = place
 	_rock_hits.erase(index)
-	_rock_multimesh.set_instance_transform(index, place.scaled_local(Vector3.ZERO))
+	set_rock_transform(index, place.scaled_local(Vector3.ZERO))
 
 
 ## Takes away the scattered rocks whose middle is within `reach` of a spot (x, z): a building has
 ## gone up over them. They don't come back.
 func hide_rocks_in(middle: Vector2, reach: float) -> void:
-	if _rock_multimesh == null:
+	if _rock_parts.is_empty():
 		return
 	var center := _rock_cell(Vector3(middle.x, 0.0, middle.y))
 	var cells := ceili(reach / ROCK_CELL_SIZE) + 1
 	for dz in range(-cells, cells + 1):
 		for dx in range(-cells, cells + 1):
 			for i in _rock_cells.get(center + Vector2i(dx, dz), PackedInt32Array()):
-				var place := _rock_multimesh.get_instance_transform(i)
+				var place := rock_transform(i)
 				if Vector2(place.origin.x, place.origin.z).distance_to(middle) < reach:
 					_rock_buried[i] = true
-					_rock_multimesh.set_instance_transform(i, place.scaled_local(Vector3.ZERO))
+					set_rock_transform(i, place.scaled_local(Vector3.ZERO))
 
 
 ## True if a scattered rock (still standing) pokes into this box, in world space. Building pieces
 ## can't go through them.
 func rock_in_box(box: AABB) -> bool:
-	if _rock_multimesh == null:
+	if _rock_parts.is_empty():
 		return false
 	var low := _rock_cell(box.position)
 	var high := _rock_cell(box.end)
 	for cz in range(low.y - 1, high.y + 2):
 		for cx in range(low.x - 1, high.x + 2):
 			for i in _rock_cells.get(Vector2i(cx, cz), PackedInt32Array()):
-				var place := _rock_multimesh.get_instance_transform(i)
+				var place := rock_transform(i)
 				var size := place.basis.get_scale()
 				if is_zero_approx(size.x):
 					continue
@@ -310,7 +358,7 @@ func _rock_cell(spot: Vector3) -> Vector2i:
 # How far along the line (0 to 1) it meets this rock, or INF if it doesn't. The rock is squashed
 # and turned, so the line is moved into the rock's own space, where it's a simple ball.
 func _line_hits_rock(index: int, from: Vector3, to: Vector3) -> float:
-	var place := _rock_multimesh.get_instance_transform(index)
+	var place := rock_transform(index)
 	if is_zero_approx(place.basis.get_scale().x):
 		return INF
 	var inverse := place.affine_inverse()
@@ -361,6 +409,8 @@ func _make_scatter(mesh: Mesh, spots: Array[Transform3D], tints: Array[Color], m
 	var scatter := MultiMeshInstance3D.new()
 	scatter.multimesh = multimesh
 	scatter.material_override = material
+	# On its own render layer, so small lights can leave it out of their shadows (see FOLIAGE_LAYER)
+	scatter.layers = FOLIAGE_LAYER
 	scatter.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# Fade out at a distance instead of popping
 	scatter.visibility_range_end = view_distance

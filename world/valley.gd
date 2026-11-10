@@ -1136,15 +1136,13 @@ func _lift_onto_ridges() -> void:
 		var p := thing.position
 		thing.position.y += _height_in(_heights, p.x, p.z) - _height_in(_unridged, p.x, p.z)
 	var foliage := get_node_or_null("Foliage")
-	var rocks: MultiMeshInstance3D = foliage.get_node_or_null("Rocks") if foliage else null
-	if rocks:
-		var multimesh := rocks.multimesh
-		for i in multimesh.instance_count:
-			var place := multimesh.get_instance_transform(i)
+	if foliage:
+		for i in foliage.scattered_rock_count():
+			var place: Transform3D = foliage.rock_transform(i)
 			var change := _height_in(_heights, place.origin.x, place.origin.z) - _height_in(_unridged, place.origin.x, place.origin.z)
 			if absf(change) > 0.0:
 				place.origin.y += change
-				multimesh.set_instance_transform(i, place)
+				foliage.set_rock_transform(i, place)
 
 
 ## True above the tree line, where no trees are scattered. It wanders 10 m up and down. Based on
@@ -2112,18 +2110,16 @@ func _rebuild_area(area: Rect2) -> void:
 			thing.position.y += get_height(spot.x, spot.y) - _height_in(before, spot.x, spot.y)
 	# ...and so do the boulders
 	var foliage := get_node_or_null("Foliage")
-	var rocks: MultiMeshInstance3D = foliage.get_node_or_null("Rocks") if foliage else null
-	if rocks:
-		var multimesh := rocks.multimesh
-		for i in multimesh.instance_count:
-			var place := multimesh.get_instance_transform(i)
+	if foliage:
+		for i in foliage.scattered_rock_count():
+			var place: Transform3D = foliage.rock_transform(i)
 			var spot := Vector2(place.origin.x, place.origin.z)
 			if region.has_point(spot):
 				# Boulders a trail now runs over shrink away to nothing
 				if is_on_trail(spot.x, spot.y, 1.0):
 					place = place.scaled_local(Vector3.ZERO)
 				place.origin.y += get_height(spot.x, spot.y) - _height_in(before, spot.x, spot.y)
-				multimesh.set_instance_transform(i, place)
+				foliage.set_rock_transform(i, place)
 
 	_place_crash_site()
 	_snap_hand_placed()
@@ -2957,13 +2953,11 @@ func erase_scattered(center: Vector2, radius: float) -> int:
 			thing.queue_free()
 			removed += 1
 	var foliage := get_node_or_null("Foliage")
-	var rocks: MultiMeshInstance3D = foliage.get_node_or_null("Rocks") if foliage else null
-	if rocks:
-		var multimesh := rocks.multimesh
-		for i in multimesh.instance_count:
-			var place := multimesh.get_instance_transform(i)
+	if foliage:
+		for i in foliage.scattered_rock_count():
+			var place: Transform3D = foliage.rock_transform(i)
 			if place.basis.get_scale().x > 0.0 and Vector2(place.origin.x, place.origin.z).distance_to(center) < radius:
-				multimesh.set_instance_transform(i, place.scaled_local(Vector3.ZERO))
+				foliage.set_rock_transform(i, place.scaled_local(Vector3.ZERO))
 				removed += 1
 	return removed
 

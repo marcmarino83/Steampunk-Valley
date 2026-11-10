@@ -65,14 +65,18 @@ func _render(registry: PieceRegistry, template: BuildingTemplate) -> Image:
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	viewport.add_child(camera)
 	var look := TemplateLook.build(registry, template)
+	# The picture shows every piece's full close-up look, however far off the camera stands
+	for part in look.get_children():
+		if part is BuildPiece:
+			(part as BuildPiece).show_full_detail()
 	viewport.add_child(look)
 	await get_tree().process_frame
-	# Frame the building's box: only the close-up looks count (the far-off plain boxes are hidden)
+	# Frame the building's box: only the close-up looks count (the other looks are hidden)
 	var box := AABB()
 	var first := true
 	for found in look.find_children("*", "MeshInstance3D", true, false):
 		var mesh_look := found as MeshInstance3D
-		if mesh_look.visibility_range_begin > 0.0 or mesh_look.mesh == null:
+		if mesh_look.visibility_range_begin > 0.0 or mesh_look.mesh == null or not mesh_look.visible:
 			continue
 		var part := mesh_look.global_transform * mesh_look.get_aabb()
 		box = part if first else box.merge(part)

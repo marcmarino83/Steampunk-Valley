@@ -58,6 +58,10 @@ const RIDGE_RADIUS := 0.1
 var st := SurfaceTool.new()
 var rng := RandomNumberGenerator.new()
 var _count := 0
+## The simplified look for the middle distance (see BuildPiece.dress): the same pieces of wood and
+## stone in the same places, but planks and stones with plain (unbevelled) edges, each row of
+## shakes merged into one strip, logs with fewer sides, and no rope lashings
+var simple := false
 
 
 func _init(seed_value: int) -> void:
@@ -66,9 +70,10 @@ func _init(seed_value: int) -> void:
 
 
 ## The look of one shape: {"mesh": ArrayMesh, "door_mesh": ArrayMesh or null}, or empty for a
-## shape drawn some other way (furniture)
-static func build(shape: String, seed_value: int) -> Dictionary:
+## shape drawn some other way (furniture). `simple_look`: its simplified version (see simple).
+static func build(shape: String, seed_value: int, simple_look := false) -> Dictionary:
 	var b := PieceDetail.new(seed_value)
+	b.simple = simple_look
 	var door: PieceDetail = null
 	var G := PieceShapes.GRID
 	var H := PieceShapes.WALL_HEIGHT
@@ -126,6 +131,7 @@ static func build(shape: String, seed_value: int) -> Dictionary:
 			b._gable(PieceShapes.ROOF_RISE_45)
 		"door":
 			door = PieceDetail.new(seed_value + 7)
+			door.simple = simple_look
 			door._door()
 		"floor":
 			b._floor(_rect(G / 2.0), -PieceShapes.FLOOR_THICKNESS)
@@ -180,9 +186,9 @@ static func build(shape: String, seed_value: int) -> Dictionary:
 		"ridge_26", "ridge_45":
 			b._ridge_cap(_rise_of(shape))
 		"topper_26", "topper_45":
-			return {"mesh": _topper(_rise_of(shape), seed_value), "door_mesh": null}
+			return {"mesh": _topper(_rise_of(shape), seed_value, false, simple_look), "door_mesh": null}
 		"topper_overhang_26", "topper_overhang_45":
-			return {"mesh": _topper(_rise_of(shape), seed_value, true), "door_mesh": null}
+			return {"mesh": _topper(_rise_of(shape), seed_value, true, simple_look), "door_mesh": null}
 		"cone_roof":
 			b._cone_roof()
 		"stairs":
@@ -300,18 +306,19 @@ static func hearth_logs_mesh(seed_value: int) -> ArrayMesh:
 ## roof panel (decking and shakes, as the roofs it continues), the two set back to back over the
 ## gap, and a log with rope ties along the peak
 ## A topper overhang is the same, OVERHANG long, with barge boards down both slopes' sides (`overhang`).
-static func _topper(rise: float, seed_value: int, overhang := false) -> ArrayMesh:
+static func _topper(rise: float, seed_value: int, overhang := false, simple_look := false) -> ArrayMesh:
 	var G := PieceShapes.GRID
 	var k := rise / G
 	var g := PieceShapes.TOPPER_GAP / 2.0
 	var x := PieceShapes.OVERHANG / 2.0 if overhang else G / 2.0
 	var panel := PieceDetail.new(seed_value)
+	panel.simple = simple_look
 	panel._roof_panel(rise, -x, x, G - g, G, [])
 	if overhang:
 		panel._fascia(rise, -x, x, G - g, G, false, true)
 	var half := panel.commit()
 	var lift := PieceShapes.ROOF_THICKNESS / cos(atan2(rise, G))
-	var ridge := ridge_mesh(x * 2.0 + 0.04, seed_value + 5)
+	var ridge := ridge_mesh(x * 2.0 + 0.04, seed_value + 5, simple_look)
 	var st := SurfaceTool.new()
 	# The panel's top end (z from G - g to G) moved to the topper's -Z half, its low end at the origin
 	var to_left := Transform3D(Basis.IDENTITY, Vector3(0, -(G - g) * k, -G))
@@ -322,8 +329,9 @@ static func _topper(rise: float, seed_value: int, overhang := false) -> ArrayMes
 
 
 ## A log laid along a roof's peak (along X, `length` long, centred), with rope ties
-static func ridge_mesh(length: float, seed_value: int) -> ArrayMesh:
+static func ridge_mesh(length: float, seed_value: int, simple_look := false) -> ArrayMesh:
 	var b := PieceDetail.new(seed_value)
+	b.simple = simple_look
 	var half := length / 2.0
 	b.log_part(Vector3(-half, 0, 0), Vector3(half, 0, 0), RIDGE_RADIUS, 8, 0.08, b._wood_shade(0.85), WOOD)
 	var spots: Array[float] = [-half * 0.6, half * 0.6]
@@ -845,6 +853,15 @@ func _shakes(o: Vector3, u: Vector3, s: Vector3, n: Vector3, poly: PackedVector2
 	var row := floori(lo / SHAKE_EXPOSURE)
 	while row * SHAKE_EXPOSURE < hi - 0.02:
 		var v0 := row * SHAKE_EXPOSURE
+		if simple:
+			# The whole row as one strip, resting on the row below like the shakes it stands for
+			var strip := _clip_to(PackedVector2Array([Vector2(left, v0), Vector2(right, v0), Vector2(right, v0 + SHAKE_LENGTH), Vector2(left, v0 + SHAKE_LENGTH)]), poly)
+			if strip.size() >= 3 and _area(strip) >= 0.004:
+				var lift := 0.022
+				var base := DECK + lift + lift * v0 / SHAKE_LENGTH
+				prism(strip, o, u, s, n, base, base + SHAKE_THICK, 0.0, _shake_shade(), WOOD, _plank_uv(row * 0.37, right - left), 1, 2, -lift / SHAKE_LENGTH)
+			row += 1
+			continue
 		var x := left - rng.randf_range(0.0, 0.14)
 		while x < right:
 			var w := rng.randf_range(0.25, 0.35) * wide
@@ -994,6 +1011,8 @@ func prism(poly: PackedVector2Array, o: Vector3, u: Vector3, v: Vector3, n: Vect
 	var k := poly.size()
 	if k < 3:
 		return
+	if simple:
+		bevel = 0.0
 	bevel = minf(bevel, (d1 - d0) * 0.35)
 	var inner := poly
 	if bevel > 0.0005:
@@ -1058,6 +1077,8 @@ func log_part(a: Vector3, b: Vector3, r: float, sides: int, wobble: float, color
 	var length := axis.length()
 	if length < 0.01:
 		return
+	if simple:
+		sides = maxi(5, sides - 3)
 	axis /= length
 	var side := axis.cross(Vector3.UP)
 	if side.length() < 0.1:
@@ -1102,6 +1123,8 @@ func log_part(a: Vector3, b: Vector3, r: float, sides: int, wobble: float, color
 
 ## A ring of rope round an axis (radius R, rope thickness 2 × tube)
 func rope_ring(centre: Vector3, axis: Vector3, R: float, tube: float, segments := 12, sides := 6) -> void:
+	if simple:
+		return
 	# Thick hemp: the tube grown to ROPE_THICK (1.5× for thin ones), the ring widened to match so
 	# it still sits on the surface it's wrapped round
 	var thick := maxf(tube * 1.5, ROPE_THICK)

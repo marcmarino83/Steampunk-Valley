@@ -334,9 +334,11 @@ func _piece_look(piece: PieceBuildable, ghost: bool) -> Node3D:
 	var bp: BuildPiece = piece.scene.instantiate()
 	bp.setup(piece, registry.shape_of(piece.shape), registry.material_for(piece.shape))
 	bp.piece_id = 3
-	bp.dress(registry.detail_mesh(piece.shape, 3), registry.detail_material())
+	bp.dress(registry.detail_mesh(piece.shape, 3), registry.detail_material(), registry.mid_mesh(piece.shape, 3))
 	bp.weather()
 	bp.make_preview_only()
+	# Icons show the full close-up look, however far off the camera stands
+	bp.show_full_detail()
 	if ghost:
 		for found in bp.find_children("*", "GeometryInstance3D", true, false):
 			if found is GPUParticles3D:

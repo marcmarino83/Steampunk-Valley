@@ -49,9 +49,15 @@ var _ghost := false
 var _ghost_saved := {}
 var _solid_layer := 1
 
-## Beyond this distance a piece shows its plain textured box instead of its close-up look
-const DETAIL_RANGE := 60.0
-const DETAIL_FADE := 4.0
+## Its looks by distance (see dress): the full close-up look within NEAR_RANGE, the simplified one
+## out to MID_RANGE, the plain textured box beyond; each fading into the next over LEVEL_FADE
+const NEAR_RANGE := 15.0
+const MID_RANGE := 40.0
+const LEVEL_FADE := 2.0
+var _detail_looks: Array[MeshInstance3D] = []
+var _mid_looks: Array[MeshInstance3D] = []
+# Shadow-only copies of the plain box, casting its shadow while a close look shows
+var _shadow_looks: Array[MeshInstance3D] = []
 
 
 ## Builds it from its shape. Called before it's added to the world.
@@ -86,11 +92,18 @@ func setup(piece: PieceBuildable, def: Dictionary, material: Material) -> void:
 			_door_parts.append({"node": solid, "rest": part["transform"]})
 
 
-## Gives it its close-up look (see PieceDetail: separate planks, logs, shakes, stones and rope),
-## shown within DETAIL_RANGE; its plain textured box takes over beyond that. A door's panel gets
-## its own close-up look, which swings with it. Nothing changes for a shape without one.
-func dress(detail: Dictionary, material: Material) -> void:
-	_dress_looks(detail, material)
+## Gives it its looks at three distances (see PieceDetail):
+##   - its full close-up look (separate planks, logs, split shakes, stones and rope) within
+##     NEAR_RANGE,
+##   - a simplified version of it (`mid`: shakes merged into rows, no rope, plain-edged planks,
+##     fewer-sided logs) out to MID_RANGE,
+##   - its plain textured box beyond that.
+## Each fades into the next over LEVEL_FADE (Godot's visibility ranges). Neither close look casts
+## shadows: a shadow-only copy of the plain box does, out to MID_RANGE, and the plain box itself
+## beyond. A door's panel gets its own looks, which swing with it. Nothing changes for a shape
+## without a close-up look.
+func dress(detail: Dictionary, material: Material, mid: Dictionary = {}) -> void:
+	_dress_looks(detail, material, mid)
 	_nudge_looks()
 
 
@@ -113,20 +126,42 @@ func _nudge_looks() -> void:
 			part["rest"] = (part["rest"] as Transform3D).translated(nudge)
 
 
-func _dress_looks(detail: Dictionary, material: Material) -> void:
+func _dress_looks(detail: Dictionary, material: Material, mid: Dictionary) -> void:
 	if _def.get("hearth", false):
-		# Logs for the fire to burn on, in the hearth
+		# Logs for the fire to burn on, in the hearth (small: no shadow)
 		var logs := MeshInstance3D.new()
 		logs.name = "HearthLogs"
 		logs.mesh = PieceDetail.hearth_logs_mesh(piece_id)
 		logs.material_override = material
 		logs.position = _def.get("hearth_at", Vector3.ZERO)
+		logs.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(logs)
 	if detail.is_empty() or detail.get("mesh") == null and detail.get("door_mesh") == null:
 		return
-	for plain in _plain_looks:
-		plain.visibility_range_begin = DETAIL_RANGE
-		plain.visibility_range_begin_margin = DETAIL_FADE
+	var has_mid := not mid.is_empty() and (mid.get("mesh") != null or mid.get("door_mesh") != null)
+	var plain_from := MID_RANGE if has_mid else NEAR_RANGE
+	for plain in _plain_looks.duplicate():
+		# Its shadow up close, for the close looks (which cast none): from the plain box, or from the
+		# simplified look where that has fewer triangles (a foundation's box goes deep underground)
+		var shadow := MeshInstance3D.new()
+		shadow.name = "PlainShadow"
+		shadow.mesh = plain.mesh
+		shadow.material_override = plain.material_override
+		if has_mid and mid.get("shadow_from_mid", false) and plain.mesh == _def["mesh"]:
+			shadow.mesh = mid["mesh"]
+			shadow.material_override = material
+		shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		shadow.visibility_range_end = plain_from
+		shadow.visibility_range_end_margin = LEVEL_FADE
+		add_child(shadow)
+		_shadow_looks.append(shadow)
+		for part in _door_parts:
+			if part["node"] == plain:
+				_door_parts.append({"node": shadow, "rest": part["rest"]})
+				break
+		plain.visibility_range_begin = plain_from
+		plain.visibility_range_begin_margin = LEVEL_FADE
+		plain.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	for key in ["mesh", "door_mesh"]:
 		var mesh: Mesh = detail.get(key)
 		if mesh == null:
@@ -135,11 +170,57 @@ func _dress_looks(detail: Dictionary, material: Material) -> void:
 		near.name = "Detail" if key == "mesh" else "DoorDetail"
 		near.mesh = mesh
 		near.material_override = material
-		near.visibility_range_end = DETAIL_RANGE
-		near.visibility_range_end_margin = DETAIL_FADE
+		near.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		near.visibility_range_end = NEAR_RANGE
+		near.visibility_range_end_margin = LEVEL_FADE
+		near.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 		add_child(near)
+		_detail_looks.append(near)
 		if key == "door_mesh":
 			_door_parts.append({"node": near, "rest": Transform3D.IDENTITY})
+		var simple: Mesh = mid.get(key) if has_mid else null
+		if simple == null:
+			continue
+		var middle := MeshInstance3D.new()
+		middle.name = "Mid" if key == "mesh" else "DoorMid"
+		middle.mesh = simple
+		middle.material_override = material
+		middle.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		middle.visibility_range_begin = NEAR_RANGE
+		middle.visibility_range_begin_margin = LEVEL_FADE
+		middle.visibility_range_end = MID_RANGE
+		middle.visibility_range_end_margin = LEVEL_FADE
+		middle.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		add_child(middle)
+		_mid_looks.append(middle)
+		if key == "door_mesh":
+			_door_parts.append({"node": middle, "rest": Transform3D.IDENTITY})
+
+
+## Shows only its full close-up look, at any distance (a template's picture, an icon): the other
+## looks hidden
+func show_full_detail() -> void:
+	if _detail_looks.is_empty():
+		return
+	for look in _detail_looks:
+		look.visible = true
+		look.visibility_range_end = 0.0
+		look.visibility_range_end_margin = 0.0
+		look.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	for look in _mid_looks + _plain_looks + _shadow_looks:
+		look.visible = false
+
+
+## Shows its simplified look up close too, never the full one (a template's placement preview, a
+## ghost not under the crosshair), or back to normal
+func show_simple_look(on: bool) -> void:
+	if _mid_looks.is_empty():
+		return
+	for look in _detail_looks:
+		look.visible = not on
+	for look in _mid_looks:
+		look.visibility_range_begin = 0.0 if on else NEAR_RANGE
+		look.visibility_range_begin_margin = 0.0 if on else LEVEL_FADE
 
 
 ## Gives its textured surface (see piece_surface.gdshader) this piece's own slight colour and
@@ -306,12 +387,16 @@ func set_ghost(on: bool) -> void:
 		_solid_layer = collision_layer
 		collision_layer = 0
 		for look in find_children("*", "GeometryInstance3D", true, false):
-			if look is GPUParticles3D:
+			if look is GPUParticles3D or _shadow_looks.has(look):
 				continue
 			var shown := look as GeometryInstance3D
 			_ghost_saved[shown] = [shown.material_override, shown.cast_shadow]
 			shown.material_override = ghost_material()
 			shown.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# No shadow, and the simplified look until it's under the crosshair
+		for shadow in _shadow_looks:
+			shadow.visible = false
+		show_simple_look(true)
 	else:
 		collision_layer = _solid_layer
 		for shown in _ghost_saved:
@@ -319,6 +404,9 @@ func set_ghost(on: bool) -> void:
 				shown.material_override = _ghost_saved[shown][0]
 				shown.cast_shadow = _ghost_saved[shown][1]
 		_ghost_saved.clear()
+		for shadow in _shadow_looks:
+			shadow.visible = true
+		show_simple_look(false)
 	# A ghost fireplace doesn't burn
 	if _hearth_light:
 		_hearth_light.visible = not on
@@ -337,10 +425,16 @@ func set_ghost_targeted(targeted: bool) -> void:
 	for shown in _ghost_saved:
 		if is_instance_valid(shown):
 			shown.material_override = ghost_material(targeted)
+	# Only the ghost under the crosshair shows its full close-up look
+	show_simple_look(not targeted)
 
 
-## For a template's preview: shown only (never solid, never counted as a piece or a fire)
+## For a template's preview: shown only (never solid, never counted as a piece or a fire), in its
+## simplified look and without its shadow copy (a preview casts no shadow; see TemplatePlacer)
 func make_preview_only() -> void:
+	for shadow in _shadow_looks:
+		shadow.visible = false
+	show_simple_look(true)
 	collision_layer = 0
 	collision_mask = 0
 	remove_from_group("build_pieces")
@@ -434,6 +528,9 @@ const HEARTH_COLOR := Color(1.0, 0.76, 0.5)
 const HEARTH_DAY_ENERGY := 0.35
 const HEARTH_NIGHT_ENERGY := 1.15
 
+## The render layers left out of the hearth light's shadow: foliage (see foliage.gd FOLIAGE_LAYER)
+const HEARTH_SHADOW_SKIPS := 1 << 1
+
 var _hearth_light: OmniLight3D
 var _hearth_flame: Node3D
 var _hearth_energy := HEARTH_NIGHT_ENERGY
@@ -457,6 +554,14 @@ func _make_hearth_fire() -> void:
 	_hearth_light.omni_range = 6.0
 	_hearth_light.omni_attenuation = 1.4
 	_hearth_light.shadow_enabled = true
+	# Its shadow leaves out grass, ferns and scattered rocks (each patch is one big object, drawn
+	# whole into all six sides of its shadow), and stops once you're well away: from 20 m off a
+	# small light's shadow can't be seen. The light itself fades out from 40 m.
+	_hearth_light.shadow_caster_mask = 0xFFFFFFFF & ~HEARTH_SHADOW_SKIPS
+	_hearth_light.distance_fade_enabled = true
+	_hearth_light.distance_fade_begin = 40.0
+	_hearth_light.distance_fade_shadow = 20.0
+	_hearth_light.distance_fade_length = 5.0
 	# Where the flames burn, inside the hearth (PieceShapes.HEARTH_FIRE); the light just in front
 	var fire: Vector3 = _def.get("hearth_at", Vector3.ZERO)
 	_hearth_light.position = fire + Vector3(0, 0.25, 0.4)

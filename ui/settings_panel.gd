@@ -1,7 +1,8 @@
 class_name SettingsPanel
 extends Control
 ## The settings, over whatever's behind (the title screen, or the paused game): the ornate frame
-## with Audio (master, music and effects volume), Display (window mode, resolution, V-Sync) and
+## with Audio (master, music and effects volume), Display (window mode, resolution, V-Sync, render
+## scale) and
 ## Controls (mouse sensitivity, invert Y, field of view). Every change applies at once and is saved
 ## (see GameSettings). Back or Esc closes it. Works while the game is paused.
 
@@ -73,6 +74,8 @@ func _ready() -> void:
 		GameSettings.vsync = on
 		GameSettings.apply_display()
 		GameSettings.save())
+	var render_slider := _slider_row(column, "Render scale", "render_scale", 50, 100, 5, "%d%%")
+	render_slider.tooltip_text = "Draws the world at this share of the resolution, sharpened back up with AMD FSR.\nLower is faster; the HUD stays sharp."
 
 	column.add_child(_heading("Controls"))
 	_slider_row(column, "Mouse sensitivity", "mouse_sensitivity", 0.2, 3.0, 0.05, "%.2f×")

@@ -16,6 +16,15 @@ extends Node
 
 ## A plot that wasn't working now is (not sent for the first check after loading or placing)
 signal became_working(plot: Plot)
+## Something about the plots worth telling the player (an old plot converted or dropped on loading)
+signal notice(text: String)
+
+## The Stone Gatherer's Hut is gone: stone, copper and tin come from the Forager's Hut now. A save's
+## old Stone Gatherer's Hut becomes a Forager's Hut if it meets one's requirements, or is dropped
+## (its pieces stay standing, owned by no plot); see load_data and _settle_old_plots.
+const OLD_STONE_HUT := "res://buildables/plots/stone_gatherers_hut.tres"
+const OLD_STONE_HUT_NAME := "Stone Gatherer's Hut"
+const GATHERERS_HUT := "res://buildables/plots/foragers_hut.tres"
 
 ## Marks a workbench, chest or campfire with the plot that owns it
 const OWNER_META := &"owner_plot"
@@ -368,14 +377,59 @@ func load_data(data: Dictionary) -> void:
 	_next_id = int(data.get("next_id", 1))
 	town.clear()
 	town.load_share(data.get("town_storage", {}))
+	var converting: Array = []
 	for entry in data.get("list", []):
 		town.load_share(entry.get("town_storage", {}))
-		var type := load(str(entry.get("type", ""))) as PlotType
+		var type_path := str(entry.get("type", ""))
+		var old_stone_hut := type_path == OLD_STONE_HUT
+		if old_stone_hut:
+			type_path = GATHERERS_HUT
+		# (a plot type that no longer exists is left out, without an error)
+		if not ResourceLoader.exists(type_path):
+			print("PlotRegistry: left out %s, its type %s no longer exists" % [entry.get("name", "a plot"), type_path])
+			continue
+		var type := load(type_path) as PlotType
 		if type == null:
 			continue
 		var saved_size: Array = entry.get("size", [type.min_size.x, type.min_size.y])
 		var where := Transform3D(Basis(Vector3.UP, float(entry.get("turn", 0.0))), SaveGame.to_vector(entry.get("position")))
-		var plot := create(type, where, Vector2(float(saved_size[0]), float(saved_size[1])), str(entry.get("name", "")), str(entry.get("id", "")))
+		var plot_name := str(entry.get("name", ""))
+		var plot := create(type, where, Vector2(float(saved_size[0]), float(saved_size[1])), plot_name, str(entry.get("id", "")))
+		if old_stone_hut:
+			converting.append({"plot": plot, "name": plot_name})
+			continue
+		# The slider percentages, if they're for the same items the type shares out now (older saves
+		# of the Forager's Hut had no stone, copper or tin: they start from the type's split)
 		var saved_shares: Dictionary = entry.get("production", {})
-		for item in saved_shares:
-			plot.production[str(item)] = int(saved_shares[item])
+		var same_items := saved_shares.size() == type.split_output.size() and saved_shares.keys().all(func(item): return type.split_output.has(str(item)))
+		if same_items:
+			for item in saved_shares:
+				plot.production[str(item)] = int(saved_shares[item])
+	if not converting.is_empty():
+		_settle_old_plots.call_deferred(converting)
+
+
+# Old Stone Gatherer's Huts from a save, made Forager's Huts on loading: once their pieces are solid
+# (a couple of physics frames), each that meets a Forager's Hut's requirements stays one (renamed
+# if it still had the old type's name), and each that doesn't is dropped, its pieces left standing
+# owned by no plot. Either way the player is told which.
+func _settle_old_plots(converting: Array) -> void:
+	for i in 3:
+		await get_tree().physics_frame
+	for entry in converting:
+		var plot: Plot = entry["plot"]
+		if not is_instance_valid(plot):
+			continue
+		var old_name: String = entry["name"]
+		check(plot)
+		if plot.working:
+			if old_name.is_empty() or old_name.begins_with(OLD_STONE_HUT_NAME):
+				plot.rename(_free_name(plot.plot_type.display_name))
+			var text := "%s (a %s) is now %s, a %s: stone, copper and tin come from there now" % [old_name, OLD_STONE_HUT_NAME, plot.plot_name, plot.plot_type.display_name]
+			print("PlotRegistry: " + text)
+			notice.emit(text)
+		else:
+			var text := "%s (a %s) was removed: that building is gone, and it didn't meet a %s's needs (missing %s). Its pieces still stand" % [old_name, OLD_STONE_HUT_NAME, plot.plot_type.display_name, ", ".join(plot.missing)]
+			print("PlotRegistry: " + text)
+			notice.emit(text)
+			remove_plot(plot)

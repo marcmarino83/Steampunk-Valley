@@ -6,10 +6,16 @@ extends Node
 ##     stretches between them in 1 m steps, showing its size ("8 × 6 m"). Before the first click,
 ##     R turns the drawing direction 90° (Alt + wheel 15°), to line plots up with buildings. Under
 ##     the type's smallest size it shows red, with that size in its label, and won't place.
-##   - Moving: the plot and everything it owns lift into a see-through preview that follows the
-##     crosshair; R turns it 90°. Green if nothing it owns would bump into anything and the ground
-##     under it is gentler than MAX_SLOPE, red otherwise. Left-click puts it all down there.
-##     Pieces belonging to other plots never move.
+##   - Moving (the plot panel's Move plot, or M while it's open): the plot and everything it owns
+##     lift into a see-through preview that follows the crosshair, turning about its middle like a
+##     piece being placed: the wheel 5° a notch, Alt + wheel 1°, R back to how it stood; Page Up /
+##     Page Down raise and lower the whole building (0.25 m, 0.05 m with Alt; no limit), Backspace
+##     back to where it would sit; the panel shows "Turn 30° · Height +0.75 m". Nothing
+##     stops it: its pieces may overlap other buildings and plots and sink into the ground as far as
+##     you like, and you or a settler standing where it lands glide aside (see PeopleMover); steep
+##     ground is only a warning (yellow). Left-click puts it all down there. Pieces belonging to
+##     other plots never move, even joined to it (a shared wall stays with its own plot). Settlers
+##     keep their jobs and beds there.
 ##   - Resizing, in plot view: aim at an edge or corner (it lights up), hold left-click and drag.
 ##     The outline follows in 1 m steps, never below the type's smallest size. Things the plot owns
 ##     that would end up outside glow red; letting go asks first, then takes them down and refunds
@@ -36,9 +42,15 @@ const GHOST_WARN := Color(1.0, 0.85, 0.2, 0.4)
 const WARN_COLOR := Color(1.0, 0.85, 0.25)
 const OUTSIDE_GLOW := Color(1.0, 0.15, 0.1, 0.5)
 const FINE_TURN := PI / 12.0
+## Turning a plot being moved: a wheel notch, and with Alt
+const MOVE_TURN := PI / 36.0
+const MOVE_FINE_TURN := PI / 180.0
 
 var plots: PlotRegistry
-var pieces: PiecePlacer
+var pieces: ValheimPlacer
+## Raising and lowering a building being moved, in meters: a press, and with Alt held
+const HEIGHT_STEP := 0.25
+const FINE_HEIGHT_STEP := 0.05
 var builder: BuildPlacer
 
 var _player: CharacterBody3D
@@ -46,6 +58,9 @@ var _mode := Mode.NONE
 var _type: PlotType
 var _size := Vector2.ZERO
 var _turn := 0.0
+# Moving: how far the whole building is raised (+) or lowered (-) from where it would sit (Page Up /
+# Page Down, Backspace back to 0); no limit either way
+var _height := 0.0
 var _preview: Plot
 var _problem := ""
 # Moving: worth knowing but not stopping it (steep ground), shown in yellow
@@ -64,6 +79,7 @@ var _ghost_root: Node3D
 var _ghost: StandardMaterial3D
 var _where := Transform3D.IDENTITY
 var _check_in := 0
+var _checked_at := Transform3D()
 var _skip: Array[RID] = []
 # Resizing: which edges are being dragged (Plot.RIGHT... bits), where the drag started (in the
 # plot's own x, z), the plot's sides then and now, how far the middle has moved, what would end up
@@ -114,6 +130,7 @@ func begin_move(plot: Plot) -> void:
 	_type = plot.plot_type
 	_size = plot.size
 	_turn = 0.0
+	_height = 0.0
 	_items = plots.owned_items(plot, true)
 	_relative.clear()
 	_skip.clear()
@@ -226,12 +243,22 @@ func handle_input(event: InputEvent) -> bool:
 	if event.is_action_pressed("ui_cancel"):
 		cancel()
 		return true
+	# Moving: Page Up / Page Down raise and lower the whole building (repeating while held), 0.25 m
+	# a press or 0.05 m with Alt, as for placing pieces; Backspace puts it back where it would sit
+	if _mode == Mode.MOVE and event is InputEventKey and event.pressed:
+		if event.keycode == KEY_PAGEUP or event.keycode == KEY_PAGEDOWN:
+			var step := FINE_HEIGHT_STEP if event.alt_pressed else HEIGHT_STEP
+			_height = snappedf(_height + step * (1.0 if event.keycode == KEY_PAGEUP else -1.0), FINE_HEIGHT_STEP)
+			return true
+		if event.keycode == KEY_BACKSPACE:
+			_height = 0.0
+			return true
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_R and _mode == Mode.DRAW and not _has_corner:
 			_draw_turn = wrapf(_draw_turn + PI / 2.0, 0.0, TAU)
 			return true
 		if event.keycode == KEY_R and _mode == Mode.MOVE:
-			_turn = wrapf(_turn + PI / 2.0, 0.0, TAU)
+			_turn = 0.0
 			return true
 		# Finish or cancel this before putting the hammer away. Drawing a new plot, Tab opens the
 		# build menu to switch; moving or resizing, it waits.
@@ -243,9 +270,13 @@ func handle_input(event: InputEvent) -> bool:
 		return true
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			var up := 1.0 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -1.0
 			# Alt + wheel turns the drawing direction finely, before the first corner
 			if _mode == Mode.DRAW and event.alt_pressed and not _has_corner:
-				_draw_turn = wrapf(_draw_turn + FINE_TURN * (1.0 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -1.0), 0.0, TAU)
+				_draw_turn = wrapf(_draw_turn + FINE_TURN * up, 0.0, TAU)
+			# Moving: the wheel turns it 5° a notch, Alt + wheel 1°
+			elif _mode == Mode.MOVE:
+				_turn = wrapf(_turn + (MOVE_FINE_TURN if event.alt_pressed else MOVE_TURN) * up, 0.0, TAU)
 			return true
 		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 			return false
@@ -278,12 +309,17 @@ func hud_state() -> Dictionary:
 				},
 			}
 		Mode.MOVE:
+			var turn := "Turn %d° · Height %+.2f m" % [roundi(rad_to_deg(_turn)) % 360, _height]
+			var controls := [["Put down", "LMB"], ["Turn 5° / 1°", "Wheel / Alt+Wheel"], ["Reset turn", "R"], ["Raise/Lower", "PgUp/PgDn"]]
+			if not is_zero_approx(_height):
+				controls.append(["Reset height", "Backspace"])
+			controls.append(["Cancel", "RMB / Esc"])
 			return {
-				"controls": [["Put down", "LMB"], ["Rotate", "R"], ["Cancel", "RMB"]],
+				"controls": controls,
 				"info": {
 					"title": "Moving %s" % _plot.plot_name,
 					"cost": "%d pieces" % _items.size(),
-					"detail": _problem if not _problem.is_empty() else (_warning if not _warning.is_empty() else "Its own pieces move with it"),
+					"detail": turn + "  ·  " + (_problem if not _problem.is_empty() else (_warning if not _warning.is_empty() else "Its own pieces move with it; other plots' pieces stay")),
 					"detail_bad": not _problem.is_empty(),
 					"detail_warn": _problem.is_empty() and not _warning.is_empty(),
 				},
@@ -310,13 +346,19 @@ func _physics_process(_delta: float) -> void:
 			_update_drawing()
 		Mode.MOVE:
 			var spot := _crosshair_spot()
-			_where = Transform3D(Basis(Vector3.UP, _plot.global_rotation.y + _turn), spot)
+			_where = Transform3D(Basis(Vector3.UP, _plot.global_rotation.y + _turn), spot + Vector3.UP * _height)
 			_ghost_root.global_transform = _where
 			_preview.global_transform = _where
+			# Checked every few frames, and soon after it stops moving (checking every piece is too
+			# much to do every frame while it's swept about)
+			var moved := not _where.is_equal_approx(_checked_at)
 			_check_in -= 1
-			if _check_in <= 0:
-				_check_in = 3
+			if _check_in <= 0 or (moved and _check_in <= 2):
+				_check_in = 6
+				_checked_at = _where
+				var timing := SpikeLog.begin()
 				_problem = _move_problem()
+				SpikeLog.end("moving a plot: checking where it would go", timing)
 			var bad := not _problem.is_empty()
 			var warned := not bad and not _warning.is_empty()
 			_ghost.albedo_color = GHOST_BAD if bad else (GHOST_WARN if warned else GHOST_GOOD)
@@ -385,33 +427,22 @@ func _draw_click() -> void:
 
 # ---- Moving ----
 
-# Why the plot can't go where the preview is, or empty if it can
-# (Like placing, a moved building may overlap anything: only you or a settler inside one of its
-# pieces stops it. Steep ground is a warning, in yellow.)
+# Why the plot can't go where the preview is, or empty if it can: nothing stops it. Its pieces may
+# overlap other buildings (pieces, furniture, workbenches, chests, campfires) and plots and sink
+# into the ground as far as you like, and anyone standing where it lands glides aside (see
+# _finish_move). Steep ground is a warning, in yellow.
 func _move_problem() -> String:
 	_warning = "Steep ground here" if _slope_under(_where, _size) > MAX_SLOPE else ""
-	for i in _items.size():
-		var item: Node3D = _items[i]
-		if not is_instance_valid(item):
-			continue
-		var at: Transform3D = _where * _relative[i]
-		var hit: Object = null
-		if item is BuildPiece:
-			hit = pieces.piece_blocked(item, at, _skip)
-		else:
-			hit = builder.building_blocked(item, at, _skip)
-		if hit == _player:
-			return "You're in the way"
-		if hit:
-			return "Someone's in the way"
 	return ""
 
 
 func _finish_move() -> void:
-	if not _problem.is_empty():
-		_player.flash(_problem)
-		return
+	# (checked here if it moved since the last check: the steep-ground warning)
+	if not _where.is_equal_approx(_checked_at):
+		_checked_at = _where
+		_problem = _move_problem()
 	var valley = get_tree().get_first_node_in_group("valley")
+	var placed: Array = _items.duplicate()
 	for i in _items.size():
 		var item: Node3D = _items[i]
 		if not is_instance_valid(item):
@@ -433,6 +464,12 @@ func _finish_move() -> void:
 	_mode = Mode.NONE
 	cancel()
 	plots.mark_dirty()
+	# Corner posts, ridge logs and lips are worked out again for where the pieces are now (settlers'
+	# paths follow on their own; their jobs and beds go by the plot's id, which stays)
+	if plots.pieces:
+		plots.pieces.changed.emit()
+	# Anyone standing where it landed glides aside
+	PeopleMover.clear_from(placed)
 	_player.flash("Moved %s" % plot.plot_name)
 
 

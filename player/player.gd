@@ -270,6 +270,7 @@ func _ready() -> void:
 	# Every building look drawn once behind a brief cover, so no shader compiles mid-game
 	_warm_up_shaders.call_deferred()
 	_placer.plots.became_working.connect(func(plot): _announce("%s is now working" % plot.plot_name))
+	_placer.plots.notice.connect(_announce)
 	_settlers = SettlerManager.new()
 	_settlers.world = get_parent()
 	_settlers.plots = _placer.plots
@@ -567,6 +568,22 @@ func read_note(title: String, text: String) -> void:
 	_note_panel.open(title, text)
 
 
+# While placing with the mouse captured (no cursor showing), the mouse wheel turns, tilts and tips
+# what's being placed: taken here, before any part of the screen can catch it (a panel under where
+# the hidden cursor rests would otherwise swallow the scroll), and never moving along the action bar
+func _input(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton and event.pressed):
+		return
+	if not event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
+		return
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED or _sleeping or _console_open() or not _placer.is_placing():
+		return
+	if build_menu.visible or inventory_screen.visible or _plot_panel.is_open() or _settler_panel.is_open() or _note_panel.is_open():
+		return
+	if _placer.handle_input(event):
+		get_viewport().set_input_as_handled()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	# Asleep: nothing until you wake. Typing in the developer console: nothing else either.
 	if _sleeping or _console_open():
@@ -682,10 +699,6 @@ func _unhandled_input(event: InputEvent) -> void:
 					flash("Plot view on" if _plot_view else "Plot view off")
 				else:
 					flash("Equip a hammer to see your plots")
-			KEY_Z:
-				# Snapping on or off for every piece, until pressed again
-				if held_item == "Hammer":
-					flash("Snapping on" if _placer.toggle_snapping() else "Snapping off")
 			KEY_G:
 				_drop_held_tool()
 			KEY_R:
@@ -1055,11 +1068,15 @@ func remove_item(item: String, amount: int) -> bool:
 ## The thing in front of you (within reach) that E would use, or null
 func _looked_at() -> Object:
 	var target = interact_ray.get_collider() if interact_ray.is_colliding() else null
-	# In plot view, the ground or a building piece inside a plot opens that plot
-	if _plot_view_on() and not _placer.is_placing() and (target == null or target is BuildPiece or not target.has_method("interact")):
-		var plot := _plot_looked_at()
-		if plot:
-			return plot
+	# With the hammer out (not placing), the ground or a building piece inside a plot opens that
+	# plot's panel (move, resize, checklist): in plot view always, otherwise unless what you aim at
+	# does something itself (a door, the Storehouse's storage, a chest)
+	if held_item == "Hammer" and not _placer.is_placing():
+		var plain: bool = target == null or not target.has_method("interact") or not target.can_interact()
+		if (_plot_view_on() and (plain or target is BuildPiece)) or plain:
+			var plot := _plot_looked_at()
+			if plot:
+				return plot
 	# Stumps and emptied piles are still there, but have nothing left
 	if target and target.has_method("interact") and target.can_interact():
 		return target

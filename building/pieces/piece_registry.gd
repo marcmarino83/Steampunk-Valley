@@ -315,6 +315,9 @@ func save_data() -> Dictionary:
 			"turn": piece.global_rotation.y,
 			"paid": piece.paid,
 		}
+		# Tilted or tipped: its whole rotation too
+		if SaveGame.is_leaning(piece.global_basis):
+			entry["rotation"] = SaveGame.from_rotation(piece.global_basis)
 		if not piece.owner_plot.is_empty():
 			entry["plot"] = piece.owner_plot
 		var state: Dictionary = piece.save_state()
@@ -340,7 +343,7 @@ func load_data(data: Dictionary) -> void:
 		var piece := load(path) as PieceBuildable
 		if piece == null:
 			continue
-		var where := Transform3D(Basis(Vector3.UP, float(entry.get("turn", 0.0))), SaveGame.to_vector(entry.get("position")))
+		var where := Transform3D(SaveGame.to_rotation(entry), SaveGame.to_vector(entry.get("position")))
 		var paid := {}
 		var saved_paid: Dictionary = entry.get("paid", {})
 		for item in saved_paid:

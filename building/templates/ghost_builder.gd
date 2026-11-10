@@ -6,7 +6,7 @@ extends Node
 ##   - Aim at a ghost: it shows brighter, and the placement panel shows its name and cost (red if
 ##     you're short).
 ##   - Left-click: builds it with materials from your inventory (never from chests), turning it into
-##     the real piece (or workbench, chest, campfire). Not if you're standing in its way.
+##     the real piece (or workbench, chest, campfire). Anyone standing in it glides aside.
 ##   - Hold left-click: carries on, about FILL_RATE a second, with the ghost under the crosshair and
 ##     then the nearest ghosts of the same plot joined to what's been built this hold, until you
 ##     run out of materials or there's nothing joined left.
@@ -24,7 +24,7 @@ const JOINED := 3.2
 
 var registry: PieceRegistry
 var plots: PlotRegistry
-var pieces: PiecePlacer
+var pieces: ValheimPlacer
 var builder: BuildPlacer
 
 var _player: CharacterBody3D
@@ -125,19 +125,15 @@ func build(ghost: Node3D) -> String:
 	var cost := buildable.cost_to_pay(_player.inventory)
 	if cost.is_empty():
 		return "Not enough for the %s: you need %s" % [what, buildable.missing_text(_player.inventory)]
-	if ghost is BuildPiece:
-		var hit: Object = pieces.piece_blocked(ghost, ghost.global_transform, [])
-		if hit == _player:
-			return "You're in the way: step out to build the %s" % what
-		if hit:
-			return "Someone's in the way of the %s" % what
 	var plot_id := plots.plot_of(ghost)
 	cost = _player.pay(cost)
 	if ghost == _target:
 		_target = null
+	# (anyone standing in it glides aside once it's solid; see PeopleMover)
 	if ghost is BuildPiece:
 		ghost.set_ghost_targeted(false)
 		registry.fill(ghost, cost)
+		PeopleMover.clear_from([ghost])
 	else:
 		builder.fill_ghost_building(ghost, cost)
 	_player.report_progress("Build", what)

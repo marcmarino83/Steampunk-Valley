@@ -3,6 +3,7 @@
 - Read DESIGN.md before making changes.
 - Testing: don't launch the game window or run scripted play-throughs unless I ask. After changes, run one quick headless check (godot --headless --quit) to catch script errors, fix any that show up, and stop there. I'll play-test by hand.
 - If something can only be confirmed by playing, list what I should check instead.
+- After any change to building, snapping or placement code, run tests/snap_regression.gd (headless: `godot --headless --path . res://tests/snap_regression.tscn --quit-after 40000`, under the usual hard time limit) and fix any failure before reporting.
 - Don't commit; I'll commit myself after testing.
 - Edit files only with the editor tools, never with shell commands (sed, echo, PowerShell redirects). If a file gets corrupted, stop and tell me instead of repairing it line by line.
 

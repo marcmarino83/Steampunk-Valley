@@ -10,8 +10,8 @@ extends Node
 ##
 ## Homes: a House holds one settler per bed (its capacity); each resident sleeps in a bed of their
 ## own (the House's beds in the order they were built, residents in the order they arrived).
-## Jobs: each workplace plot type takes PlotType.workers settlers (1 for the Forager's, Woodcutter's
-## and Stone Gatherer's Huts). Only working plots with a free place can be picked.
+## Jobs: each workplace plot type takes PlotType.workers settlers (1 for the Forager's and
+## Woodcutter's Huts). Only working plots with a free place can be picked.
 
 ## Arrivals (and the console's spawn_settler) appear on the visible ground, never under it, in
 ## water, at the wreck, in a landmark or inside a building: see find_safe_spot. Every attempt is

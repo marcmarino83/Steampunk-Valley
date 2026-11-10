@@ -68,7 +68,7 @@ static func read(file_path: String) -> BuildingTemplate:
 		if buildable == null:
 			continue
 		var at := SaveGame.to_vector(entry.get("position"))
-		template.items.append({"buildable": buildable, "relative": Transform3D(Basis(Vector3.UP, float(entry.get("turn", 0.0))), at)})
+		template.items.append({"buildable": buildable, "relative": Transform3D(SaveGame.to_rotation(entry), at)})
 	return template
 
 
@@ -88,9 +88,8 @@ static func from_plot(plots: PlotRegistry, plot: Plot, name: String) -> Building
 		if buildable == null:
 			continue
 		var relative: Transform3D = from * (item as Node3D).global_transform
-		# Only its turn about the upright counts (pieces never tilt)
-		var turn := relative.basis.get_euler().y
-		template.items.append({"buildable": buildable, "relative": Transform3D(Basis(Vector3.UP, turn), relative.origin)})
+		# Its whole rotation (turned, tilted, tipped), without any scale
+		template.items.append({"buildable": buildable, "relative": Transform3D(relative.basis.orthonormalized(), relative.origin)})
 	return template if not template.items.is_empty() else null
 
 
@@ -104,11 +103,15 @@ func write(as_built_in: bool, picture: Image) -> String:
 	var list := []
 	for item in items:
 		var relative: Transform3D = item["relative"]
-		list.append({
+		var entry := {
 			"buildable": (item["buildable"] as Buildable).resource_path,
 			"position": SaveGame.from_vector(relative.origin),
 			"turn": relative.basis.get_euler().y,
-		})
+		}
+		# Tilted or tipped: its whole rotation too
+		if SaveGame.is_leaning(relative.basis):
+			entry["rotation"] = SaveGame.from_rotation(relative.basis)
+		list.append(entry)
 	var data := {
 		"name": template_name,
 		"plot_type": plot_type.resource_path,

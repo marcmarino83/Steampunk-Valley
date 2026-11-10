@@ -3,8 +3,8 @@ extends Node
 ## Placing a template from the build menu's Buildings tab (run by the BuildPlacer, hammer out).
 ##
 ## The whole building follows the crosshair fully built, looking real, with a soft outline glow:
-## green where it can go, red only where you or a settler would be inside one of its pieces (like
-## single pieces, it may overlap anything), yellow (a warning, still placeable) where the ground
+## green anywhere (like single pieces, it may overlap anything, and it's laid out as ghosts, which
+## nobody can be in the way of), yellow (a warning, still placeable) where the ground
 ## under its foundations is steep or it'd stand in water. Pieces that would exactly repeat ones
 ## already there (a wall shared with the building beside it) are left out. Its plot's outline shows on the
 ## ground round it. R turns it 90°, Alt + wheel 15°; Page Up / Page Down raise and lower it (Alt:
@@ -39,7 +39,7 @@ const SHARED_GAP := 0.05
 
 var registry: PieceRegistry
 var plots: PlotRegistry
-var pieces: PiecePlacer
+var pieces: ValheimPlacer
 var builder: BuildPlacer
 
 var _player: CharacterBody3D
@@ -381,10 +381,11 @@ func _snap(where: Transform3D):
 
 # ---- Checking where it is ----
 
-# Why it can't go here, or empty if it can. Like single pieces it may overlap anything: only you
-# or a settler inside one of its pieces stops it. Water, or steep ground under its foundations, is
-# a warning (yellow). Pieces that would exactly repeat ones already there are counted (they're
-# left out when it's placed).
+# Why it can't go here, or empty if it can: nothing stops it. Like single pieces it may overlap
+# anything and sink into the ground, and it's laid out as ghosts, which aren't solid (anyone in one
+# glides aside when it's built). Water, or steep ground under its foundations, is a warning
+# (yellow). Pieces that would exactly repeat ones already there are counted (they're left out when
+# it's placed).
 func _check() -> String:
 	_warning = ""
 	_repeats = 0
@@ -394,22 +395,13 @@ func _check() -> String:
 	var parts := _look.get_children()
 	for i in parts.size():
 		var part: Node3D = parts[i]
-		var relative: Transform3D = _template.items[i]["relative"]
-		var at := _where * relative
-		var hit: Object = null
-		if part is BuildPiece:
-			var box := PieceShapes.bounds_of(part.shape_def())
-			if _warning.is_empty() and part.buildable.shape.contains("foundation") and _steepness_under(at, box) > MAX_SLOPE:
-				_warning = "Steep ground under its foundations"
-			hit = pieces.piece_blocked(part, at)
-			if registry.duplicate_of(part.buildable.shape, at):
-				_repeats += 1
-		else:
-			hit = builder.building_blocked(part, at)
-		if hit == _player:
-			return "You're in the way"
-		if hit:
-			return "Someone's in the way"
+		if not part is BuildPiece:
+			continue
+		var at := _where * (_template.items[i]["relative"] as Transform3D)
+		if _warning.is_empty() and part.buildable.shape.contains("foundation") and _steepness_under(at, PieceShapes.bounds_of(part.shape_def())) > MAX_SLOPE:
+			_warning = "Steep ground under its foundations"
+		if registry.duplicate_of(part.buildable.shape, at):
+			_repeats += 1
 	return ""
 
 

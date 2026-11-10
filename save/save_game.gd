@@ -499,3 +499,24 @@ static func from_vector(v: Vector3) -> Array:
 
 static func to_vector(a) -> Vector3:
 	return Vector3(float(a[0]), float(a[1]), float(a[2])) if a is Array and a.size() >= 3 else Vector3.ZERO
+
+
+## A full rotation (turned, tilted and tipped) for a save: [x, y, z, w] of its quaternion
+static func from_rotation(b: Basis) -> Array:
+	var q := b.orthonormalized().get_rotation_quaternion()
+	return [q.x, q.y, q.z, q.w]
+
+
+## True if a rotation is more than a turn round the upright (tilted or tipped), so it needs saving
+## in full (see from_rotation); an upright one saves as just its turn, as before
+static func is_leaning(b: Basis) -> bool:
+	return b.orthonormalized().y.dot(Vector3.UP) < 0.99999
+
+
+## A saved entry's rotation: its full rotation if it has one ("rotation"), else its turn round the
+## upright ("turn"), as older saves have
+static func to_rotation(entry: Dictionary) -> Basis:
+	var a = entry.get("rotation")
+	if a is Array and a.size() >= 4:
+		return Basis(Quaternion(float(a[0]), float(a[1]), float(a[2]), float(a[3])).normalized())
+	return Basis(Vector3.UP, float(entry.get("turn", 0.0)))

@@ -91,6 +91,7 @@ const CONTEXT := {
 	"window_split_1": [{"shape": "window_split_1", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "opposite"}],
 	"door": [{"shape": "doorway", "mode": "under", "mine": "door_base", "theirs": "door_slot"}],
 	"stairs": [{"shape": "floor", "mode": "under", "mine": "stairs_top", "theirs": "floor_edge", "pick": "far"}],
+	"foundation_steps": [{"shape": "foundation_wood", "mode": "under", "mine": "stairs_top", "theirs": "floor_edge", "pick": "far"}],
 	"pillar_wood": [{"shape": "floor", "mode": "on", "mine": "pillar_top", "theirs": "post_spot", "pick": "far"}],
 	"pillar_stone": [{"shape": "floor", "mode": "on", "mine": "pillar_top", "theirs": "post_spot", "pick": "far"}],
 	"pole_1": [{"shape": "floor_1", "mode": "on", "mine": "pole_top", "theirs": "post_spot", "pick": "far"}],
@@ -141,7 +142,7 @@ const CONTEXT := {
 
 ## Pieces turned on the stage so their neighbours stand behind them and the camera sees their
 ## good side: shape -> turn (radians). Pieces in the Roofs tab otherwise turn half round (see turn_of).
-const TURNS := {"stairs": PI, "gable_26": PI / 2.0, "gable_45": PI / 2.0}
+const TURNS := {"stairs": PI, "foundation_steps": PI, "gable_26": PI / 2.0, "gable_45": PI / 2.0}
 ## How far the framing leans from the piece's middle toward the middle of it and its neighbours
 const LEAN := 0.35
 ## Pieces framed together with their neighbours (they only make sense on top of them)

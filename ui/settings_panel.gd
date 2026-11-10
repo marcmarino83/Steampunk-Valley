@@ -85,12 +85,6 @@ func _ready() -> void:
 		GameSettings.save())
 	_slider_row(column, "Field of view", "fov", 60, 100, 1, "%d°")
 
-	column.add_child(_heading("Building"))
-	var dots := _option_row(column, "Snap points", ["Hidden", "Nearby", "All"], GameSettings.SNAP_POINT_MODES.find(GameSettings.snap_points))
-	dots.item_selected.connect(func(i):
-		GameSettings.snap_points = GameSettings.SNAP_POINT_MODES[i]
-		GameSettings.save())
-
 	# Debug builds only: the lag spike logger (see SpikeLog)
 	if OS.is_debug_build():
 		column.add_child(_heading("Debug"))

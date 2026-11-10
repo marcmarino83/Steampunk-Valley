@@ -161,7 +161,7 @@ func _activity() -> String:
 	var placer = player.get("_placer")
 	if placer and placer.has_method("is_placing") and placer.is_placing():
 		return "placing"
-	if placer and placer.get("_pieces") and placer._pieces.get("_hold_time") and float(placer._pieces._hold_time) > 0.0:
+	if placer and placer.get("_demolisher") and float(placer._demolisher.get("_hold_time")) > 0.0:
 		return "taking down a piece"
 	var body := player as CharacterBody3D
 	if body and Vector2(body.velocity.x, body.velocity.z).length() > 0.5:

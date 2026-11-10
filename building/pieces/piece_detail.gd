@@ -195,6 +195,8 @@ static func build(shape: String, seed_value: int, simple_look := false) -> Dicti
 			b._cone_roof()
 		"stairs":
 			b._stairs()
+		"foundation_steps":
+			b._stairs(PieceShapes.FOUNDATION_STEPS_HEIGHT, PieceShapes.FOUNDATION_STEPS)
 		"pillar_wood":
 			b._wood_pillar()
 		"pillar_stone":
@@ -929,12 +931,12 @@ func _shakes(o: Vector3, u: Vector3, s: Vector3, n: Vector3, poly: PackedVector2
 
 # ---- Stairs, posts, beams and the rest ----
 
-# Chunky plank treads on two log stringers
-func _stairs() -> void:
-	var steps := PieceShapes.STAIRS_STEPS
-	var rise := PieceShapes.WALL_HEIGHT / steps
-	var run := PieceShapes.STAIRS_RUN / steps
-	var start := -PieceShapes.STAIRS_RUN / 2.0
+# Chunky plank treads on two log stringers (Foundation Steps: the same, shorter; see
+# PieceShapes._stairs)
+func _stairs(height := PieceShapes.WALL_HEIGHT, steps := PieceShapes.STAIRS_STEPS) -> void:
+	var rise := height / steps
+	var run := PieceShapes.STAIRS_RUN / PieceShapes.STAIRS_STEPS
+	var start := -run * steps / 2.0
 	var w := PieceShapes.GRID
 	for i in steps:
 		var top := rise * (i + 1)
@@ -952,7 +954,7 @@ func _stairs() -> void:
 		var x: float = side * (w / 2.0 - 0.2)
 		# Under the treads' front edges, down to the ground
 		var top_z := start + run * (steps - 0.5)
-		var top_y := PieceShapes.WALL_HEIGHT - 0.075 - r
+		var top_y := height - 0.075 - r
 		var low_y := 0.08
 		var low_z := top_z - (top_y - low_y) / k
 		log_part(Vector3(x, low_y, low_z), Vector3(x, top_y, top_z), r, 8, 0.06, _wood_shade(0.8), WOOD)

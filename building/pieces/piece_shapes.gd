@@ -8,10 +8,11 @@ class_name PieceShapes
 ## Square pieces sit on a 2 m grid. Round pieces share one circle of radius RING_RADIUS, so a 45°
 ## arc spans exactly 2 m and eight of them close into a circle about 5.2 m across.
 ##
-## Snap points ("sockets") have a position, a facing (yaw, in radians, 0 = +Z) and a type. A new
-## piece attaches by one of its own sockets to a nearby socket of a placed piece; SNAP_RULES says
-## which types fit together, and the turns (added to facing them toward each other's yaw) that
-## fit. R cycles through those.
+## Typed points ("sockets") have a position, a facing (yaw, in radians, 0 = +Z) and a type. They
+## aren't what placing a piece by hand snaps by (that's the piece's corners and ends: see
+## SnapCorners and ValheimPlacer); templates fit their outside to pieces already built by them
+## (see TemplatePlacer: SNAP_RULES says which types fit together, and the turns that fit), the
+## icon studio stages pieces with them, and the corner posts and foundation lips read them.
 
 const GRID := 2.0
 const WALL_HEIGHT := 2.5
@@ -32,6 +33,10 @@ const SPLIT_WINDOWS := {2.0: 1.0, 1.0: 0.6}
 const SPLIT_WINDOW_HEIGHT := 1.1
 const STAIRS_RUN := 4.0
 const STAIRS_STEPS := 10
+## Foundation Steps: a short flight up to a foundation's top (it stands FOUNDATION_LIFT out of the
+## ground), at the stairs' slope
+const FOUNDATION_STEPS_HEIGHT := FOUNDATION_LIFT
+const FOUNDATION_STEPS := 4
 ## 1 / sin(22.5°): a 45° arc's ends are exactly 2 m apart
 const RING_RADIUS := 2.6131259
 const CONE_HEIGHT := 2.0
@@ -91,19 +96,21 @@ const MORTAR_COLOR := Color(0.3, 0.27, 0.23)
 ## new piece's socket type -> {placed piece's socket type: [turns that fit]}
 const SNAP_RULES := {
 	"floor_edge": {"floor_edge": [PI], "wall_top": [0.0, PI]},
+	# Square floors and foundations meet corner to corner, any way round
+	"floor_corner": {"floor_corner": QUARTER_TURNS},
 	"floor_edge_long": {"floor_edge_long": [PI]},
 	"floor_edge_short": {"floor_edge_short": [PI]},
 	# The 1 m points: along 2 m floor edges (and a 1 m floor's edges), and along wall tops
 	"half_edge": {"half_edge": [PI]},
 	# Walls and small walls also stack on any wall's top points (its ends and every 1 m)
-	"wall_base": {"floor_edge": [0.0, PI], "wall_top": [0.0, PI], "top_point": [0.0, PI]},
-	"small_wall_base": {"half_edge": [0.0, PI], "half_top": [0.0, PI], "top_point": [0.0, PI]},
+	"wall_base": {"floor_edge": [0.0, PI], "wall_top": [0.0, PI], "top_point": [0.0, PI], "edge_step": [0.0, PI]},
+	"small_wall_base": {"half_edge": [0.0, PI], "half_top": [0.0, PI], "top_point": [0.0, PI], "edge_step": [0.0, PI]},
 	"long_wall_base": {"floor_edge_long": [0.0, PI], "long_wall_top": [0.0, PI]},
 	"short_wall_base": {"floor_edge_short": [0.0, PI], "short_wall_top": [0.0, PI]},
 	"wall_end": {"wall_end": [PI, PI / 2.0, -PI / 2.0], "pillar_top": QUARTER_TURNS, "pole_top": QUARTER_TURNS},
 	# A gable on a wall's top, or on any wall's top points (a small wall's ends and middle, say), facing
 	# either way
-	"gable_base": {"wall_top": [0.0, PI], "top_point": [0.0, PI]},
+	"gable_base": {"wall_top": [0.0, PI], "top_point": [0.0, PI], "edge_step": [0.0, PI]},
 	"door_base": {"door_slot": [0.0, PI]},
 	# Roofs: any pitch goes on a wall top or carries on up from another roof's high edge; sides,
 	# ridges, corners and ridge caps only meet roofs of their own pitch
@@ -176,9 +183,12 @@ const SNAP_RULES := {
 	# Gables of either pitch under a roof of either pitch (by the roof's low corner, the gable
 	# rising with the roof along its side edge), and back to back at their tall edges
 	"gable_corner": {"gable_under": [0.0]},
+	# ...and the other way round: a roof put up beside a gable that's already there, its low corner on
+	# the gable's low corner, rising along the gable's slope
+	"gable_under": {"gable_corner": [0.0]},
 	"gable_tip": {"gable_tip": [PI]},
 	# A half gable (1 m) on the 1 m points along floor edges and wall tops, and any wall's top points
-	"small_gable_base": {"half_edge": [0.0, PI], "half_top": [0.0, PI], "top_point": [0.0, PI]},
+	"small_gable_base": {"half_edge": [0.0, PI], "half_top": [0.0, PI], "top_point": [0.0, PI], "edge_step": [0.0, PI]},
 	# Inverse triangles: the flat top under a beam, a roof's low edge, an eave's outer edge or a
 	# wall standing above; the low corner on a gable's slope or the top of a roof's side edge of
 	# the same pitch (the vertical side meets wall ends as a wall's end does)
@@ -204,13 +214,15 @@ const SNAP_RULES := {
 	"chimney_base": {"chimney_spot": QUARTER_TURNS},
 	"chimney_cap_base": {"chimney_spot": QUARTER_TURNS},
 	"stairs_foot": {"floor_center": QUARTER_TURNS},
-	# Stairs: the bottom on a floor or foundation edge, the top on one a level up, and end to end
+	# Stairs: the bottom on a floor or foundation edge, the top on one a level up (hanging from it:
+	# the usual way; also from the 1 m points along it, so stairs aimed
+	# near a corner hang there), and end to end
 	"stairs_bottom": {"floor_edge": [PI], "stairs_top": [PI]},
-	"stairs_top": {"floor_edge": [PI], "stairs_bottom": [PI]},
+	"stairs_top": {"floor_edge": [PI], "half_edge": [PI], "stairs_bottom": [PI], "edge_step": [PI]},
 	"ladder_base": {"floor_edge": [0.0, PI], "half_edge": [0.0, PI], "ladder_top": [0.0]},
 	"ladder_top": {"floor_edge": [0.0, PI]},
-	"railing_base": {"floor_edge": [0.0, PI], "wall_top": [0.0, PI]},
-	"small_railing_base": {"half_edge": [0.0, PI], "half_top": [0.0, PI]},
+	"railing_base": {"floor_edge": [0.0, PI], "wall_top": [0.0, PI], "edge_step": [0.0, PI]},
+	"small_railing_base": {"half_edge": [0.0, PI], "half_top": [0.0, PI], "edge_step": [0.0, PI]},
 	"curve_base": {"round_edge": [0.0], "curve_top": [0.0]},
 	"curve22_base": {"round_edge_small": [0.0], "curve22_top": [0.0]},
 	"round_edge": {"curve_base": [0.0]},
@@ -230,8 +242,7 @@ const SNAP_RULES := {
 	"beam_end": {"beam_end": [PI, PI / 2.0, -PI / 2.0], "post_spot": QUARTER_TURNS, "top_spot": QUARTER_TURNS, "pole_top": QUARTER_TURNS, "pillar_top": QUARTER_TURNS,
 		"pole_bottom": QUARTER_TURNS, "pillar_base": QUARTER_TURNS},
 	# A beam's centre on another beam's middle, crossing through it. It first lies exactly over the
-	# other (a diagonal over a diagonal, the same way); R then turns it about its centre (see
-	# PiecePlacer._slender_placements), so the first press makes an X
+	# other (a diagonal over a diagonal, the same way), for templates
 	"beam_mid_diag": {"beam_mid_diag": [0.0, PI], "beam_mid": [0.0, PI]},
 	"beam_mid": {"beam_mid": [0.0, PI / 2.0], "beam_mid_diag": [0.0, PI]},
 	"beam_under": {"wall_top": [0.0, PI]},
@@ -372,6 +383,8 @@ static func build(shape: String) -> Dictionary:
 			_roof(d, ROOF_RISE, "_26")
 		"stairs":
 			_stairs(d)
+		"foundation_steps":
+			_stairs(d, FOUNDATION_STEPS_HEIGHT, FOUNDATION_STEPS)
 		"curved_wall_45":
 			_curved_wall(d, 22.5, "curve_base", "curve_top")
 		"curved_wall_22":
@@ -534,7 +547,8 @@ static func _wall_top_spots(d: Dictionary, width: float, height: float) -> void:
 
 
 # The 1 m points along a square floor's edges: two on each edge of a 2 m floor, the middle of
-# each edge of a 1 m floor. 1 m floors, small walls and ladders snap to them.
+# each edge of a 1 m floor, and its corners (templates' snap points; see TemplatePlacer). Placing
+# pieces by hand snaps by corners only (see SnapCorners).
 static func _half_edges(d: Dictionary, size: float) -> void:
 	for i in 4:
 		var out := Vector3.FORWARD.rotated(Vector3.UP, i * PI / 2.0) * -1.0
@@ -542,6 +556,7 @@ static func _half_edges(d: Dictionary, size: float) -> void:
 		var offsets := [-0.5, 0.5] if size > 1.5 else [0.0]
 		for o in offsets:
 			_socket(d, out * size / 2.0 + along * o, _yaw(out), "half_edge")
+		_socket(d, out * size / 2.0 + along * size / 2.0, _yaw(out), "floor_corner")
 
 
 # One solid block of a wall, x0 to x1 across and y0 to y1 up, with horizontal boards
@@ -598,17 +613,20 @@ static func _roof(d: Dictionary, rise: float, pitch: String) -> void:
 
 # Stairs 2 m wide and 4 m long, climbing a wall's height toward +Z (a gentle enough slope to walk
 # up). They stand on the middle of their footprint; you walk on a hidden ramp along the step edges.
-static func _stairs(d: Dictionary) -> void:
-	var rise := WALL_HEIGHT / STAIRS_STEPS
+# Foundation Steps are the same at a foundation's height (FOUNDATION_STEPS_HEIGHT, in
+# FOUNDATION_STEPS steps of the same rise and run, so 1.6 m long).
+static func _stairs(d: Dictionary, height := WALL_HEIGHT, steps := STAIRS_STEPS) -> void:
+	var rise := height / steps
 	var run := STAIRS_RUN / STAIRS_STEPS
-	var start := -STAIRS_RUN / 2.0
-	for i in STAIRS_STEPS:
+	var length := run * steps
+	var start := -length / 2.0
+	for i in steps:
 		var top := rise * (i + 1)
 		var color := _board_color(STAIRS_COLOR, i)
 		_box_mesh(d["surface"], Vector3(GRID, top, run), Transform3D(Basis.IDENTITY, Vector3(0, top / 2.0, start + run * (i + 0.5))), color)
 	# The ramp runs along the front edges of the steps, from the ground to the top step
 	var low := Vector3(0, 0, start - run)
-	var high := Vector3(0, WALL_HEIGHT, STAIRS_RUN / 2.0 - run)
+	var high := Vector3(0, height, length / 2.0 - run)
 	var slope := atan2(high.y - low.y, high.z - low.z)
 	var basis := Basis(Vector3.RIGHT, -slope)
 	var ramp := BoxShape3D.new()
@@ -616,11 +634,14 @@ static func _stairs(d: Dictionary) -> void:
 	_collision(d, ramp, Transform3D(basis, (low + high) / 2.0 - basis.y * 0.1))
 	var landing := BoxShape3D.new()
 	landing.size = Vector3(GRID, 0.2, run)
-	_collision(d, landing, Transform3D(Basis.IDENTITY, Vector3(0, WALL_HEIGHT - 0.1, STAIRS_RUN / 2.0 - run / 2.0)))
-	_socket(d, Vector3(0, 0, -GRID / 2.0), PI, "stairs_foot")
+	_collision(d, landing, Transform3D(Basis.IDENTITY, Vector3(0, height - 0.1, length / 2.0 - run / 2.0)))
+	# (the full flight stands on a floor's middle by this point; the short one has no room to)
+	if steps == STAIRS_STEPS:
+		_socket(d, Vector3(0, 0, -GRID / 2.0), PI, "stairs_foot")
 	_socket(d, Vector3(0, 0, start), PI, "stairs_bottom")
-	_socket(d, Vector3(0, WALL_HEIGHT, STAIRS_RUN / 2.0), 0.0, "stairs_top")
-	d["clear_radius"] = 2.3
+	_socket(d, Vector3(0, height, length / 2.0), 0.0, "stairs_top")
+	d["clear_radius"] = length / 2.0 + 0.3
+	d["stairs"] = true
 
 
 # A curved wall along the ring, centered on +Z, `half_angle` degrees each side. Its origin is the
@@ -1081,7 +1102,7 @@ static func _roof_corner(d: Dictionary, rise: float, pitch: String, inner: bool)
 		_socket(d, Vector3(half, 0, 0), 0.0, "hip_foot" + pitch)
 		_socket(d, Vector3(-half, rise, GRID), 0.0, "hip_top" + pitch)
 		# It fits wall tops many ways round; the right one lands on both walls and beside the end's
-		# roof at once (see PiecePlacer._snapped_at)
+		# roof at once
 		d["anchored"] = true
 	d["roof"] = true
 
@@ -1474,7 +1495,7 @@ static func _hip_end(d: Dictionary, rise: float, pitch: String) -> void:
 		_socket(d, Vector3(side, 0, 0), 0.0, "hip_end_foot" + pitch)
 	d["roof"] = true
 	# Its sides fit any side roof's high edge; the right place also lands it on the end roof's high
-	# edge and the hip corners' tops (see PiecePlacer._snapped_at)
+	# edge and the hip corners' tops
 	d["anchored"] = true
 
 
@@ -1683,7 +1704,7 @@ static func _fence(d: Dictionary) -> void:
 # ---- Furniture ----
 #
 # Simple placeholder shapes standing on their bottom middle, front toward +Z. Each is solid as one
-# box (its overall size), rests on the floor or ground under it (see PiecePlacer), and counts toward
+# box (its overall size), rests on the floor or ground under it (see FurnitureSpot), and counts toward
 # plot requirements by its name.
 
 const BED_SIZE := Vector3(1.0, 0.6, 2.0)
@@ -1854,7 +1875,7 @@ static func _furniture(d: Dictionary, shape: String) -> void:
 	# These back up flush against a wall when placed near one (their back is -Z)
 	d["backs_to_wall"] = shape in ["bed", "storage_shelf", "tool_rack", "storehouse_storage", "firewood_rack"]
 	# Hung on a wall rather than standing: how far up its bottom is from the wall's foot (the tool
-	# rack's 0.86 m spans 1.0 to 1.86 m, its pegs about 1.2 to 1.6 m up; Page Up/Down moves it)
+	# rack's 0.86 m spans 1.0 to 1.86 m, its pegs about 1.2 to 1.6 m up)
 	d["wall_mount"] = WALL_MOUNTS.get(shape, 0.0)
 	# The fireplace burns and warms like a campfire (see BuildPiece)
 	d["hearth"] = shape == "fireplace"
@@ -1862,7 +1883,7 @@ static func _furniture(d: Dictionary, shape: String) -> void:
 
 # A chimney section or top: solid as a CHIMNEY_WIDTH square box standing on its bottom middle,
 # shown as its fitted model. A section stacks on the fireplace's chimney or another section, the
-# top on either. Chimneys pass through roofs (see PiecePlacer._check).
+# top on either. Chimneys pass through roofs (nothing blocks a piece; see ValheimPlacer).
 static func _chimney(d: Dictionary, shape: String) -> void:
 	var top := shape == "chimney_top"
 	var h := CHIMNEY_TOP_HEIGHT if top else CHIMNEY_SECTION_HEIGHT

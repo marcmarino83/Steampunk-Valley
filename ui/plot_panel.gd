@@ -1,9 +1,10 @@
 class_name PlotPanel
 extends Control
-## The plot panel, opened with E aimed inside a plot in plot view (brass plaque style): its name
-## (editable), type, size, how many it houses, and a checklist of its requirements with ticks and
-## crosses, kept up to date while it's open, with Move and Remove plot (resizing is by dragging an
-## edge in plot view). It also asks the yes/no questions plots need ("Remove this plot?", and
+## The plot panel, opened with E aimed at a plot with the hammer out (its ground or one of its
+## pieces; in plot view, or anywhere a door or storage isn't in the way) (brass plaque style): its
+## name (editable), type, size, how many it houses, and a checklist of its requirements with ticks
+## and crosses, kept up to date while it's open, with Move plot (or M) and Remove plot; its hint
+## says how to move and resize (resizing is by dragging an edge in plot view). It also asks the yes/no questions plots need ("Remove this plot?", and
 ## shrinking one that would lose pieces).
 
 ## Move was pressed: the player starts it with the hammer
@@ -77,7 +78,10 @@ func open(plot: Plot, holding_hammer: bool) -> void:
 	_plot = plot
 	_name_edit.text = plot.plot_name
 	_move.disabled = not holding_hammer
-	_hint.text = "Drag an edge in plot view to resize   ·   [E] or [Esc] Close" if holding_hammer else "Hold the hammer to move it   ·   [E] or [Esc] Close"
+	if holding_hammer:
+		_hint.text = "[M] Move plot: it and its own pieces follow the crosshair (wheel turns, R resets)\nResize: close this, turn on plot view [P], drag an edge or corner\n[E] or [Esc] Close"
+	else:
+		_hint.text = "Hold the hammer to move or resize it   ·   [E] or [Esc] Close"
 	_show_part(_main)
 	_refresh()
 	show()
@@ -321,6 +325,15 @@ func _apply_name() -> void:
 	_name_edit.release_focus()
 
 
+# M on the panel (not while typing a name): Move plot, as its button
+func _input(event: InputEvent) -> void:
+	if not visible or _plot == null or not _main.get_parent().visible or is_typing():
+		return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_M and not _move.disabled:
+		get_viewport().set_input_as_handled()
+		move_requested.emit(_plot)
+
+
 func _show_part(part: Control) -> void:
 	_main.get_parent().visible = part == _main
 	_confirm.get_parent().visible = part == _confirm
@@ -374,7 +387,8 @@ func _build_main(center: CenterContainer) -> Control:
 	buttons.add_theme_constant_override("separation", 8)
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	column.add_child(buttons)
-	_move = _button("Move")
+	_move = _button("Move plot [M]")
+	_move.custom_minimum_size.x = 150
 	_move.pressed.connect(func(): if _plot: move_requested.emit(_plot))
 	buttons.add_child(_move)
 	var remove := _button("Remove plot")

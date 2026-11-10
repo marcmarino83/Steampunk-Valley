@@ -100,6 +100,9 @@ var _snap_turn := 0.0
 var _nudge := Vector3.ZERO
 # Which way a snapped beam reaches out (R steps it; see _slender_placements)
 var _slender_step := 0
+## Which of its own snap points attaches (0: any; see _own_sockets), and the choices Q steps through
+var _attach := 0
+var _attach_choices: Array = []
 ## The snap points this piece could meet near the crosshair, this frame (see _anchor_count)
 var _pool: Array = []
 ## How near (m) a piece's own snap point must come to a placed one to count as resting on it
@@ -159,13 +162,20 @@ func begin(piece: PieceBuildable, keep := false) -> void:
 		var step: float = _shape.get("turn_step", PI / 2.0)
 		if not is_zero_approx(fmod(_snap_turn + 0.001, step) - 0.001):
 			_snap_turn = 0.0
+		# (the attach point chosen is the old piece's own)
+		if piece.resource_path != _kept_for:
+			_attach = 0
 		_kept_for = piece.resource_path
 	elif piece.resource_path != _kept_for:
 		_height = 0.0
 		_snap_turn = 0.0
 		_nudge = Vector3.ZERO
 		_slender_step = 0
+		_attach = 0
 		_kept_for = piece.resource_path
+	_attach_choices = _make_attach_choices()
+	if _attach > _attach_choices.size():
+		_attach = 0
 	_ghost = StandardMaterial3D.new()
 	_ghost.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_ghost.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -240,6 +250,10 @@ func handle_input(event: InputEvent) -> bool:
 					_nudge -= right * step
 			return true
 	if event is InputEventKey and event.pressed and not event.echo:
+		# Q: which of its own snap points attaches (snapping on)
+		if event.keycode == KEY_Q and snapping_now() and _attach_choices.size() > 1:
+			_cycle_attach()
+			return true
 		if event.keycode == KEY_R:
 			if _target or (is_furniture() and snapping_now()):
 				_next_turn()
@@ -294,6 +308,10 @@ func hud_state() -> Dictionary:
 		controls.append(["Rotate", "R"])
 		if not snapping_now():
 			controls.append(["Nudge", "Arrows"])
+	# Which of its own snap points attaches (Q)
+	if snapping_now() and _attach_choices.size() > 1:
+		details.append("Attach: " + attach_label())
+		controls.append(["Attach point", "Q"])
 	controls.append(["Raise/Lower", "PgUp/PgDn"])
 	if not is_zero_approx(_height):
 		controls.append(["Reset height", "Backspace"])
@@ -365,7 +383,7 @@ func _physics_process(_delta: float) -> void:
 # asked (see _placements). Nearest first; a snap point the piece fits without bumping into
 # anything wins over a nearer one where it would.
 func _snap(from: Vector3, end: Vector3) -> bool:
-	var wanted := PieceShapes.targets_for(_shape["sockets"])
+	var wanted := PieceShapes.targets_for(_own_sockets())
 	var options := []
 	_pool.clear()
 	for piece in registry.pieces_near(end, SNAP_SEARCH):
@@ -519,15 +537,16 @@ func _placements(option: Dictionary) -> Array:
 # diagonal the first press mirrors its slope (so a copy over a diagonal, turned once, makes an X),
 # the next two put it across, in the upright plane at right angles. A straight beam looks the same
 # turned half round, so it just turns across and back. Alt + wheel's 15° steps (in _snap_turn)
-# turn it about its centre too.
+# turn it about its centre too. With an attach point chosen (Q), it turns about that point instead
+# (where it's attached), all four ways.
 const SLENDER_TURNS := [0.0, PI, PI / 2.0, -PI / 2.0]
-func _slender_placements(fits: Array, _pivot: Vector3, centre: Vector3, shift: Transform3D) -> Array:
+func _slender_placements(fits: Array, pivot: Vector3, centre: Vector3, shift: Transform3D) -> Array:
 	var base: Transform3D = fits[0]
 	for where in fits:
 		if _anchor_count(where) >= 2:
 			base = where
 			break
-	var turns: Array = [0.0, PI / 2.0] if _shape["symmetry"] > 0.0 else SLENDER_TURNS
+	var turns: Array = [0.0, PI / 2.0] if _shape["symmetry"] > 0.0 and _attach == 0 else SLENDER_TURNS
 	var turn: float = turns[posmod(_slender_step, turns.size())] + _snap_turn
 	# About the middle of its axis (halfway between its ends), not its box's middle (a diagonal's box
 	# sits a hair off-centre; see PieceShapes._diagonal_beam)
@@ -535,9 +554,111 @@ func _slender_placements(fits: Array, _pivot: Vector3, centre: Vector3, shift: T
 	var axis_middle := centre
 	if ends.size() == 2:
 		axis_middle = ((ends[0]["position"] as Vector3) + (ends[1]["position"] as Vector3)) / 2.0
-	var chosen := _turned_about(base, base * axis_middle, turn)
+	var about := pivot if _attach > 0 else base * axis_middle
+	var chosen := _turned_about(base, about, turn)
 	var rest := fits.filter(func(where): return where != base)
 	return [shift * chosen] + rest.map(func(where: Transform3D): return shift * where)
+
+
+# ---- Choosing which of its own snap points attaches (Q) ----
+#
+# A piece's own snap points, grouped by where they are on it (several types at one spot are one
+# choice; an edge's points, every EDGE_STEP along it, are one choice: the whole edge). Q steps
+# through them, after "any" (every snap point, as normal). The choice sticks while the same piece
+# is picked again (see begin).
+
+## The snap points of its own the piece may attach by right now: all of them, or the chosen group's
+func _own_sockets() -> Array:
+	var all: Array = _shape["sockets"]
+	if _attach <= 0 or _attach > _attach_choices.size():
+		return all
+	var chosen: Array = _attach_choices[_attach - 1]["indices"]
+	return chosen.map(func(i): return all[i])
+
+
+## What the attach choice is called in the placement panel
+func attach_label() -> String:
+	if _attach <= 0 or _attach > _attach_choices.size():
+		return "any"
+	return _attach_choices[_attach - 1]["label"]
+
+
+## Q: the next attach point (after the last, back to "any")
+func _cycle_attach() -> void:
+	if _attach_choices.size() < 2:
+		return
+	_attach = (_attach + 1) % (_attach_choices.size() + 1)
+	_slender_step = 0
+	_snap_key = ""
+
+
+# The piece's attach choices: [{"label", "indices" (into its snap points), "at"}], in order along
+# it (beams: end A, middle, end B)
+func _make_attach_choices() -> Array:
+	if is_furniture():
+		return []
+	var sockets: Array = _shape["sockets"]
+	var groups := {}
+	var order := []
+	for i in sockets.size():
+		var s: Dictionary = sockets[i]
+		var key := ""
+		var at: Vector3 = s["position"]
+		var edge := s.has("edge_dir")
+		if edge:
+			var start: Vector3 = at - (s["edge_dir"] as Vector3) * float(s["edge_t"])
+			key = "e%s%s" % [start.snapped(Vector3.ONE * 0.01), (s["edge_dir"] as Vector3).snapped(Vector3.ONE * 0.01)]
+			at = start + (s["edge_dir"] as Vector3) * float(s["edge_len"]) / 2.0
+		else:
+			key = "p%s" % at.snapped(Vector3.ONE * 0.01)
+		if not groups.has(key):
+			groups[key] = {"indices": [], "at": at, "edge": edge, "types": {}}
+			order.append(key)
+		groups[key]["indices"].append(i)
+		groups[key]["types"][s["type"]] = true
+	var choices: Array = order.map(func(key): return groups[key])
+	choices.sort_custom(func(a, b):
+		var p: Vector3 = a["at"]
+		var q: Vector3 = b["at"]
+		if absf(p.x - q.x) > 0.01:
+			return p.x < q.x
+		if absf(p.y - q.y) > 0.01:
+			return p.y < q.y
+		return p.z < q.z)
+	var box := PieceShapes.bounds_of(_shape)
+	var middle := box.get_center()
+	var ends_named := 0
+	var used := {}
+	for choice in choices:
+		var types: Dictionary = choice["types"]
+		var at: Vector3 = choice["at"]
+		var label := ""
+		if types.has("beam_end"):
+			label = "end A" if ends_named == 0 else "end B"
+			ends_named += 1
+		elif types.keys().any(func(t): return (t as String).begins_with("beam_mid")):
+			label = "middle"
+		else:
+			var words := []
+			if at.y <= box.position.y + 0.05:
+				words.append("bottom")
+			elif at.y >= box.end.y - 0.05:
+				words.append("top")
+			if at.x < middle.x - 0.1:
+				words.append("left")
+			elif at.x > middle.x + 0.1:
+				words.append("right")
+			if at.z > middle.z + 0.1:
+				words.append("front")
+			elif at.z < middle.z - 0.1:
+				words.append("back")
+			label = " ".join(words) if not words.is_empty() else "middle"
+			if choice["edge"]:
+				label = label + " edge"
+		var count: int = used.get(label, 0) + 1
+		used[label] = count
+		choice["label"] = label if count == 1 else "%s %d" % [label, count]
+	return choices
 
 
 # How many of the piece's own snap points, put here, land on a placed snap point they fit (from
@@ -760,7 +881,7 @@ func _backed_to_wall(where: Transform3D, bounds: AABB, skip: Array[RID]) -> Tran
 # can meet an edge by their top or their bottom: an edge above your eyes gets their top (stairs
 # coming down to you from a raised floor), one below gets their bottom (stairs going up from it).
 func _fits(socket: Dictionary) -> Array:
-	var own: Array = _shape["sockets"]
+	var own: Array = _own_sockets()
 	if (socket["position"] as Vector3).y > _player.camera.global_position.y:
 		own = own.filter(func(s): return s["type"] == "stairs_top") + own.filter(func(s): return s["type"] != "stairs_top")
 	return PieceShapes.fits(own, socket, _shape["symmetry"])
@@ -935,7 +1056,7 @@ func _update_markers(end: Vector3) -> void:
 		"all":
 			reach = MARKER_REACH_ALL
 	if reach > 0.0:
-		var wanted := PieceShapes.targets_for(_shape["sockets"])
+		var wanted := PieceShapes.targets_for(_own_sockets())
 		for piece in registry.pieces_near(end, maxf(reach, SNAP_SEARCH)):
 			for socket in piece.world_sockets():
 				if used >= MAX_MARKERS or not wanted.has(socket["type"]):

@@ -185,6 +185,10 @@ static func build(shape: String, seed_value: int, simple_look := false) -> Dicti
 			b._roof_corner(_rise_of(shape), shape.contains("inner"))
 		"ridge_26", "ridge_45":
 			b._ridge_cap(_rise_of(shape))
+		"valley_left_26", "valley_right_26", "valley_left_45", "valley_right_45":
+			b._valley(_rise_of(shape), 1.0 if shape.contains("left") else -1.0)
+		"ridge_end_26", "ridge_end_45":
+			b._ridge_end(_rise_of(shape))
 		"topper_26", "topper_45":
 			return {"mesh": _topper(_rise_of(shape), seed_value, false, simple_look), "door_mesh": null}
 		"topper_overhang_26", "topper_overhang_45":
@@ -812,6 +816,81 @@ func _ridge_cap(rise: float) -> void:
 	for x in [-0.6, 0.6]:
 		rope_ring(Vector3(x, y, 0), Vector3.RIGHT, RIDGE_RADIUS + 0.012, 0.014)
 		rope_ring(Vector3(x + 0.043, y, 0), Vector3.RIGHT, RIDGE_RADIUS + 0.012, 0.014)
+
+
+# A valley junction (see PieceShapes._valley): the wing's slope over the triangle A, B, C, decked
+# and shaked like a roof; a strip of shakes lying on the main roof along the fold (the other face
+# of the valley, over the main roof's own); and a valley board in the fold
+func _valley(rise: float, side: float) -> void:
+	var k := rise / PieceShapes.GRID
+	var L := sqrt(1.0 + k * k)
+	# The wing's slope: up toward the ridge across X; u along the ridge (so u × s points down)
+	var o := Vector3(-side, 0, 0)
+	var s := Vector3(side, k, 0).normalized()
+	var n := Vector3(-side * k, 1, 0).normalized()
+	var u := Vector3(0, 0, -side)
+	var tri := PackedVector2Array([Vector2(0, 0), Vector2(0, 2.0 * L), Vector2(-2.0 * side, 2.0 * L)])
+	if side < 0.0:
+		tri = PackedVector2Array([Vector2(0, 0), Vector2(-2.0 * side, 2.0 * L), Vector2(0, 2.0 * L)])
+	# Deck boards across the slope, cut to the triangle
+	var v := 0.0
+	while 2.0 * L - v > 0.02:
+		var w := rng.randf_range(0.2, 0.3)
+		if 2.0 * L - (v + w) < 0.1:
+			w = 2.0 * L - v
+		var band := _clip_to(PackedVector2Array([Vector2(-3, v), Vector2(3, v), Vector2(3, v + w), Vector2(-3, v + w)]), tri)
+		if band.size() >= 3:
+			prism(band, o, u, s, n, 0.0, DECK, 0.006, _wood_shade(0.7), WOOD, _plank_uv(v + w / 2.0, w), 0)
+		v += w
+	_shakes(o, u, s, n, tri, 1.0)
+	# The main roof's face of the fold: a strip of shakes over its own along the valley
+	var main_s := Vector3(0, k, 1).normalized()
+	var main_n := Vector3(0, 1, -k).normalized()
+	var strip_w := 0.35
+	var strip := PackedVector2Array([Vector2(-side, 0), Vector2(side, 2.0 * L), Vector2(side - side * strip_w, 2.0 * L), Vector2(-side, strip_w * L)])
+	if side < 0.0:
+		strip.reverse()
+	_shakes(main_n * 0.04, Vector3.RIGHT, main_s, main_n, strip, 0.8)
+	# The valley board, lying in the fold from A up to C over both faces' shakes
+	var a := Vector3(-side, 0, 0)
+	var c := Vector3(side, rise, PieceShapes.GRID)
+	var along := (c - a).normalized()
+	var normal := (n + main_n).normalized()
+	normal = (normal - along * normal.dot(along)).normalized()
+	var basis := Basis(along, normal, along.cross(normal))
+	box_part((a + c) / 2.0 + normal * (DECK + 0.06), Vector3(a.distance_to(c) + 0.04, 0.03, 0.26), basis, 0.004, _wood_shade(0.8), WOOD, 0)
+
+
+## How far along a ridge end its log runs (from where the wing's panels end): until the log's top
+## is under the main roof's top (the main roof rises from the ridge end's 2 m mark, where it's
+## level with the ridge's underside), and 2 cm more
+static func ridge_end_log_end(rise: float) -> float:
+	var k := rise / PieceShapes.GRID
+	return PieceShapes.GRID + RIDGE_RADIUS * 1.4 / k + 0.02
+
+
+# A ridge end (see PieceShapes._ridge_end): saddle boards over the fold between the two valley
+# junctions, and the ridge log carried on until it's buried in the main roof's slope, with a
+# lashing near its start
+func _ridge_end(rise: float) -> void:
+	var G := PieceShapes.GRID
+	var k := rise / G
+	var slope := atan2(rise, G)
+	var lift := PieceShapes.ROOF_THICKNESS / cos(slope)
+	var reach := 0.4
+	var thick := 0.06
+	# The saddle runs on until it's sunk into the main roof (see PieceShapes.ridge_end_saddle)
+	var length := PieceShapes.ridge_end_saddle(rise)
+	for side in [-1.0, 1.0]:
+		var basis := Basis(Vector3.BACK, -slope * side)
+		var center := Vector3(side * reach / 2.0, lift - reach / 2.0 * tan(slope), length / 2.0) + basis.y * thick / 2.0
+		box_part(center, Vector3(reach / cos(slope) + 0.04, thick, length), basis, 0.006, _wood_shade(0.75), WOOD, 2)
+	var y := lift + RIDGE_RADIUS * 0.4
+	# On until its top is under the main roof's top: its end buried there, none of it showing
+	var end := ridge_end_log_end(rise)
+	log_part(Vector3(0, y, -0.02), Vector3(0, y, end), RIDGE_RADIUS, 8, 0.08, _wood_shade(0.85), WOOD)
+	rope_ring(Vector3(0, y, 0.4), Vector3.BACK, RIDGE_RADIUS + 0.012, 0.014)
+	rope_ring(Vector3(0, y, 0.443), Vector3.BACK, RIDGE_RADIUS + 0.012, 0.014)
 
 
 # A cone roof wedge: each arc step its own flat facet, decked and shaked

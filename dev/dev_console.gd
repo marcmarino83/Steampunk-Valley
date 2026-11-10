@@ -337,7 +337,12 @@ func _spawn_settlers(args: PackedStringArray) -> void:
 	var names: PackedStringArray = []
 	for i in count:
 		var settler: Settler = player._settlers.spawn_debug(player, (i - (count - 1) / 2.0) * 0.9)
+		if settler == null:
+			continue
 		names.append("%s (%s)" % [settler.settler_name, "home: " + player._placer.plots.find(settler.home_id).plot_name if not settler.home_id.is_empty() else "no home"])
+	if names.is_empty():
+		_error("Nowhere safe to bring a settler near you (the game's output says why each spot was turned down).")
+		return
 	_print("Brought %s." % ", ".join(names), GOOD_COLOR)
 
 

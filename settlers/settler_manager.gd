@@ -13,6 +13,10 @@ extends Node
 ## Jobs: each workplace plot type takes PlotType.workers settlers (1 for the Forager's, Woodcutter's
 ## and Stone Gatherer's Huts). Only working plots with a free place can be picked.
 
+## Arrivals (and the console's spawn_settler) appear on the visible ground, never under it, in
+## water, at the wreck, in a landmark or inside a building: see find_safe_spot. Every attempt is
+## written to the console output.
+
 ## A refugee arrived (the player shows the message)
 signal arrived(settler: Settler)
 ## Something the player should hear about (a chest full at dawn, a settler hungry or leaving)
@@ -236,29 +240,140 @@ func _see_off_leavers() -> void:
 			settler.queue_free()
 
 
-# Each morning: a refugee comes if a working House has a free bed
+# Each morning: a refugee comes if a working House has a free bed. Every attempt is written to the
+# console output (why nobody came, or where they were placed and why other spots were turned down).
 func _morning_arrival() -> void:
+	var sun = get_tree().get_first_node_in_group("sun")
+	print("[Settlers] Dawn, day %d: checking for an arrival" % (sun.day if sun else -1))
 	var homes := free_homes()
 	if homes.is_empty():
+		var houses := plots.all_plots().filter(func(p): return is_house(p)) if plots else []
+		if houses.is_empty():
+			print("[Settlers]   nobody arrives: there's no House plot")
+		for p in houses:
+			print("[Settlers]   nobody arrives at %s (%s): %s" % [p.plot_name, p.plot_id,
+				"it isn't working (its checklist isn't met)" if not p.working else "no free bed (%d residents, %d beds)" % [residents(p).size(), p.capacity]])
 		return
 	var house: Plot = homes[0]
-	var settler := spawn(_arrival_spot(house), house)
+	var found := find_safe_spot(_arrival_spot(house), "arrival for %s" % house.plot_name)
+	if found.is_empty():
+		# Nowhere safe out toward the valley's edge: try by the House itself
+		found = find_safe_spot(house.global_position, "arrival beside %s" % house.plot_name)
+	if found.is_empty():
+		print("[Settlers]   nobody arrives today: no safe spot found (see above); trying again tomorrow")
+		return
+	var settler := spawn(found["spot"], house)
+	print("[Settlers]   %s arrived at %s, heading for %s" % [settler.settler_name, (found["spot"] as Vector3).snapped(Vector3.ONE * 0.1), house.plot_name])
 	arrived.emit(settler)
 
 
 ## Brings a refugee at once, a few steps in front of the player (the console's spawn_settler, and
-## F9), `sideways` meters to the right of straight ahead
+## F9), `sideways` meters to the right of straight ahead, placed as safely as a dawn arrival (see
+## find_safe_spot). Null if there's nowhere safe nearby.
 func spawn_debug(player: Node3D, sideways := 0.0) -> Settler:
 	var ahead := -player.global_basis.z
 	ahead.y = 0.0
 	var right := player.global_basis.x
 	right.y = 0.0
 	var spot := player.global_position + ahead.normalized() * 3.0 + right.normalized() * sideways
-	spot.y = Plot.ground_at(player, spot.x, spot.z)
+	var found := find_safe_spot(spot, "spawn_settler")
+	if found.is_empty():
+		print("[Settlers]   spawn_settler: no safe spot near the player (see above)")
+		return null
 	var homes := free_homes()
-	var settler := spawn(spot, homes[0] if not homes.is_empty() else null)
+	var settler := spawn(found["spot"], homes[0] if not homes.is_empty() else null)
+	print("[Settlers]   %s brought in at %s" % [settler.settler_name, (found["spot"] as Vector3).snapped(Vector3.ONE * 0.1)])
 	arrived.emit(settler)
 	return settler
+
+
+# ---- Safe places to appear ----
+
+## How far a spot may move from the one first wanted, in rings (meters), each tried at SAFE_TURNS
+## directions; and how high above the ground the downward look starts (above any building)
+const SAFE_RINGS := [0.0, 3.0, 6.0, 10.0, 15.0, 20.0, 28.0, 40.0, 55.0, 75.0]
+const SAFE_TURNS := 8
+const SAFE_LOOK_FROM := 80.0
+## Too steep to stand on (degrees), and how close a building piece may be
+const SAFE_SLOPE := 32.0
+const SAFE_BUILDING_GAP := 1.5
+
+
+## A safe spot for a settler to appear near `wanted` (x and z; any height): {"spot": Vector3} on the
+## visible ground, or empty if there's none within the last ring. Each spot is tried as it is and,
+## where the settlers' navigation is ready, moved onto the nearest walkable point; every one turned
+## down is logged with why (see _spot_problem).
+func find_safe_spot(wanted: Vector3, purpose: String) -> Dictionary:
+	print("[Settlers] Placing (%s): wanted %s" % [purpose, wanted.snapped(Vector3.ONE * 0.1)])
+	var tried := 0
+	for radius in SAFE_RINGS:
+		var turns := 1 if radius == 0.0 else SAFE_TURNS
+		for i in turns:
+			var candidate := wanted + Vector3(radius, 0, 0).rotated(Vector3.UP, TAU * i / turns)
+			var spots := [candidate]
+			if nav and nav.is_ready_at(candidate):
+				var walkable := nav.closest_point(candidate)
+				if walkable.distance_to(candidate) > 0.3 and Vector2(walkable.x - candidate.x, walkable.z - candidate.z).length() < 4.0:
+					spots.append(walkable)
+			for spot in spots:
+				tried += 1
+				var check := _spot_problem(spot)
+				if check["problem"].is_empty():
+					print("[Settlers]   placed at %s (try %d)" % [(check["spot"] as Vector3).snapped(Vector3.ONE * 0.1), tried])
+					return {"spot": check["spot"]}
+				print("[Settlers]   %s: %s" % [(spot as Vector3).snapped(Vector3.ONE * 0.1), check["problem"]])
+	return {}
+
+
+# Why a settler can't appear at this spot (x and z), or no problem: {"problem": String, "spot"}.
+# It looks straight down from well above the ground; the first solid thing met must be the
+# valley's open ground (not a building, tree, rock or landmark), dry, not too steep, clear of the
+# wreck, landmarks and rock outcrops, and not inside a building's footprint.
+func _spot_problem(at: Vector3) -> Dictionary:
+	var valley = get_tree().get_first_node_in_group("valley")
+	if valley == null or not (world is Node3D):
+		return {"problem": "no valley to stand on", "spot": at}
+	var origin: Vector3 = valley.global_position
+	var lx := at.x - origin.x
+	var lz := at.z - origin.z
+	var ground := Plot.ground_at(world, at.x, at.z)
+	var from := Vector3(at.x, ground + SAFE_LOOK_FROM, at.z)
+	var query := PhysicsRayQueryParameters3D.create(from, Vector3(at.x, ground - 10.0, at.z))
+	query.collide_with_areas = false
+	var player := get_tree().get_first_node_in_group("player") as CollisionObject3D
+	var skip: Array[RID] = []
+	if player:
+		skip.append(player.get_rid())
+	for settler in all_settlers():
+		skip.append(settler.get_rid())
+	query.exclude = skip
+	var hit := (world as Node3D).get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return {"problem": "no ground found under it", "spot": at}
+	var spot: Vector3 = hit["position"]
+	var what: Object = hit["collider"]
+	if what is BuildPiece:
+		return {"problem": "on a building piece (%s)" % (what as BuildPiece).display_name(), "spot": spot}
+	# The valley's ground is drawn in chunks, each its own body (see valley.gd's terrain_ground)
+	if not (what is Node and (what as Node).is_in_group("terrain_ground")):
+		return {"problem": "on %s, not open ground" % ((what as Node).name if what is Node else "something"), "spot": spot}
+	if spot.y < ground - 0.3:
+		return {"problem": "under the terrain", "spot": spot}
+	if spot.y < origin.y + valley.water_height() + 0.3:
+		return {"problem": "in water", "spot": spot}
+	if valley.is_near_crash_site(lx, lz):
+		return {"problem": "at the airship wreck", "spot": spot}
+	if valley.is_under_placed(lx, lz):
+		return {"problem": "inside a landmark or rock outcrop (the castle ruin, say)", "spot": spot}
+	if valley.is_under_building(lx, lz, 0.5):
+		return {"problem": "inside a building's footprint", "spot": spot}
+	if plots and plots.pieces:
+		for piece in plots.pieces.pieces_near(spot, SAFE_BUILDING_GAP + 2.0):
+			if not piece.is_ghost() and (piece as BuildPiece).global_position.distance_to(spot) < SAFE_BUILDING_GAP:
+				return {"problem": "right against a building piece (%s)" % piece.display_name(), "spot": spot}
+	if valley.get_slope(lx, lz) > SAFE_SLOPE:
+		return {"problem": "too steep (%.0f°)" % valley.get_slope(lx, lz), "spot": spot}
+	return {"problem": "", "spot": spot + Vector3.UP * 0.05}
 
 
 ## A new settler with a name and look of their own, standing at a spot
@@ -293,8 +408,9 @@ func standing_spot(spot: Vector3) -> Vector3:
 	return Vector3(spot.x, maxf(y, ground) + 0.05, spot.z)
 
 
-# Where an arrival starts: ARRIVAL_DISTANCE from the House toward the nearest edge of the valley,
-# on dry ground (turning a little either way if that's water)
+# Where an arrival would like to start: ARRIVAL_DISTANCE from the House toward the nearest edge of
+# the valley, on dry ground (turning a little either way if that's water). find_safe_spot then
+# checks it and moves it if it must.
 func _arrival_spot(house: Plot) -> Vector3:
 	var valley = get_tree().get_first_node_in_group("valley")
 	var home := house.global_position

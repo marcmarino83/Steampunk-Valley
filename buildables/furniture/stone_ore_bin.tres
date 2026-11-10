@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="PieceBuildable" format=3]
+
+[ext_resource type="Script" path="res://building/pieces/piece_buildable.gd" id="1_piece"]
+[ext_resource type="PackedScene" path="res://building/pieces/build_piece.tscn" id="2_scene"]
+[ext_resource type="Texture2D" path="res://assets/icons/build/stone_ore_bin.png" id="3_icon"]
+[ext_resource type="PackedScene" path="res://assets/buildables/stone_ore_bin/stone_ore_bin.fbx" id="4_model"]
+
+[resource]
+script = ExtResource("1_piece")
+shape = "stone_ore_bin"
+model_scene = ExtResource("4_model")
+display_name = "Stone Ore Bin"
+starts_locked = true
+unlocked_by = "Craft"
+unlock_item = "Planks"
+unlock_hint = "Craft planks to unlock"
+scene = ExtResource("2_scene")
+section = "Furniture"
+menu_order = 20
+costs = Array[Dictionary]([{
+"Stone": 8,
+"Planks": 2,
+"Rope": 1
+}])
+icon_color = Color(0.48, 0.45, 0.4, 1)
+icon = ExtResource("3_icon")

@@ -211,6 +211,8 @@ func _load_buildables() -> Array[Buildable]:
 	for file in files:
 		var buildable := load(file) as Buildable
 		if buildable:
+			if buildable is PieceBuildable:
+				(buildable as PieceBuildable).ensure_icon()
 			found.append(buildable)
 	found.sort_custom(func(a, b):
 		if _tab_of(a) != _tab_of(b):

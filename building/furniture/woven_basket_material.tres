@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/buildables/woven_basket/woven_basket.png" id="1_albedo"]
+[ext_resource type="Texture2D" path="res://assets/buildables/woven_basket/woven_basket_roughness.png" id="2_rough"]
+
+[resource]
+resource_name = "woven_basket"
+albedo_texture = ExtResource("1_albedo")
+metallic_specular = 0.3
+roughness_texture = ExtResource("2_rough")

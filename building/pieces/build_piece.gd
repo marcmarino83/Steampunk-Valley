@@ -181,6 +181,38 @@ static func fitted_model(piece: PieceBuildable, def: Dictionary) -> Node3D:
 	model.basis = turn.scaled(Vector3.ONE * s)
 	var centre := own.get_center() * s
 	model.position = Vector3(box.get_center().x - centre.x, box.position.y - own.position.y * s, box.position.z - own.position.z * s)
+	# Extra models that stand with it as part of the piece (the sorting table's baskets)
+	for extra in def.get("model_extras", []):
+		holder.add_child(_extra_model(extra))
+	return holder
+
+
+# One extra model (see PieceShapes.MODEL_EXTRAS): fitted evenly to its width, standing on the floor
+# at its spot, turned; with a fill model sitting in it, fitted to the fill's width and height, its
+# bottom a little under the rim so it shows above
+static func _extra_model(extra: Dictionary) -> Node3D:
+	var holder := Node3D.new()
+	holder.position = extra["at"]
+	holder.rotation.y = float(extra.get("turn", 0.0))
+	var model: Node3D = (load(extra["scene"]) as PackedScene).instantiate()
+	var own := _model_bounds(model)
+	if own.size.x <= 0.0:
+		return holder
+	var s: float = float(extra["width"]) / maxf(own.size.x, own.size.z)
+	model.scale = Vector3.ONE * s
+	model.position = Vector3(-own.get_center().x * s, -own.position.y * s, -own.get_center().z * s)
+	holder.add_child(model)
+	if extra.has("fill"):
+		var fill: Node3D = (load(extra["fill"]) as PackedScene).instantiate()
+		var fill_own := _model_bounds(fill)
+		var size: Vector2 = extra["fill_size"]
+		var across := size.x / maxf(fill_own.size.x, fill_own.size.z)
+		var up := size.y / maxf(fill_own.size.y, 0.001)
+		fill.scale = Vector3(across, up, across)
+		# Its bottom 55% of the way up the basket: the rest of it heaps above the rim
+		var rim := own.size.y * s
+		fill.position = Vector3(-fill_own.get_center().x * across, rim * 0.55 - fill_own.position.y * up, -fill_own.get_center().z * across)
+		holder.add_child(fill)
 	return holder
 
 
@@ -353,11 +385,20 @@ func display_name() -> String:
 func world_sockets() -> Array:
 	var found := []
 	for socket in _def["sockets"]:
-		found.append({
+		var world := {
 			"position": global_transform * (socket["position"] as Vector3),
 			"yaw": global_rotation.y + socket["yaw"],
 			"type": socket["type"],
-		})
+		}
+		# An edge snap point also brings its edge (see PieceShapes._edge_sockets)
+		if socket.has("edge_dir"):
+			world["edge_dir"] = global_basis * (socket["edge_dir"] as Vector3)
+			world["edge_in"] = global_basis * (socket["edge_in"] as Vector3)
+			world["edge_t"] = socket["edge_t"]
+			world["edge_len"] = socket["edge_len"]
+			if socket.get("edge_cap", false):
+				world["edge_cap"] = true
+		found.append(world)
 	return found
 
 
@@ -543,7 +584,7 @@ func clear_area() -> Dictionary:
 
 # ---- Doors ----
 
-## Doors open and close; a storage shelf in a Storehouse opens town storage (see TownStorage)
+## Doors open and close; a Storehouse's storage opens town storage (see TownStorage)
 func can_interact() -> bool:
 	return is_door() or _storage_plot() != null
 
@@ -551,7 +592,10 @@ func can_interact() -> bool:
 func get_prompt() -> String:
 	if is_door():
 		return "Close Door" if _door_open else "Open Door"
-	return "Open town storage" if _storage_plot().working else "Town storage (Storehouse not working)"
+	var plot := _storage_plot()
+	if plot == null:
+		return ""
+	return "Open town storage" if plot.working else "Town storage (Storehouse not working)"
 
 
 func interact(player) -> void:
@@ -567,7 +611,7 @@ func interact(player) -> void:
 		player.flash("%s isn't working, so its town storage is closed" % plot.plot_name)
 
 
-# The Storehouse (any plot holding town storage) this is one of the storage shelves of, or null
+# The Storehouse (any plot holding town storage) this is the storage of, or null
 func _storage_plot() -> Plot:
 	if _ghost or owner_plot.is_empty() or not is_inside_tree():
 		return null

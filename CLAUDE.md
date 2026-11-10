@@ -11,6 +11,10 @@
 - Every scripted run must end itself: the capture script calls get_tree().quit() once it has taken its screenshots, and also passes --quit-after <frames> on the command line as a backup (for example --quit-after 3000).
 - Always wrap the run in a hard time limit (about 120 seconds) that kills the Godot process if it’s still running, so a hang can never block you. On Windows, start it with a timeout and stop the process afterwards if needed.
 - Never leave a Godot game window open after a check. If a run had to be killed, say so in the report.
+- Default to the headless check only (project loads, world scene opens, no script errors). Don’t launch the game for screenshots or scripted play-throughs unless the task asks for it, or the change is visual (UI, art, materials, lighting, layout).
+- When a visual check is needed, do it in one run: set up everything needed, capture all screenshots, then quit. Don’t re-run to try small variations; if a fix is needed after looking, make it and do at most one more run.
+- Never run scripted tests just to confirm logic I can test by hand. List the checks for me instead.
+If you think a run is worth it for a non-visual change, ask first in one line.
 
 
 ## New assets

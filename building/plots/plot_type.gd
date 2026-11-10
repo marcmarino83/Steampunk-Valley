@@ -29,8 +29,8 @@ extends Buildable
 ## plot panel (`split_output` holds the items and their starting percentages, adding up to 100)
 @export var split_output_total := 0
 @export var split_output: Dictionary = {}
-## Town storage (see TownStorage): while it's working, each of these items it owns (the
-## Storehouse's storage shelves) adds `town_storage_slots` slots to the shared pool. 0: none.
+## Town storage (see TownStorage): while it's working and owns at least one of this item (the
+## Storehouse's storage), it adds `town_storage_slots` slots to the shared pool. 0: none.
 @export var town_storage_item := ""
 @export var town_storage_slots := 0
 

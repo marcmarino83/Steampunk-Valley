@@ -6,7 +6,9 @@ extends Node
 ## Each icon's fingerprint covers everything it's drawn from: the buildable's file and what it
 ## loads (its scene, model, materials and their textures), the piece's model folder in
 ## assets/buildables/<shape>/, the code that shapes and draws pieces, the studio itself and
-## STAGING_VERSION (bump it to redraw them all). The fingerprints are kept in MANIFEST.
+## STAGING_VERSION (bump it to redraw them all). The fingerprints are kept in MANIFEST. Icons
+## marked FIXED there are hand-made (furniture pictures cut from their concept images) and are
+## never redrawn.
 ##
 ## Runs from the title screen in debug runs from the project (never in an exported game), and from
 ## the developer console ("icons", or "icons all" to redraw every one). The game uses the new
@@ -18,6 +20,9 @@ const MANIFEST := "res://assets/icons/build/icon_manifest.json"
 const BUILDABLES_FOLDER := "res://buildables"
 ## Bump to redraw every icon (after changing how they're staged)
 const STAGING_VERSION := 1
+## A buildable marked with this in MANIFEST (instead of a fingerprint) keeps its icon file as it is,
+## even with "icons all": the furniture whose icons are made from their concept images
+const FIXED := "fixed"
 ## How template pictures are staged: a picture older than this file is drawn again
 const THUMBNAIL_CODE := "res://building/templates/template_thumbnail.gd"
 ## Code that changes how pieces look
@@ -77,9 +82,12 @@ func update(all := false) -> int:
 	var stale: Array[Buildable] = []
 	var prints := {}
 	for buildable in buildables:
+		# A hand-made icon (a furniture piece's picture, made from its concept image) is kept
+		if manifest.get(buildable.resource_path, "") == FIXED:
+			continue
 		var fingerprint := _fingerprint(buildable, code_print)
 		prints[buildable.resource_path] = fingerprint
-		var icon_file := ProjectSettings.globalize_path(buildable.icon.resource_path)
+		var icon_file := ProjectSettings.globalize_path(_icon_path(buildable))
 		if all or manifest.get(buildable.resource_path, "") != fingerprint or not FileAccess.file_exists(icon_file):
 			stale.append(buildable)
 	var old_pictures := _stale_template_pictures(all)
@@ -98,7 +106,7 @@ func update(all := false) -> int:
 	studio.measure(buildables)
 	for buildable in stale:
 		var image: Image = await studio.render(buildable)
-		var path := buildable.icon.resource_path
+		var path := _icon_path(buildable)
 		var error := image.save_png(ProjectSettings.globalize_path(path))
 		if error != OK:
 			push_warning("IconUpdater: couldn't write %s (error %d)" % [path, error])
@@ -131,14 +139,25 @@ func _stale_template_pictures(all: bool) -> Array:
 	return found
 
 
-# Every buildable with an icon file that IconStudio draws (not plots or templates)
+# Where a buildable's icon file is: its icon's file, or for a piece that names none, the usual
+# place for it (see PieceBuildable.icon_path), where it'll be drawn
+static func _icon_path(buildable: Buildable) -> String:
+	if buildable is PieceBuildable:
+		return (buildable as PieceBuildable).icon_path()
+	return buildable.icon.resource_path
+
+
+# Every buildable with an icon file that IconStudio draws (not plots or templates); a piece with
+# no icon yet is included, to be drawn at its usual place
 func _drawable_buildables() -> Array[Buildable]:
 	var found: Array[Buildable] = []
 	for file in _files_in(BUILDABLES_FOLDER):
 		var buildable := load(file) as Buildable
 		if buildable == null or buildable is PlotType or buildable is TemplateBuildable:
 			continue
-		if buildable.icon == null or buildable.icon.resource_path.is_empty():
+		if buildable is PieceBuildable:
+			(buildable as PieceBuildable).ensure_icon()
+		elif buildable.icon == null or buildable.icon.resource_path.is_empty():
 			continue
 		if not buildable is PieceBuildable and buildable.scene == null:
 			continue
@@ -158,7 +177,7 @@ func _files_in(folder: String) -> PackedStringArray:
 
 func _fingerprint(buildable: Buildable, code_print: String) -> String:
 	var parts := PackedStringArray([str(STAGING_VERSION), code_print])
-	var seen := {buildable.icon.resource_path: true}
+	var seen := {_icon_path(buildable): true}
 	_add_file(parts, buildable.resource_path, seen, 3)
 	if buildable is PieceBuildable:
 		var folder := "res://assets/buildables/%s" % (buildable as PieceBuildable).shape

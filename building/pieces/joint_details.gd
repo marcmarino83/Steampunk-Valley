@@ -68,7 +68,16 @@ func _rebuild() -> void:
 				# Which way the wall leaves this end (curved walls carrying on round a circle point
 				# straight on into each other, so they get no post)
 				var yaw: float = socket["yaw"]
-				ends.get_or_add(_key(at), []).append({"at": at, "dir": Vector3(sin(yaw), 0, cos(yaw)), "top": at.y + box.end.y})
+				# As tall as the wall is at this end (a sloped gable wall is lower at one end)
+				var height := box.end.y
+				var end_tops: Array = bp.shape_def().get("end_tops", [])
+				var plus_end := (bp.global_transform.affine_inverse() * at).x > 0.0
+				if end_tops.size() == 2:
+					height = end_tops[1] if plus_end else end_tops[0]
+				# A split-window wall's open end (where the window runs on into the next wall)
+				var open_ends: Array = bp.shape_def().get("open_ends", [])
+				var open: bool = open_ends.size() == 2 and open_ends[1 if plus_end else 0]
+				ends.get_or_add(_key(at), []).append({"at": at, "dir": Vector3(sin(yaw), 0, cos(yaw)), "top": at.y + height, "open": open})
 			elif type.begins_with("roof_high") or type.begins_with("overhang_high"):
 				# Only straight roof panels and gable overhangs (corners meet at an angle)
 				if shape == "roof" or shape == "roof_45" or shape.begins_with("gable_overhang"):
@@ -80,6 +89,9 @@ func _rebuild() -> void:
 	for key in ends:
 		var list: Array = ends[key]
 		if list.size() < 2 or not _bent(list):
+			continue
+		# Two split-window walls joined at their open ends make one window: no post in it
+		if list.all(func(e): return e.get("open", false)):
 			continue
 		var at := Vector3.ZERO
 		var top := -INF

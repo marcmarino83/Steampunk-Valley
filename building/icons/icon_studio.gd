@@ -70,6 +70,19 @@ const CONTEXT := {
 		{"shape": "eave_{p}", "mode": "on", "of": 1, "mine": "eave_spot_{p}", "theirs": "eave_base_{p}"},
 		{"shape": "eave_{p}", "mode": "on", "of": 2, "mine": "eave_spot_{p}", "theirs": "eave_base_{p}"},
 	],
+	# Two faint roofs with the gap between them, the topper bridging it
+	"topper_{p}": [
+		{"shape": "{roof}", "mode": "under", "mine": "topper_low_{p}", "theirs": "roof_high_{p}", "pick": "back"},
+		{"shape": "{roof}", "mode": "under", "mine": "topper_low_{p}", "theirs": "roof_high_{p}", "pick": "front"},
+	],
+	"outer_eave_corner_{p}": [
+		{"shape": "roof_outer_{p}", "mode": "under", "mine": "outer_eave_base_{p}", "theirs": "outer_eave_spot_{p}"},
+		{"shape": "eave_{p}", "mode": "on", "of": 0, "mine": "eave_spot_{p}", "theirs": "eave_base_{p}", "pick": "left"},
+		{"shape": "eave_{p}", "mode": "on", "of": 0, "mine": "eave_spot_{p}", "theirs": "eave_base_{p}", "pick": "right"},
+	],
+	# A split-window wall with its mirrored partner, making one window
+	"window_split_2": [{"shape": "window_split_2", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "opposite"}],
+	"window_split_1": [{"shape": "window_split_1", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "opposite"}],
 	"door": [{"shape": "doorway", "mode": "under", "mine": "door_base", "theirs": "door_slot"}],
 	"stairs": [{"shape": "floor", "mode": "under", "mine": "stairs_top", "theirs": "floor_edge", "pick": "far"}],
 	"pillar_wood": [{"shape": "floor", "mode": "on", "mine": "pillar_top", "theirs": "post_spot", "pick": "far"}],
@@ -93,6 +106,23 @@ const CONTEXT := {
 	"wall_quarter": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
 	"wall_long": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
 	"wall_short": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
+	"wall_strip_2": [{"shape": "gable_45", "mode": "on", "mine": "wall_top", "theirs": "gable_base"}],
+	"wall_strip_1": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
+	"gable_wall_45": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
+	# A half gable on a faint 1 m wall, beside a faint full gable
+	"gable_half_1_{p}": [
+		{"shape": "wall_1", "mode": "under", "mine": "small_gable_base", "theirs": "half_top"},
+		{"shape": "gable_{p}", "mode": "on", "mine": "gable_tip", "theirs": "gable_tip"},
+	],
+	# An inverse triangle on a faint gable's slope, under a faint beam
+	"inverse_2_{p}": [
+		{"shape": "gable_{p}", "mode": "under", "mine": "inverse_low_{p}", "theirs": "gable_slope_{p}", "pick": "right"},
+		{"shape": "beam_2", "mode": "under", "mine": "inverse_top", "theirs": "beam_under"},
+	],
+	"inverse_1_{p}": [
+		{"shape": "gable_{p}", "mode": "under", "mine": "inverse_low_{p}", "theirs": "gable_slope_{p}", "pick": "left"},
+		{"shape": "beam_1", "mode": "under", "mine": "inverse_top_small", "theirs": "beam_under_small"},
+	],
 	"curved_wall_45": [{"shape": "round_floor", "mode": "under", "mine": "curve_base", "theirs": "round_edge"}],
 	"curved_wall_22": [{"shape": "round_floor_22", "mode": "under", "mine": "curve22_base", "theirs": "round_edge_small"}],
 	"cone_roof": [{"shape": "curved_wall_45", "mode": "under", "mine": "cone_base", "theirs": "curve_top"}],
@@ -114,7 +144,8 @@ const FRAME_WHOLE := ["chimney_section", "chimney_top"]
 ## Corner badges: shape -> text (pitches and arcs are worked out from the name, see badge_for)
 const BADGES := {
 	"floor": "2×2", "floor_1": "1×1", "wall": "2 m", "wall_1": "1 m", "wall_half_2": "2 m", "wall_half_1": "1 m",
-	"wall_quarter": "1×1", "wall_long": "2.83 m", "wall_short": "1.53 m", "beam_1": "1 m", "beam_2": "2 m",
+	"wall_quarter": "1×1", "wall_long": "2.83 m", "wall_short": "1.53 m", "wall_strip_2": "2×½", "wall_strip_1": "1×½",
+	"gable_wall_45": "2.5 m", "window_split_2": "2 m", "window_split_1": "1 m", "beam_1": "1 m", "beam_2": "2 m",
 	"pole_1": "1 m", "pole_2": "2 m", "railing_1": "1 m", "railing_2": "2 m", "roof": "26°",
 	"curved_wall_22": "22.5°", "curved_wall_45": "45°", "round_floor": "45°", "round_floor_22": "22.5°",
 	"round_foundation_wood": "45°", "round_foundation_stone": "45°", "round_foundation_wood_22": "22.5°",
@@ -389,9 +420,16 @@ func _attach(anchor_shape: String, anchor: Transform3D, their_shape: String, ent
 			"near":
 				return Vector2(their_middle.x - anchor_middle.x, their_middle.z - anchor_middle.z).length()
 			"straight":
-				return absf(wrapf(atan2(where.basis.x.z, where.basis.x.x) - atan2(anchor.basis.x.z, anchor.basis.x.x) + PI / 2.0, 0.0, PI) - PI / 2.0)
+				# In line with it, on its right (the tall end of a gable wall) where that's a tie
+				return absf(wrapf(atan2(where.basis.x.z, where.basis.x.x) - atan2(anchor.basis.x.z, anchor.basis.x.x) + PI / 2.0, 0.0, PI) - PI / 2.0) - where.origin.x * 0.002
 			"back":
 				return their_middle.z
+			"front":
+				return -their_middle.z
+			"opposite":
+				# In line with it, turned round, on its +X side (a split-window wall's partner)
+				var turned := absf(wrapf(atan2(where.basis.z.x, where.basis.z.z) - atan2(anchor.basis.z.x, anchor.basis.z.z) - PI, -PI, PI))
+				return turned - (their_middle - anchor_middle).x * 0.01
 			"left":
 				return where.origin.x
 			"right":

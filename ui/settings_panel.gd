@@ -82,6 +82,12 @@ func _ready() -> void:
 		GameSettings.save())
 	_slider_row(column, "Field of view", "fov", 60, 100, 1, "%d°")
 
+	column.add_child(_heading("Building"))
+	var dots := _option_row(column, "Snap points", ["Hidden", "Nearby", "All"], GameSettings.SNAP_POINT_MODES.find(GameSettings.snap_points))
+	dots.item_selected.connect(func(i):
+		GameSettings.snap_points = GameSettings.SNAP_POINT_MODES[i]
+		GameSettings.save())
+
 	var back := MenuStyle.button("Back")
 	back.focus_mode = Control.FOCUS_ALL
 	back.custom_minimum_size = Vector2(220, 50)

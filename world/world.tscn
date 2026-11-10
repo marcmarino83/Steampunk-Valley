@@ -225,6 +225,47 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.985469, 27.32971, 135.8482
 visible = false
 mode = 3
 
+[node name="Flatten7" parent="TerrainEdits/Modifiers" unique_id=456615367 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 417.56445, 36.357723, 24.523464)
+visible = false
+radius = 65.5
+falloff = 0.7
+
+[node name="Flatten8" parent="TerrainEdits/Modifiers" unique_id=736526241 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 330.2921, 21.160248, -80.03381)
+visible = false
+radius = 72.5
+falloff = 0.7
+
+[node name="Flatten9" parent="TerrainEdits/Modifiers" unique_id=1713953786 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 379.2922, 37.48878, -100.96033)
+visible = false
+radius = 39.5
+falloff = 0.7
+
+[node name="Flatten10" parent="TerrainEdits/Modifiers" unique_id=1504986411 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 260.89917, 20.05834, -109.50497)
+visible = false
+radius = 27.0
+falloff = 0.7
+
+[node name="Smooth2" parent="TerrainEdits/Modifiers" unique_id=1225318387 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 254.58267, 35.982735, -83.97533)
+visible = false
+mode = 3
+
+[node name="Flatten11" parent="TerrainEdits/Modifiers" unique_id=376709749 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 447.85974, 42.35201, -73.76274)
+visible = false
+radius = 35.0
+falloff = 0.7
+
+[node name="Flatten12" parent="TerrainEdits/Modifiers" unique_id=481436256 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 489.71262, 33.741745, 61.940205)
+visible = false
+radius = 52.5
+falloff = 0.7
+
 [node name="Paths" type="Node3D" parent="TerrainEdits" unique_id=1597188750]
 visible = false
 

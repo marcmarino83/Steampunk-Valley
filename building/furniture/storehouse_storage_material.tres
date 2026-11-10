@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/buildables/storehouse_storage/storehouse_storage.png" id="1_albedo"]
+[ext_resource type="Texture2D" path="res://assets/buildables/storehouse_storage/storehouse_storage_roughness.png" id="2_rough"]
+
+[resource]
+resource_name = "storehouse_storage"
+albedo_texture = ExtResource("1_albedo")
+metallic_specular = 0.3
+roughness_texture = ExtResource("2_rough")

@@ -32,8 +32,16 @@ const DROP_DISTANCE := 300.0
 const SNAP_RADIUS := 1.2
 ## Snap points of pieces this close to the crosshair's spot are considered (and shown)
 const SNAP_SEARCH := 9.0
-const MARKER_REACH := 6.0
-const MAX_MARKERS := 48
+## With snapping off, how far an arrow key nudges the piece (with Shift: the fine step)
+const NUDGE_STEP := 0.05
+const NUDGE_FINE_STEP := 0.01
+## Snap point dots: shown within this far of the crosshair ("Nearby", the default), or this far
+## ("All"); how big they are, and how much bigger the one in use is
+const MARKER_REACH := 3.0
+const MARKER_REACH_ALL := 9.0
+const MARKER_RADIUS := 0.024
+const ACTIVE_MARKER_SCALE := 1.6
+const MAX_MARKERS := 96
 ## How many of the nearest snap points are tried, looking for one the piece fits at
 const SNAP_TRIES := 6
 const FREE_STEP := PI / 12.0
@@ -59,8 +67,8 @@ const DEMOLISH_REACH := 6.0
 const DEMOLISH_GLOW := Color(1.0, 0.15, 0.1, 0.45)
 const GOOD_COLOR := Color(0.25, 1.0, 0.35, 0.45)
 const BAD_COLOR := Color(1.0, 0.2, 0.15, 0.45)
-const MARKER_COLOR := Color(0.55, 0.85, 1.0, 0.8)
-const ACTIVE_MARKER_COLOR := Color(1.0, 0.85, 0.2, 1.0)
+const MARKER_COLOR := Color(0.55, 0.85, 1.0, 0.25)
+const ACTIVE_MARKER_COLOR := Color(1.0, 0.92, 0.6, 0.95)
 const MAX_OVERLAPS := 16
 ## The physics layers people are on: the player (1) and settlers (Settler.LAYER)
 const PERSON_LAYERS := 1 | 4
@@ -88,6 +96,8 @@ var _free_turn := 0.0
 # one placement to the next of the same piece
 var _height := 0.0
 var _snap_turn := 0.0
+# With snapping off, how far the arrow keys have nudged the piece (world space; Backspace clears it)
+var _nudge := Vector3.ZERO
 var _kept_for := ""
 var _where := Transform3D.IDENTITY
 # The piece it's snapped to (null when placed freely), and which of its snap points
@@ -145,6 +155,7 @@ func begin(piece: PieceBuildable, keep := false) -> void:
 	elif piece.resource_path != _kept_for:
 		_height = 0.0
 		_snap_turn = 0.0
+		_nudge = Vector3.ZERO
 		_kept_for = piece.resource_path
 	_ghost = StandardMaterial3D.new()
 	_ghost.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -198,6 +209,26 @@ func handle_input(event: InputEvent) -> bool:
 			return true
 		if event.keycode == KEY_BACKSPACE:
 			_height = 0.0
+			_nudge = Vector3.ZERO
+			return true
+		# With snapping off: the arrow keys nudge the piece a little, relative to the camera
+		# (repeating while held)
+		if not snapping_now() and event.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
+			var camera: Camera3D = _player.camera
+			var forward := -camera.global_basis.z
+			forward.y = 0.0
+			forward = forward.normalized() if forward.length() > 0.01 else Vector3.FORWARD
+			var right := forward.cross(Vector3.UP)
+			var step := NUDGE_FINE_STEP if event.shift_pressed else NUDGE_STEP
+			match event.keycode:
+				KEY_UP:
+					_nudge += forward * step
+				KEY_DOWN:
+					_nudge -= forward * step
+				KEY_RIGHT:
+					_nudge += right * step
+				KEY_LEFT:
+					_nudge -= right * step
 			return true
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_R:
@@ -252,6 +283,8 @@ func hud_state() -> Dictionary:
 		details.append("Snap off" if not snapping_now() else "Free")
 		details.append("Height " + offset)
 		controls.append(["Rotate", "R"])
+		if not snapping_now():
+			controls.append(["Nudge", "Arrows"])
 	controls.append(["Raise/Lower", "PgUp/PgDn"])
 	if not is_zero_approx(_height):
 		controls.append(["Reset height", "Backspace"])
@@ -307,7 +340,8 @@ func _physics_process(_delta: float) -> void:
 		# Wherever the crosshair is (ground or piece), raised by the height offset; foundations
 		# start out standing a meter proud of it
 		var lift: float = _shape.get("free_lift", 0.0) + _height
-		_where = Transform3D(Basis(Vector3.UP, _free_turn), ground["position"] + Vector3.UP * lift)
+		var nudged: Vector3 = _nudge if not snapping_now() else Vector3.ZERO
+		_where = Transform3D(Basis(Vector3.UP, _free_turn), ground["position"] + Vector3.UP * lift + nudged)
 		_problem = _check(_where, null)
 	else:
 		_problem = _check(_where, _target)
@@ -336,6 +370,11 @@ func _snap(from: Vector3, end: Vector3) -> bool:
 	if options.is_empty():
 		return false
 	options.sort_custom(func(a, b): return a["gap"] < b["gap"])
+	# An edge of a triangle piece that really meets this piece's edge whole (see
+	# PieceShapes._edge_fit_ok) comes before any corner or floor point near the crosshair
+	var edges := options.filter(func(o): return (o["socket"]["type"] as String).begins_with("edge_") and not _fits(o["socket"]).is_empty())
+	if not edges.is_empty():
+		options = edges + options.filter(func(o): return not edges.has(o))
 	var fallback := {}
 	for option in options.slice(0, SNAP_TRIES):
 		var fits := _placements(option)
@@ -710,8 +749,8 @@ func _make_markers() -> void:
 	_marker_material = _marker_look(MARKER_COLOR)
 	_active_material = _marker_look(ACTIVE_MARKER_COLOR)
 	var dot := SphereMesh.new()
-	dot.radius = 0.07
-	dot.height = 0.14
+	dot.radius = MARKER_RADIUS
+	dot.height = MARKER_RADIUS * 2.0
 	dot.radial_segments = 8
 	dot.rings = 4
 	for i in MAX_MARKERS:
@@ -732,10 +771,11 @@ func _marker_look(color: Color) -> StandardMaterial3D:
 	return look
 
 
-# Dots on the snap points this piece could attach to, near the crosshair; the one it's using
-# is bigger and yellow
+# Dots on the snap points this piece could attach to, as the Snap points setting says (see
+# GameSettings.snap_points): "nearby" (the default) shows those within MARKER_REACH of the
+# crosshair as small faint dots, "all" those within MARKER_REACH_ALL, "hidden" none. The one it's
+# snapped to always shows, as a small brighter dot.
 func _update_markers(end: Vector3) -> void:
-	var wanted := PieceShapes.targets_for(_shape["sockets"])
 	var used := 0
 	var active := Vector3.INF
 	if _target:
@@ -743,22 +783,36 @@ func _update_markers(end: Vector3) -> void:
 		var sockets: Array = _target.world_sockets()
 		if parts.size() == 2 and int(parts[1]) < sockets.size():
 			active = sockets[int(parts[1])]["position"]
-	for piece in registry.pieces_near(end, SNAP_SEARCH):
-		for socket in piece.world_sockets():
-			if used >= MAX_MARKERS or not wanted.has(socket["type"]):
-				continue
-			var spot: Vector3 = socket["position"]
-			if spot.distance_to(end) > MARKER_REACH:
-				continue
-			var marker := _markers[used]
-			used += 1
-			var is_active := spot.distance_to(active) < 0.01
-			marker.global_position = spot
-			marker.scale = Vector3.ONE * (1.8 if is_active else 1.0)
-			marker.material_override = _active_material if is_active else _marker_material
-			marker.visible = true
+	if active != Vector3.INF:
+		_show_marker(used, active, true)
+		used += 1
+	var reach := 0.0
+	match GameSettings.snap_points:
+		"nearby":
+			reach = MARKER_REACH
+		"all":
+			reach = MARKER_REACH_ALL
+	if reach > 0.0:
+		var wanted := PieceShapes.targets_for(_shape["sockets"])
+		for piece in registry.pieces_near(end, maxf(reach, SNAP_SEARCH)):
+			for socket in piece.world_sockets():
+				if used >= MAX_MARKERS or not wanted.has(socket["type"]):
+					continue
+				var spot: Vector3 = socket["position"]
+				if spot.distance_to(end) > reach or spot.distance_to(active) < 0.01:
+					continue
+				_show_marker(used, spot, false)
+				used += 1
 	for i in range(used, _markers.size()):
 		_markers[i].visible = false
+
+
+func _show_marker(index: int, spot: Vector3, active: bool) -> void:
+	var marker := _markers[index]
+	marker.global_position = spot
+	marker.scale = Vector3.ONE * (ACTIVE_MARKER_SCALE if active else 1.0)
+	marker.material_override = _active_material if active else _marker_material
+	marker.visible = true
 
 
 # ---- Demolishing ----

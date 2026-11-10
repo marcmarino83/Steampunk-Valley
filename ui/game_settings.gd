@@ -1,7 +1,7 @@
 class_name GameSettings
 extends RefCounted
-## The player's settings: volumes, window mode, resolution, V-Sync, mouse sensitivity, invert Y
-## and field of view. Kept in user://settings.cfg (in Godot's user folder, beside the saves),
+## The player's settings: volumes, window mode, resolution, V-Sync, mouse sensitivity, invert Y,
+## field of view and which snap points show while building. Kept in user://settings.cfg (in Godot's user folder, beside the saves),
 ## applied as soon as they're read and whenever one changes (see SettingsPanel). The title screen
 ## and the player read them in (ensure_loaded); the player uses the mouse ones and the field of
 ## view as it goes.
@@ -27,6 +27,10 @@ static var vsync := true
 static var mouse_sensitivity := 1.0
 static var invert_y := false
 static var fov := 75.0
+## Which snap points show while placing a piece: "hidden" (only the one in use), "nearby" (those
+## within a few meters of the crosshair, faint) or "all" (every one the piece could use around it)
+const SNAP_POINT_MODES := ["hidden", "nearby", "all"]
+static var snap_points := "nearby"
 
 static var _loaded := false
 
@@ -47,8 +51,11 @@ static func ensure_loaded() -> void:
 		mouse_sensitivity = float(file.get_value("controls", "mouse_sensitivity", mouse_sensitivity))
 		invert_y = bool(file.get_value("controls", "invert_y", invert_y))
 		fov = float(file.get_value("controls", "fov", fov))
+		snap_points = str(file.get_value("building", "snap_points", snap_points))
 	if not WINDOW_MODES.has(window_mode):
 		window_mode = "windowed"
+	if not SNAP_POINT_MODES.has(snap_points):
+		snap_points = "nearby"
 	apply_audio()
 	apply_display()
 
@@ -99,6 +106,7 @@ static func save() -> void:
 	file.set_value("controls", "mouse_sensitivity", mouse_sensitivity)
 	file.set_value("controls", "invert_y", invert_y)
 	file.set_value("controls", "fov", fov)
+	file.set_value("building", "snap_points", snap_points)
 	file.save(PATH)
 
 

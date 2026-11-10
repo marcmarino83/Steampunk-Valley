@@ -2,15 +2,20 @@ class_name TownStorage
 extends Node
 ## The settlement's town storage: one shared pool held by every working Storehouse together. Each
 ## plot type that holds town storage (PlotType.town_storage_item and town_storage_slots: the
-## Storehouse's storage shelves, 8 slots each) adds that many slots per item it owns while it's
-## working. A slot holds any amount of one item, as in a chest.
+## Storehouse Storage, 60 slots) adds that many slots while it's working and owns at least one of
+## that item. A slot holds any amount of one item, as in a chest.
 ##
 ## It has a chest's ways in and out (contents, can_take, put, take, take_all and `changed`), so the
 ## chest screen, settlers and refunds use it the same way.
 ##
-## Whenever the pool's room shrinks (a Storehouse stops working, loses a shelf or is removed), what
-## no longer fits drops in a bundle by that Storehouse, with a message: nothing is lost. Its contents
-## save with the Storehouse plots (see shares and load_share).
+## Nothing in it is lost when its room shrinks:
+##   - A Storehouse that stops working (missing requirements, or an older Storehouse that hasn't
+##     built its storage yet) keeps its share: the pool may then hold more kinds than it has room
+##     for, and takes no new kinds (and no new stock at all while no Storehouse works) until there's
+##     room again.
+##   - A Storehouse that's removed: whatever the others have no room for drops in a bundle where it
+##     stood, with a message.
+## Its contents save with the Storehouse plots (see shares and load_share).
 
 ## What's in it changed (a day's output went in, a settler ate, the player moved something)
 signal changed
@@ -36,15 +41,14 @@ func storage_plots() -> Array:
 	return plots.all_plots().filter(func(p): return p.plot_type.town_storage_slots > 0)
 
 
-## The slots a plot adds: town_storage_slots per storage item it owns, while it's working
+## The slots a plot adds: town_storage_slots while it's working and owns its storage item
 func slots_of(plot: Plot) -> int:
 	if not plot.working or plot.plot_type.town_storage_slots <= 0:
 		return 0
-	var shelves := 0
 	for item in plots.owned_items(plot):
 		if plots.name_of(item) == plot.plot_type.town_storage_item:
-			shelves += 1
-	return shelves * plot.plot_type.town_storage_slots
+			return plot.plot_type.town_storage_slots
+	return 0
 
 
 ## All the slots every working storage plot adds together
@@ -65,9 +69,11 @@ func is_open() -> bool:
 	return capacity() > 0
 
 
-## True if there's room for this item (some is already in, or a slot is free)
+## True if there's room for this item (some is already in, or a slot is free), with at least one
+## working Storehouse
 func can_take(item: String) -> bool:
-	return contents.has(item) or contents.size() < capacity()
+	var room := capacity()
+	return room > 0 and (contents.has(item) or contents.size() < room)
 
 
 func put(item: String, amount: int) -> void:
@@ -146,28 +152,29 @@ func category_totals() -> Dictionary:
 
 # ---- Room shrinking ----
 
-## Called after the plots are checked (and when one is removed, with where it stood): if the
-## pool's room shrank below what's in it, the kinds of item that no longer fit (the last put in
-## first) drop in a bundle by the Storehouse that lost room. Waits until every storage plot has
-## been checked once (after loading, none has yet).
+## Called after the plots are checked, and when one is removed (with where it stood). Only a
+## removed Storehouse's stock can be pushed out: the kinds of item the rest have no room for (the
+## last put in first) drop in a bundle where it stood. A Storehouse that merely stops working keeps
+## its share (see above). Waits until every storage plot has been checked once (after loading, none
+## has yet).
 func reconcile(removed_at = null) -> void:
 	var now := {}
 	for plot in storage_plots():
 		if not plot.checked:
 			return
 		now[plot.plot_id] = slots_of(plot)
+	_slots_by_plot = now
+	if removed_at == null:
+		return
 	var room := 0
 	for id in now:
 		room += int(now[id])
-	# Where the room went: the plot that lost the most slots (or the one just removed)
-	var spot = removed_at
-	var biggest_loss := 0
-	for id in _slots_by_plot:
-		var loss := int(_slots_by_plot[id]) - int(now.get(id, 0))
-		if loss > biggest_loss and plots.find(id):
-			biggest_loss = loss
-			spot = plots.find(id).global_position
-	_slots_by_plot = now
+	# What the plots still standing could hold if they all worked (a removed Storehouse's share
+	# stays while any other Storehouse could take it in)
+	var could_hold := 0
+	for plot in storage_plots():
+		could_hold += plot.plot_type.town_storage_slots
+	room = maxi(room, could_hold)
 	if contents.size() <= room:
 		return
 	var overflow := {}
@@ -175,10 +182,7 @@ func reconcile(removed_at = null) -> void:
 		var item: String = contents.keys()[-1]
 		overflow[item] = contents[item]
 		contents.erase(item)
-	if spot == null:
-		var any := storage_plots()
-		spot = any[0].global_position if not any.is_empty() else Vector3.ZERO
-	_drop(overflow, spot)
+	_drop(overflow, removed_at)
 	changed.emit()
 
 

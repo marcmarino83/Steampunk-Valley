@@ -9,3 +9,18 @@ extends Buildable
 ## A real model to show instead of the plain wood shape (optional). It's placed at the piece's
 ## origin and should match the shape's size; collision and snapping stay the same.
 @export var model_scene: PackedScene
+
+## Where a piece's build icon lives when its file names none: assets/icons/build/<shape>.png (the
+## icon updater draws it there; see IconUpdater)
+const ICON_FOLDER := "res://assets/icons/build/"
+
+
+## The icon file this piece's picture is (or will be) in
+func icon_path() -> String:
+	return icon.resource_path if icon and not icon.resource_path.is_empty() else ICON_FOLDER + shape + ".png"
+
+
+## A piece whose file names no icon takes the one at icon_path, once it's been drawn
+func ensure_icon() -> void:
+	if icon == null and ResourceLoader.exists(icon_path()):
+		icon = load(icon_path())

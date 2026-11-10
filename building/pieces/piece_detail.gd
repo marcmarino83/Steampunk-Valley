@@ -81,6 +81,10 @@ static func build(shape: String, seed_value: int) -> Dictionary:
 		"window":
 			var hole := PieceShapes.WINDOW_WIDTH / 2.0
 			b._wall(G, H, [Rect2(-hole, PieceShapes.WINDOW_BOTTOM, hole * 2.0, PieceShapes.WINDOW_TOP - PieceShapes.WINDOW_BOTTOM)])
+		"window_split_2", "window_split_1":
+			var width := G if shape == "window_split_2" else 1.0
+			var opening: float = PieceShapes.SPLIT_WINDOWS[width]
+			b._wall(width, H, [Rect2(width / 2.0 - opening, PieceShapes.WINDOW_BOTTOM, opening, PieceShapes.SPLIT_WINDOW_HEIGHT)])
 		"wall_long":
 			b._wall(PieceShapes.LONG_EDGE, H, [])
 		"wall_short":
@@ -93,10 +97,26 @@ static func build(shape: String, seed_value: int) -> Dictionary:
 			b._wall(1.0, PieceShapes.HALF_HEIGHT, [])
 		"wall_quarter":
 			b._wall(1.0, 1.0, [])
+		"wall_strip_2":
+			b._wall(G, PieceShapes.STRIP_HEIGHT, [])
+		"wall_strip_1":
+			b._wall(1.0, PieceShapes.STRIP_HEIGHT, [])
+		"gable_wall_45":
+			# A plank strip with a 45° gable on top
+			var base := PieceShapes.WALL_HEIGHT - PieceShapes.ROOF_RISE_45
+			b._wall(G, base, [])
+			b._gable(PieceShapes.ROOF_RISE_45, base)
 		"curved_wall_45":
 			b._curved_wall(22.5)
 		"curved_wall_22":
 			b._curved_wall(11.25)
+		"gable_half_1_26", "gable_half_1_45":
+			var r := _rise_of(shape) / 2.0
+			b._triangle_wall(PackedVector2Array([Vector2(-0.5, 0), Vector2(0.5, 0), Vector2(0.5, r)]), 0.5, false, false, r)
+		"inverse_2_26", "inverse_1_26", "inverse_2_45", "inverse_1_45":
+			var half := 1.0 if shape.begins_with("inverse_2") else 0.5
+			var r := _rise_of(shape) / G * half * 2.0
+			b._triangle_wall(PackedVector2Array([Vector2(-half, 0), Vector2(half, r), Vector2(-half, r)]), half, true, true, r)
 		"gable_26":
 			b._gable(PieceShapes.ROOF_RISE)
 		"gable_45":
@@ -156,6 +176,8 @@ static func build(shape: String, seed_value: int) -> Dictionary:
 			b._roof_corner(_rise_of(shape), shape.contains("inner"))
 		"ridge_26", "ridge_45":
 			b._ridge_cap(_rise_of(shape))
+		"topper_26", "topper_45":
+			return {"mesh": _topper(_rise_of(shape), seed_value), "door_mesh": null}
 		"cone_roof":
 			b._cone_roof()
 		"stairs":
@@ -269,6 +291,27 @@ static func hearth_logs_mesh(seed_value: int) -> ArrayMesh:
 	return b.commit()
 
 
+## A roof topper's close-up look (see PieceShapes._topper): each half is the top TOPPER_GAP / 2 of a
+## roof panel (decking and shakes, as the roofs it continues), the two set back to back over the
+## gap, and a log with rope ties along the peak
+static func _topper(rise: float, seed_value: int) -> ArrayMesh:
+	var G := PieceShapes.GRID
+	var k := rise / G
+	var g := PieceShapes.TOPPER_GAP / 2.0
+	var panel := PieceDetail.new(seed_value)
+	panel._roof_panel(rise, -G / 2.0, G / 2.0, G - g, G, [])
+	var half := panel.commit()
+	var lift := PieceShapes.ROOF_THICKNESS / cos(atan2(rise, G))
+	var ridge := ridge_mesh(G + 0.04, seed_value + 5)
+	var st := SurfaceTool.new()
+	# The panel's top end (z from G - g to G) moved to the topper's -Z half, its low end at the origin
+	var to_left := Transform3D(Basis.IDENTITY, Vector3(0, -(G - g) * k, -G))
+	st.append_from(half, 0, to_left)
+	st.append_from(half, 0, Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO) * to_left)
+	st.append_from(ridge, 0, Transform3D(Basis.IDENTITY, Vector3(0, g * k + lift + RIDGE_RADIUS * 0.4, 0)))
+	return st.commit()
+
+
 ## A log laid along a roof's peak (along X, `length` long, centred), with rope ties
 static func ridge_mesh(length: float, seed_value: int) -> ArrayMesh:
 	var b := PieceDetail.new(seed_value)
@@ -330,14 +373,29 @@ func _wall(width: float, height: float, holes: Array) -> void:
 				_wall_plank(span[0], span[1], y, y + h, t, course)
 			y += h
 			course += 1
-	# Chunky frames round the holes
+	# Chunky frames round the holes. A hole running out to the wall's edge (a split-window wall's)
+	# has no jamb on that side, and its lintel and sill run right to the edge, so two such walls
+	# joined there read as one window with a continuous sill and header.
 	for hole in holes:
 		var hr: Rect2 = hole
 		var jamb := 0.12
 		var depth := t + 0.02
 		var shade := _wood_shade(0.82)
-		box_part(Vector3(hr.position.x - jamb / 2.0 + 0.02, hr.end.y / 2.0 + hr.position.y / 2.0, 0), Vector3(jamb, hr.size.y, depth), Basis.IDENTITY, BEVEL, shade, WOOD, 1)
-		box_part(Vector3(hr.end.x + jamb / 2.0 - 0.02, hr.end.y / 2.0 + hr.position.y / 2.0, 0), Vector3(jamb, hr.size.y, depth), Basis.IDENTITY, BEVEL, shade, WOOD, 1)
+		var open_left := hr.position.x <= x0 + 0.01
+		var open_right := hr.end.x >= x1 - 0.01
+		if not open_left:
+			box_part(Vector3(hr.position.x - jamb / 2.0 + 0.02, hr.end.y / 2.0 + hr.position.y / 2.0, 0), Vector3(jamb, hr.size.y, depth), Basis.IDENTITY, BEVEL, shade, WOOD, 1)
+		if not open_right:
+			box_part(Vector3(hr.end.x + jamb / 2.0 - 0.02, hr.end.y / 2.0 + hr.position.y / 2.0, 0), Vector3(jamb, hr.size.y, depth), Basis.IDENTITY, BEVEL, shade, WOOD, 1)
+		if open_left or open_right:
+			var lintel_h := minf(0.15, height - hr.end.y + 0.02)
+			var lo := x0 if open_left else hr.position.x - jamb - 0.03
+			var hi := x1 if open_right else hr.end.x + jamb + 0.03
+			box_part(Vector3((lo + hi) / 2.0, hr.end.y + lintel_h / 2.0 - 0.01, 0), Vector3(hi - lo, lintel_h, depth), Basis.IDENTITY, BEVEL, _wood_shade(0.78), WOOD, 0)
+			var sill_lo := x0 if open_left else hr.position.x - jamb - 0.06
+			var sill_hi := x1 if open_right else hr.end.x + jamb + 0.06
+			box_part(Vector3((sill_lo + sill_hi) / 2.0, hr.position.y - 0.035, 0), Vector3(sill_hi - sill_lo, 0.07, depth + 0.02), Basis.IDENTITY, BEVEL, _wood_shade(0.8), WOOD, 0)
+			continue
 		if hr.position.y < 0.05:
 			# A doorway: stops behind the door's edges and top, so no light shows round a shut door
 			var stop := 0.045
@@ -396,12 +454,14 @@ func _curved_wall(half_angle: float) -> void:
 
 
 # A gable: level planks cut to the triangle, with a king post at its high end, a sill beam and a
-# brace (two gables back to back make a gable end with a doubled post)
-func _gable(rise: float) -> void:
+# brace (two gables back to back make a gable end with a doubled post); `base` lifts it (onto the
+# 45° gable wall's strip)
+func _gable(rise: float, base := 0.0) -> void:
 	var half := PieceShapes.GRID / 2.0
 	var t := PieceShapes.WALL_THICKNESS
 	var outline := PackedVector2Array([Vector2(-half, 0), Vector2(half, 0), Vector2(half, rise)])
-	prism(_inset(outline, 0.01), Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -0.03, 0.03, 0.0, Color(1, 1, 1), DARK, Transform2D.IDENTITY, 0)
+	var at := Vector3(0, base, 0)
+	prism(_inset(outline, 0.01), at, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -0.03, 0.03, 0.0, Color(1, 1, 1), DARK, Transform2D.IDENTITY, 0)
 	var y := 0.0
 	while rise - y > 0.03:
 		var h := rng.randf_range(PLANK_MIN, PLANK_MAX)
@@ -412,14 +472,14 @@ func _gable(rise: float) -> void:
 		strip = PieceShapes._clip(strip, Vector2(1, 0), -half + rng.randf_range(0.0, 0.012), half - 0.12)
 		if strip.size() >= 3:
 			var thick := rng.randf_range(t - 0.03, t)
-			prism(strip, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -thick / 2.0, thick / 2.0, BEVEL * 0.7, _wood_shade(1.0), WOOD, _plank_uv(y + h / 2.0, h - gap), 0)
+			prism(strip, at, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -thick / 2.0, thick / 2.0, BEVEL * 0.7, _wood_shade(1.0), WOOD, _plank_uv(base + y + h / 2.0, h - gap), 0)
 		y += h
 	var timber := t + 0.03
 	var post := PieceShapes._clip(outline, Vector2(1, 0), half - 0.13, half - 0.005)
-	prism(post, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -timber / 2.0, timber / 2.0, BEVEL, _wood_shade(0.8), WOOD, _generic_uv(), 1)
+	prism(post, at, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -timber / 2.0, timber / 2.0, BEVEL, _wood_shade(0.8), WOOD, _generic_uv(), 1)
 	var sill := PieceShapes._clip(outline, Vector2(0, 1), 0.0, 0.11)
 	sill = PieceShapes._clip(sill, Vector2(1, 0), -half + 0.01, half - 0.13)
-	prism(sill, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -timber / 2.0, timber / 2.0, BEVEL, _wood_shade(0.8), WOOD, _generic_uv(), 0)
+	prism(sill, at, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -timber / 2.0, timber / 2.0, BEVEL, _wood_shade(0.8), WOOD, _generic_uv(), 0)
 	# The brace: from the sill up to the post, kept inside the triangle
 	var from := Vector2(-half * 0.25, 0.11)
 	var to := Vector2(half - 0.13, rise * 0.55)
@@ -428,7 +488,44 @@ func _gable(rise: float) -> void:
 	var brace := PackedVector2Array([from - across, to - across, to + across, from + across])
 	brace = _clip_to(brace, outline)
 	if brace.size() >= 3:
-		prism(brace, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -timber / 2.0 + 0.01, timber / 2.0 - 0.01, BEVEL, _wood_shade(0.78), WOOD, _generic_uv(), 0)
+		prism(brace, at, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -timber / 2.0 + 0.01, timber / 2.0 - 0.01, BEVEL, _wood_shade(0.78), WOOD, _generic_uv(), 0)
+
+
+# A small triangle of wall (a half gable, an inverse triangle): level planks cut to the outline
+# (-half..half wide, 0..top high), a post up its vertical side (at -half with `post_left`, else at
+# +half) and a rail along its flat edge (the top with `rail_top`, else the bottom). The dark
+# backing and the planks fill the outline grown by INFILL_OVERLAP, so they reach a little into
+# whatever the piece meets (a gable's slope, a roof, a beam, a wall's end) and no light shows
+# through the joint; the post and rail keep to the true edges.
+func _triangle_wall(outline: PackedVector2Array, half: float, post_left: bool, rail_top: bool, top: float) -> void:
+	var t := PieceShapes.WALL_THICKNESS
+	var reach := PieceShapes.INFILL_OVERLAP
+	var grown: PackedVector2Array = Geometry2D.offset_polygon(outline, reach, Geometry2D.JOIN_SQUARE)[0]
+	prism(grown, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -0.03, 0.03, 0.0, Color(1, 1, 1), DARK, Transform2D.IDENTITY, 0)
+	var post_lo := -half + 0.005 if post_left else half - 0.13
+	var post_hi := -half + 0.13 if post_left else half - 0.005
+	var open_lo := post_hi if post_left else -half - reach
+	var open_hi := half + reach if post_left else post_lo
+	var y := -reach
+	while top + reach - y > 0.03:
+		var h := rng.randf_range(PLANK_MIN, PLANK_MAX)
+		if top + reach - (y + h) < PLANK_MIN * 0.5:
+			h = top + reach - y
+		var gap := rng.randf_range(GAP_MIN, GAP_MAX)
+		var strip := PieceShapes._clip(grown, Vector2(0, 1), y + gap / 2.0, y + h - gap / 2.0)
+		strip = PieceShapes._clip(strip, Vector2(1, 0), open_lo, open_hi)
+		if strip.size() >= 3:
+			var thick := rng.randf_range(t - 0.03, t)
+			prism(strip, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -thick / 2.0, thick / 2.0, BEVEL * 0.7, _wood_shade(1.0), WOOD, _plank_uv(y + h / 2.0, h - gap), 0)
+		y += h
+	var timber := t + 0.03
+	var post := PieceShapes._clip(outline, Vector2(1, 0), post_lo, post_hi)
+	if post.size() >= 3:
+		prism(post, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -timber / 2.0, timber / 2.0, BEVEL, _wood_shade(0.8), WOOD, _generic_uv(), 1)
+	var rail := PieceShapes._clip(outline, Vector2(0, 1), top - 0.11, top) if rail_top else PieceShapes._clip(outline, Vector2(0, 1), 0.0, 0.11)
+	rail = PieceShapes._clip(rail, Vector2(1, 0), open_lo, open_hi)
+	if rail.size() >= 3:
+		prism(rail, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -timber / 2.0, timber / 2.0, BEVEL, _wood_shade(0.8), WOOD, _generic_uv(), 0)
 
 
 # The door panel (it swings, so it's a mesh of its own): vertical planks, battens behind, dark

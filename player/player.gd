@@ -171,7 +171,7 @@ var _pause_menu: Control
 # for blueprints that unlock once several things have been done
 var _done := {}
 # What's open beside the inventory, if anything: a chest, or town storage (see TownStorage), and
-# the thing in the world you opened it at (the chest itself, or a storage shelf), which closes it
+# the thing in the world you opened it at (the chest itself, or the Storehouse Storage), which closes it
 # when you walk away
 var _open_chest: Node
 var _open_near: Node3D
@@ -1343,7 +1343,7 @@ func open_chest(chest: Node3D) -> void:
 	_open_container(chest, chest)
 
 
-## Opens the Town Storage screen beside the inventory (E on a storage shelf in a working
+## Opens the Town Storage screen beside the inventory (E on the Storehouse Storage in a working
 ## Storehouse): the whole shared pool, whichever shelf it's opened at
 func open_town_storage(shelf: Node3D) -> void:
 	_open_container(_placer.plots.town, shelf)

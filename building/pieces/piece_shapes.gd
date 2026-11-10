@@ -426,8 +426,9 @@ static func turns_for(new_type: String, placed_type: String) -> Array:
 ## Every way a new piece (with these snap points of its own) fits a placed snap point in the
 ## world: each of its own snap points that may attach there, put on it and turned by each turn
 ## the rules allow. Returns where the new piece would go, as transforms; ways that come out the
-## same (allowing for the piece's symmetry, see build()) are listed once.
-static func fits(own_sockets: Array, placed: Dictionary, symmetry := 0.0) -> Array:
+## same (allowing for the piece's symmetry, see build()) are listed once. With `whole_edges` off,
+## edge points meet as plain points (a piece the player has turned off the line just sits there).
+static func fits(own_sockets: Array, placed: Dictionary, symmetry := 0.0, whole_edges := true) -> Array:
 	var found := []
 	for own in own_sockets:
 		for turn in turns_for(own["type"], placed["type"]):
@@ -435,7 +436,7 @@ static func fits(own_sockets: Array, placed: Dictionary, symmetry := 0.0) -> Arr
 			var basis := Basis(Vector3.UP, yaw)
 			var where := Transform3D(basis, (placed["position"] as Vector3) - basis * (own["position"] as Vector3))
 			# Edge to edge: only where the whole edges meet
-			if own.has("edge_dir") and not _edge_fit_ok(own, placed, where):
+			if whole_edges and own.has("edge_dir") and not _edge_fit_ok(own, placed, where):
 				continue
 			var repeat := false
 			for other in found:
@@ -1080,7 +1081,7 @@ static func _roof_corner(d: Dictionary, rise: float, pitch: String, inner: bool)
 		_socket(d, Vector3(half, 0, 0), 0.0, "hip_foot" + pitch)
 		_socket(d, Vector3(-half, rise, GRID), 0.0, "hip_top" + pitch)
 		# It fits wall tops many ways round; the right one lands on both walls and beside the end's
-		# roof at once (see PiecePlacer._snap_by_anchors)
+		# roof at once (see PiecePlacer._snapped_at)
 		d["anchored"] = true
 	d["roof"] = true
 
@@ -1473,7 +1474,7 @@ static func _hip_end(d: Dictionary, rise: float, pitch: String) -> void:
 		_socket(d, Vector3(side, 0, 0), 0.0, "hip_end_foot" + pitch)
 	d["roof"] = true
 	# Its sides fit any side roof's high edge; the right place also lands it on the end roof's high
-	# edge and the hip corners' tops (see PiecePlacer._snap_by_anchors)
+	# edge and the hip corners' tops (see PiecePlacer._snapped_at)
 	d["anchored"] = true
 
 

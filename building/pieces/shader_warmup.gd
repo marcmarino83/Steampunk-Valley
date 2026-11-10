@@ -58,7 +58,7 @@ func _start(registry: PieceRegistry) -> void:
 	var across := ceili(sqrt(float(looks.size())))
 	var cell := 0.25
 	for i in looks.size():
-		var look: GeometryInstance3D = looks[i]
+		var look: Node3D = looks[i]
 		var col := i % across - across / 2.0
 		var row := i / across - across / 2.0
 		var spot := camera.global_position + ahead * 3.0 + right * col * cell + up * row * cell
@@ -95,21 +95,74 @@ func _looks(registry: PieceRegistry) -> Array:
 			var own: Material = surface if i == 0 else registry.detail_material()
 			looks.append(_look(mesh, own, GeometryInstance3D.SHADOW_CASTING_SETTING_ON))
 			looks.append(_look(mesh, own, GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY))
-			# About 3 m away with its range ending near there, so it's caught partway through fading
-			# out (two, as the fade runs either just before or just after the end distance)
-			for end in [2.0, 4.0]:
-				var fading := _look(mesh, own, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
-				fading.visibility_range_end = end
-				fading.visibility_range_end_margin = 2.0
-				fading.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-				looks.append(fading)
-			var previewed := _look(mesh, own, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
-			previewed.material_overlay = template_glow
-			looks.append(previewed)
+			# Its own look, and with the template preview's glow over it
+			looks.append_array(_with_fades(mesh, own, null))
+			looks.append_array(_with_fades(mesh, own, template_glow))
 			for ghost in [BuildPiece.ghost_material(false), BuildPiece.ghost_material(true), placing, take_down]:
-				looks.append(_look(mesh, ghost, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
+				looks.append_array(_with_fades(mesh, ghost, null))
 		# Furniture and anything else drawn with the plain painted colours
 		looks.append(_look(meshes[0], registry.wood_material(), GeometryInstance3D.SHADOW_CASTING_SETTING_ON))
+	looks.append_array(_template_extras(template_glow))
+	return looks
+
+
+# A look drawn plainly, and caught partway through fading out: about 3 m away with its range ending
+# near there (two, as the fade runs either just before or just after the end distance)
+static func _with_fades(mesh: Mesh, material: Material, overlay: Material) -> Array:
+	var looks: Array = []
+	for end in [0.0, 2.0, 4.0]:
+		var look := _look(mesh, material, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+		look.material_overlay = overlay
+		if end > 0.0:
+			look.visibility_range_end = end
+			look.visibility_range_end_margin = 2.0
+			look.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		looks.append(look)
+	return looks
+
+
+# The rest of what a template preview draws: the plot outline on the ground (see Plot.setup and
+# Plot.rebuild), its floating name and size, and the workbenches, chests and campfires templates
+# hold, plain (as laid-out ghosts) and with the glow over them
+static func _template_extras(template_glow: Material) -> Array:
+	var looks: Array = []
+	var outline_look := StandardMaterial3D.new()
+	outline_look.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	outline_look.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	outline_look.cull_mode = BaseMaterial3D.CULL_DISABLED
+	outline_look.vertex_color_use_as_albedo = true
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for p in [Vector3(-1, -1, 0), Vector3(1, -1, 0), Vector3(1, 1, 0), Vector3(-1, -1, 0), Vector3(1, 1, 0), Vector3(-1, 1, 0)]:
+		st.set_color(Color(1, 1, 1, 0.5))
+		st.add_vertex(p)
+	looks.append(_look(st.commit(), outline_look, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
+	var label := Label3D.new()
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.fixed_size = true
+	label.pixel_size = 0.0011
+	label.font_size = 30
+	label.outline_size = 9
+	label.outline_modulate = Color(0.08, 0.05, 0.03, 0.9)
+	label.text = "Plot · 8 × 8 m"
+	looks.append(label)
+	var seen := {}
+	for template in BuildingTemplate.load_all():
+		for item in (template as BuildingTemplate).items:
+			var buildable: Buildable = item["buildable"]
+			if buildable is PieceBuildable or buildable == null or seen.has(buildable.resource_path):
+				continue
+			seen[buildable.resource_path] = true
+			# Its own look, with the glow over it, and as a ghost
+			for way in 3:
+				var building := TemplateLook.building_look(buildable)
+				for found in building.find_children("*", "GeometryInstance3D", true, false):
+					if way == 1:
+						(found as GeometryInstance3D).material_overlay = template_glow
+					elif way == 2:
+						(found as GeometryInstance3D).material_override = BuildPiece.ghost_material()
+				looks.append(building)
 	return looks
 
 

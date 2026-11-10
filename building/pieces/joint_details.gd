@@ -23,6 +23,9 @@ const EDGE_LENGTHS := {
 var registry: PieceRegistry
 
 var _dirty := false
+## How long pieces must stop changing before the details are worked out again (see mark_dirty)
+const QUIET_TIME := 0.2
+var _quiet_left := 0.0
 # key -> MeshInstance3D, and what each was made for (so unchanged ones stay)
 var _shown := {}
 var _made_for := {}
@@ -60,11 +63,26 @@ func _mesh_for(spec: Dictionary) -> ArrayMesh:
 	return _meshes[key]
 
 
-## Pieces were added or taken away: work it all out again, once, at the end of this frame
+## Pieces were added or taken away: work it all out again, once they've stopped changing for
+## QUIET_TIME (a template's ghosts going in a few a frame, a save loading: one rebuild at the end,
+## not one a frame)
 func mark_dirty() -> void:
-	if not _dirty:
-		_dirty = true
-		_rebuild.call_deferred()
+	_dirty = true
+	_quiet_left = QUIET_TIME
+	set_process(true)
+
+
+func _ready() -> void:
+	set_process(_dirty)
+
+
+func _process(delta: float) -> void:
+	_quiet_left -= delta
+	if _quiet_left > 0.0:
+		return
+	set_process(false)
+	if _dirty:
+		_rebuild()
 
 
 func _rebuild() -> void:

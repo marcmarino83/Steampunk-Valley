@@ -5,6 +5,7 @@
 [ext_resource type="Script" uid="uid://ot3536xogk55" path="res://world/valley.gd" id="5_dwbse"]
 [ext_resource type="PackedScene" uid="uid://chlsvu01bkeuv" path="res://world/tree.tscn" id="6_pkg7o"]
 [ext_resource type="PackedScene" path="res://world/terrain_modifier.tscn" id="7_pkg7o"]
+[ext_resource type="Script" uid="uid://tfmmljfyf6ih" path="res://world/terrain_modifier.gd" id="8_dqqhb"]
 [ext_resource type="PackedScene" path="res://world/terrain_path.tscn" id="8_gbfbk"]
 [ext_resource type="Material" uid="uid://bm46i82rjv7ap" path="res://world/terrain_material.tres" id="8_terrain"]
 [ext_resource type="PackedScene" path="res://world/crash_site.tscn" id="9_crash"]
@@ -264,6 +265,13 @@ falloff = 0.7
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 489.71262, 33.741745, 61.940205)
 visible = false
 radius = 52.5
+falloff = 0.7
+
+[node name="Flatten13" type="Node3D" parent="TerrainEdits/Modifiers" unique_id=1169334608 instance=ExtResource("7_pkg7o")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 449.25647, 36.65971, 68.80903)
+visible = false
+script = ExtResource("8_dqqhb")
+radius = 85.5
 falloff = 0.7
 
 [node name="Paths" type="Node3D" parent="TerrainEdits" unique_id=1597188750]

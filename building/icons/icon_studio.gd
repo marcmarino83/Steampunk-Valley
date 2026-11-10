@@ -70,6 +70,10 @@ const CONTEXT := {
 		{"shape": "eave_{p}", "mode": "on", "of": 1, "mine": "eave_spot_{p}", "theirs": "eave_base_{p}"},
 		{"shape": "eave_{p}", "mode": "on", "of": 2, "mine": "eave_spot_{p}", "theirs": "eave_base_{p}"},
 	],
+	# A faint topper over the topper gable (its end on the gable's plane)
+	"topper_gable_{p}": [{"shape": "topper_{p}", "place": "over_topper_gable"}],
+	# A faint topper, the overhang carrying on past its end
+	"topper_overhang_{p}": [{"shape": "topper_{p}", "mode": "under", "mine": "topper_overhang_end", "theirs": "topper_end"}],
 	# Two faint roofs with the gap between them, the topper bridging it
 	"topper_{p}": [
 		{"shape": "{roof}", "mode": "under", "mine": "topper_low_{p}", "theirs": "roof_high_{p}", "pick": "back"},
@@ -371,6 +375,10 @@ func _context_of(shape_name: String) -> Array:
 			# The roof's low edge over the gable's low end, rising with its slope toward +X, reaching
 			# back behind it (away from the camera)
 			where = Transform3D(Basis(Vector3.UP, PI / 2.0), Vector3(-PieceShapes.GRID / 2.0, 0, -PieceShapes.GRID / 2.0))
+		elif entry.get("place", "") == "over_topper_gable":
+			# The topper's -X end on the gable's plane, its ridge running back from it (away from
+			# the camera): the gable's x is the topper's z
+			where = Transform3D(Basis(Vector3.UP, PI / 2.0), Vector3(0, 0, -PieceShapes.GRID / 2.0))
 		else:
 			where = _attach(anchor_shape, anchor, their_shape, entry, pitch)
 			# The same at the far end (a beam's second post, which the snap rules see as a repeat

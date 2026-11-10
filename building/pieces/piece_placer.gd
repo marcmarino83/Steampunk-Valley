@@ -98,6 +98,12 @@ var _height := 0.0
 var _snap_turn := 0.0
 # With snapping off, how far the arrow keys have nudged the piece (world space; Backspace clears it)
 var _nudge := Vector3.ZERO
+# Which way a snapped beam reaches out (R steps it; see _slender_placements)
+var _slender_step := 0
+## The snap points this piece could meet near the crosshair, this frame (see _anchor_count)
+var _pool: Array = []
+## How near (m) a piece's own snap point must come to a placed one to count as resting on it
+const ANCHOR_DISTANCE := 0.03
 var _kept_for := ""
 var _where := Transform3D.IDENTITY
 # The piece it's snapped to (null when placed freely), and which of its snap points
@@ -145,6 +151,8 @@ func begin(piece: PieceBuildable, keep := false) -> void:
 	_buildable = piece
 	_shape = registry.shape_of(piece.shape)
 	_snap_key = ""
+	# (what furniture snapped to last time says nothing about this piece)
+	_furniture_snap = ""
 	_problem = "Point at the ground or a piece"
 	if keep:
 		# A snapped turn the new piece can't make (45° on a piece that turns in 90° steps) goes
@@ -156,6 +164,7 @@ func begin(piece: PieceBuildable, keep := false) -> void:
 		_height = 0.0
 		_snap_turn = 0.0
 		_nudge = Vector3.ZERO
+		_slender_step = 0
 		_kept_for = piece.resource_path
 	_ghost = StandardMaterial3D.new()
 	_ghost.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -358,6 +367,7 @@ func _physics_process(_delta: float) -> void:
 func _snap(from: Vector3, end: Vector3) -> bool:
 	var wanted := PieceShapes.targets_for(_shape["sockets"])
 	var options := []
+	_pool.clear()
 	for piece in registry.pieces_near(end, SNAP_SEARCH):
 		var sockets: Array = piece.world_sockets()
 		for i in sockets.size():
@@ -365,6 +375,9 @@ func _snap(from: Vector3, end: Vector3) -> bool:
 			if not wanted.has(socket["type"]):
 				continue
 			var gap := _distance_to_line(socket["position"], from, end)
+			# (a beam's far end can land up to its length from the line of sight)
+			if gap < 3.0:
+				_pool.append(socket)
 			if gap < SNAP_RADIUS and (socket["position"] - from).length() > 0.8:
 				options.append({"gap": gap, "piece": piece, "socket": socket, "key": "%d:%d" % [piece.piece_id, i]})
 	if options.is_empty():
@@ -375,6 +388,8 @@ func _snap(from: Vector3, end: Vector3) -> bool:
 	var edges := options.filter(func(o): return (o["socket"]["type"] as String).begins_with("edge_") and not _fits(o["socket"]).is_empty())
 	if not edges.is_empty():
 		options = edges + options.filter(func(o): return not edges.has(o))
+	if _shape.get("slender", false) and not _is_square(_shape):
+		return _snap_beam(options)
 	var fallback := {}
 	for option in options.slice(0, SNAP_TRIES):
 		var fits := _placements(option)
@@ -390,6 +405,35 @@ func _snap(from: Vector3, end: Vector3) -> bool:
 	# Nowhere it fits without bumping into something: shown red, turned as asked, so turning it
 	# further can find a way that fits
 	_use_snap(fallback, fallback["where"])
+	return true
+
+
+# Which snap point a beam (straight or diagonal) goes on, from those near the line of sight
+# (nearest first). It goes where the player aims and stays there: what it would overlap or cross
+# never moves it (crossing beams are fine, and a copy over a beam shows red until R turns it).
+#   - Another beam's middle near the crosshair takes the beam's centre (crossing it), unless the
+#     crosshair is right at a nearer snap point (within END_AIM).
+#   - Otherwise, of the snap points about as near as the nearest (within ANCHOR_SLACK), one where
+#     the beam also lands on a second snap point (both ends on junctions) wins.
+#   - Otherwise the nearest it fits.
+const END_AIM := 0.15
+const ANCHOR_SLACK := 0.3
+func _snap_beam(options: Array) -> bool:
+	var usable := options.slice(0, SNAP_TRIES).filter(func(o): return not _fits(o["socket"]).is_empty())
+	if usable.is_empty():
+		return false
+	var chosen: Dictionary = usable[0]
+	var middles := usable.filter(func(o): return (o["socket"]["type"] as String).begins_with("beam_mid"))
+	if not middles.is_empty() and (middles[0] == usable[0] or usable[0]["gap"] > END_AIM):
+		chosen = middles[0]
+	else:
+		for option in usable:
+			if option["gap"] > usable[0]["gap"] + ANCHOR_SLACK:
+				break
+			if _fits(option["socket"]).any(func(where): return _anchor_count(where) >= 2):
+				chosen = option
+				break
+	_use_snap(chosen, _placements(chosen)[0])
 	return true
 
 
@@ -427,6 +471,8 @@ func _placements(option: Dictionary) -> Array:
 			var offset := wrapf(_yaw(neighbour.global_basis) - _yaw((fits[0] as Transform3D).basis), -PI, PI)
 			turn += roundf(offset / (PI / 2.0)) * (PI / 2.0)
 		return fits.map(func(where: Transform3D): return shift * _turned_about(where, where * centre, turn))
+	if _shape.get("slender", false):
+		return _slender_placements(fits, pivot, centre, shift)
 	var base: Transform3D = fits[0]
 	var base_centre: Vector3 = base * centre
 	var ref := Vector2(base_centre.x - pivot.x, base_centre.z - pivot.z)
@@ -466,6 +512,50 @@ func _placements(option: Dictionary) -> Array:
 	return placements.map(func(where: Transform3D): return shift * where)
 
 
+# Beams (and other slender pieces that aren't square): snapped the first way they fit that lands
+# on a second snap point too (its other end on another junction, say, so a beam aimed into a frame
+# drops in between both), else the first way. Then, like a square foundation, it turns about its
+# own centre and stays put: R steps through SLENDER_TURNS (see _next_turn: _slender_step); for a
+# diagonal the first press mirrors its slope (so a copy over a diagonal, turned once, makes an X),
+# the next two put it across, in the upright plane at right angles. A straight beam looks the same
+# turned half round, so it just turns across and back. Alt + wheel's 15° steps (in _snap_turn)
+# turn it about its centre too.
+const SLENDER_TURNS := [0.0, PI, PI / 2.0, -PI / 2.0]
+func _slender_placements(fits: Array, _pivot: Vector3, centre: Vector3, shift: Transform3D) -> Array:
+	var base: Transform3D = fits[0]
+	for where in fits:
+		if _anchor_count(where) >= 2:
+			base = where
+			break
+	var turns: Array = [0.0, PI / 2.0] if _shape["symmetry"] > 0.0 else SLENDER_TURNS
+	var turn: float = turns[posmod(_slender_step, turns.size())] + _snap_turn
+	# About the middle of its axis (halfway between its ends), not its box's middle (a diagonal's box
+	# sits a hair off-centre; see PieceShapes._diagonal_beam)
+	var ends: Array = _shape["sockets"].filter(func(s): return s["type"] == "beam_end")
+	var axis_middle := centre
+	if ends.size() == 2:
+		axis_middle = ((ends[0]["position"] as Vector3) + (ends[1]["position"] as Vector3)) / 2.0
+	var chosen := _turned_about(base, base * axis_middle, turn)
+	var rest := fits.filter(func(where): return where != base)
+	return [shift * chosen] + rest.map(func(where: Transform3D): return shift * where)
+
+
+# How many of the piece's own snap points, put here, land on a placed snap point they fit (from
+# this frame's _pool; facings aside)
+func _anchor_count(where: Transform3D) -> int:
+	var count := 0
+	for own in _shape["sockets"]:
+		var rules: Dictionary = PieceShapes.SNAP_RULES.get(own["type"], {})
+		if rules.is_empty():
+			continue
+		var at: Vector3 = where * (own["position"] as Vector3)
+		for placed in _pool:
+			if rules.has(placed["type"]) and at.distance_to(placed["position"]) < ANCHOR_DISTANCE:
+				count += 1
+				break
+	return count
+
+
 # A placement turned about an upright line through `pivot`
 static func _turned_about(where: Transform3D, pivot: Vector3, turn: float) -> Transform3D:
 	if is_zero_approx(turn):
@@ -488,6 +578,9 @@ static func _yaw(basis: Basis) -> float:
 # fitting this snap point on the same side (nothing happens if there's only one)
 func _next_turn() -> void:
 	var step: float = _shape.get("turn_step", PI / 2.0)
+	if _shape.get("slender", false) and not _is_square(_shape) and not is_furniture():
+		_slender_step += 1
+		return
 	if _is_square(_shape) or is_furniture() or _turn_choices.size() < 2:
 		_snap_turn = wrapf(_snap_turn + step, 0.0, TAU)
 		return
@@ -518,7 +611,7 @@ func _place_furniture(hit: Dictionary, far_point: Vector3) -> void:
 	_snap_key = ""
 	for marker in _markers:
 		marker.visible = false
-	var spot := furniture_spot(hit, far_point, _bounds, _shape.get("backs_to_wall", false), roundi(_snap_turn / (PI / 2.0)), _free_turn, [])
+	var spot := furniture_spot(hit, far_point, _bounds, _shape.get("backs_to_wall", false), roundi(_snap_turn / (PI / 2.0)), _free_turn, [], _shape.get("wall_mount", 0.0))
 	if spot.is_empty():
 		_preview.visible = false
 		_furniture_snap = ""
@@ -540,9 +633,15 @@ func _place_furniture(hit: Dictionary, far_point: Vector3) -> void:
 ## behind it, flush against that wall; otherwise it's turned `free_turn`. `bounds` is its own box
 ## (its back is -Z). Returns {"where", "support" (what it stands on), "on_floor", "normal",
 ## "snap" ("On grid", "Against wall" or "")}, or empty if there's nothing to stand on.
-func furniture_spot(hit: Dictionary, far_point: Vector3, bounds: AABB, backs: bool, quarter_turns: int, free_turn: float, skip: Array[RID]) -> Dictionary:
+func furniture_spot(hit: Dictionary, far_point: Vector3, bounds: AABB, backs: bool, quarter_turns: int, free_turn: float, skip: Array[RID], mount := 0.0) -> Dictionary:
 	var camera: Camera3D = _player.camera
 	var toward := (camera.global_position - far_point).normalized()
+	# Aimed at a wall's face: furniture that backs onto walls stands (or, wall-mounted, hangs)
+	# flush against that face, on the side aimed at
+	if (backs or mount > 0.0) and snapping_now() and not hit.is_empty() and _is_wall_face(hit):
+		var on_wall := _against_wall_face(hit, bounds, mount, skip)
+		if not on_wall.is_empty():
+			return on_wall
 	var start: Vector3 = (hit["position"] + toward * 0.05) if not hit.is_empty() else far_point
 	var support := _support_under(start, skip)
 	if support.is_empty():
@@ -562,11 +661,15 @@ func furniture_spot(hit: Dictionary, far_point: Vector3, bounds: AABB, backs: bo
 			spot.y = support["position"].y
 			snap = "On grid"
 	var where := Transform3D(Basis(Vector3.UP, yaw), spot)
-	if backs and snapping_now():
+	if (backs or mount > 0.0) and snapping_now():
 		var backed := _backed_to_wall(where, bounds, skip)
 		if backed != where:
 			where = backed
 			snap = "Against wall"
+			# Wall-mounted: hung on the wall it backed onto, not standing on the floor
+			if mount > 0.0:
+				where.origin.y += mount
+				snap = "On wall"
 	return {"where": where, "support": support["collider"], "on_floor": floor_piece != null, "normal": support["normal"], "snap": snap}
 
 
@@ -589,16 +692,55 @@ func _support_under(from: Vector3, skip: Array[RID]) -> Dictionary:
 	return {}
 
 
+# True if a ray hit is on an upright face of a building piece that isn't furniture (a wall)
+func _is_wall_face(hit: Dictionary) -> bool:
+	var other: Object = hit.get("collider")
+	return other is BuildPiece and not other.is_furniture() and not other.is_ghost() and absf((hit["normal"] as Vector3).y) < 0.3
+
+
+# Furniture against the wall face a ray hit: facing out of it, its back flush on the face (just off
+# it), slid along the wall on FURNITURE_GRID in the wall's own frame. Standing furniture rests on
+# the floor under it (on the side aimed at); wall-mounted furniture (`mount` > 0) hangs with its
+# bottom `mount` above the wall's foot. Empty if standing furniture finds no floor there.
+func _against_wall_face(hit: Dictionary, bounds: AABB, mount: float, skip: Array[RID]) -> Dictionary:
+	var wall: BuildPiece = hit["collider"]
+	var normal: Vector3 = hit["normal"]
+	normal.y = 0.0
+	normal = normal.normalized()
+	var face: Vector3 = hit["position"]
+	# Along the wall, on the grid (its own frame), staying on the face aimed at
+	var local := wall.global_transform.affine_inverse() * face
+	local.x = snappedf(local.x, FURNITURE_GRID)
+	var along := wall.global_transform * local
+	face += (along - face) - normal * (along - face).dot(normal)
+	var y: float
+	var support = null
+	if mount > 0.0:
+		y = wall.global_position.y + mount
+	else:
+		var under := _support_under(face + normal * 0.3, skip)
+		if under.is_empty():
+			return {}
+		y = under["position"].y
+		support = under["collider"]
+	var origin := face + normal * (-bounds.position.z + 0.005)
+	origin.y = y
+	var where := Transform3D(Basis(Vector3.UP, atan2(normal.x, normal.z)), origin)
+	return {"where": where, "support": support if support else wall, "on_floor": support is BuildPiece, "normal": Vector3.UP, "snap": "On wall" if mount > 0.0 else "Against wall"}
+
+
 # Slides furniture back (along its -Z) until its back touches a wall close behind it, or returns
-# it as it was if there's none within WALL_BACK_REACH
+# it as it was if there's none within WALL_BACK_REACH. The rays start at its front, so a spot that
+# begins inside a wall still finds the wall's near face (and comes out on that side).
 func _backed_to_wall(where: Transform3D, bounds: AABB, skip: Array[RID]) -> Transform3D:
 	var space := _player.get_world_3d().direct_space_state
 	var back := -where.basis.z
 	var depth := -bounds.position.z
+	var front := maxf(bounds.end.z, 0.0)
 	var nearest := INF
 	for height: float in [0.3, 0.9]:
-		var from := where.origin + Vector3.UP * height
-		var query := PhysicsRayQueryParameters3D.create(from, from + back * (depth + WALL_BACK_REACH))
+		var from := where.origin + Vector3.UP * height - back * front
+		var query := PhysicsRayQueryParameters3D.create(from, from + back * (front + depth + WALL_BACK_REACH))
 		var exclude: Array[RID] = [_player.get_rid()]
 		exclude.append_array(skip)
 		query.exclude = exclude
@@ -611,7 +753,7 @@ func _backed_to_wall(where: Transform3D, bounds: AABB, skip: Array[RID]) -> Tran
 			nearest = minf(nearest, from.distance_to(hit["position"]))
 	if nearest == INF:
 		return where
-	return Transform3D(where.basis, where.origin + back * (nearest - depth - 0.005))
+	return Transform3D(where.basis, where.origin + back * (nearest - front - depth - 0.005))
 
 
 # Every way this piece fits a placed snap point (see PieceShapes.fits), the likeliest first. Stairs

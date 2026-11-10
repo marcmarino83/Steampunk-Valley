@@ -1334,33 +1334,6 @@
 			"turn": 0.0000000874227765734759
 		},
 		{
-			"buildable": "res://buildables/furniture/sorting_table.tres",
-			"position": [
-				-4.5758056640625,
-				0.5,
-				1.05358505249023
-			],
-			"turn": 1.57079637050629
-		},
-		{
-			"buildable": "res://buildables/structure/window.tres",
-			"position": [
-				-5.0758056640625,
-				0.5,
-				0.0535850524902344
-			],
-			"turn": -1.57079637050629
-		},
-		{
-			"buildable": "res://buildables/structure/window.tres",
-			"position": [
-				-5.0758056640625,
-				0.5,
-				2.05358505249023
-			],
-			"turn": -1.57079637050629
-		},
-		{
 			"buildable": "res://buildables/structure/outer_eave_corner_26.tres",
 			"position": [
 				4.92422485351563,
@@ -1386,6 +1359,33 @@
 				2.55358505249023
 			],
 			"turn": 0.0
+		},
+		{
+			"buildable": "res://buildables/structure/window_split_2.tres",
+			"position": [
+				-5.0758056640625,
+				0.5,
+				0.0535850524902344
+			],
+			"turn": -1.57079637050629
+		},
+		{
+			"buildable": "res://buildables/structure/window_split_2.tres",
+			"position": [
+				-5.0758056640625,
+				0.5,
+				2.05358505249023
+			],
+			"turn": 1.570796251297
+		},
+		{
+			"buildable": "res://buildables/furniture/sorting_table.tres",
+			"position": [
+				-4.5758056640625,
+				0.5,
+				1.05358505249023
+			],
+			"turn": 1.57079637050629
 		},
 		{
 			"buildable": "res://buildables/storage_chest.tres",

@@ -110,6 +110,9 @@ static func build(shape: String, seed_value: int) -> Dictionary:
 			b._curved_wall(22.5)
 		"curved_wall_22":
 			b._curved_wall(11.25)
+		"topper_gable_26", "topper_gable_45":
+			var g := PieceShapes.TOPPER_GAP / 2.0
+			b._peak_gable(g, g * _rise_of(shape) / G)
 		"gable_half_1_26", "gable_half_1_45":
 			var r := _rise_of(shape) / 2.0
 			b._triangle_wall(PackedVector2Array([Vector2(-0.5, 0), Vector2(0.5, 0), Vector2(0.5, r)]), 0.5, false, false, r)
@@ -178,6 +181,8 @@ static func build(shape: String, seed_value: int) -> Dictionary:
 			b._ridge_cap(_rise_of(shape))
 		"topper_26", "topper_45":
 			return {"mesh": _topper(_rise_of(shape), seed_value), "door_mesh": null}
+		"topper_overhang_26", "topper_overhang_45":
+			return {"mesh": _topper(_rise_of(shape), seed_value, true), "door_mesh": null}
 		"cone_roof":
 			b._cone_roof()
 		"stairs":
@@ -294,15 +299,19 @@ static func hearth_logs_mesh(seed_value: int) -> ArrayMesh:
 ## A roof topper's close-up look (see PieceShapes._topper): each half is the top TOPPER_GAP / 2 of a
 ## roof panel (decking and shakes, as the roofs it continues), the two set back to back over the
 ## gap, and a log with rope ties along the peak
-static func _topper(rise: float, seed_value: int) -> ArrayMesh:
+## A topper overhang is the same, OVERHANG long, with barge boards down both slopes' sides (`overhang`).
+static func _topper(rise: float, seed_value: int, overhang := false) -> ArrayMesh:
 	var G := PieceShapes.GRID
 	var k := rise / G
 	var g := PieceShapes.TOPPER_GAP / 2.0
+	var x := PieceShapes.OVERHANG / 2.0 if overhang else G / 2.0
 	var panel := PieceDetail.new(seed_value)
-	panel._roof_panel(rise, -G / 2.0, G / 2.0, G - g, G, [])
+	panel._roof_panel(rise, -x, x, G - g, G, [])
+	if overhang:
+		panel._fascia(rise, -x, x, G - g, G, false, true)
 	var half := panel.commit()
 	var lift := PieceShapes.ROOF_THICKNESS / cos(atan2(rise, G))
-	var ridge := ridge_mesh(G + 0.04, seed_value + 5)
+	var ridge := ridge_mesh(x * 2.0 + 0.04, seed_value + 5)
 	var st := SurfaceTool.new()
 	# The panel's top end (z from G - g to G) moved to the topper's -Z half, its low end at the origin
 	var to_left := Transform3D(Basis.IDENTITY, Vector3(0, -(G - g) * k, -G))
@@ -526,6 +535,35 @@ func _triangle_wall(outline: PackedVector2Array, half: float, post_left: bool, r
 	rail = PieceShapes._clip(rail, Vector2(1, 0), open_lo, open_hi)
 	if rail.size() >= 3:
 		prism(rail, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -timber / 2.0, timber / 2.0, BEVEL, _wood_shade(0.8), WOOD, _generic_uv(), 0)
+
+
+# A topper gable: level planks cut to the triangle (-half..half along the bottom, peaking `peak` up
+# over the middle), reaching INFILL_OVERLAP past its edges into what it meets, with a sill along the
+# bottom and a king post up the middle under the peak
+func _peak_gable(half: float, peak: float) -> void:
+	var t := PieceShapes.WALL_THICKNESS
+	var reach := PieceShapes.INFILL_OVERLAP
+	var outline := PackedVector2Array([Vector2(-half, 0), Vector2(half, 0), Vector2(0, peak)])
+	var grown: PackedVector2Array = Geometry2D.offset_polygon(outline, reach, Geometry2D.JOIN_SQUARE)[0]
+	prism(grown, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -0.03, 0.03, 0.0, Color(1, 1, 1), DARK, Transform2D.IDENTITY, 0)
+	var y := -reach
+	while peak + reach - y > 0.03:
+		var h := rng.randf_range(PLANK_MIN, PLANK_MAX)
+		if peak + reach - (y + h) < PLANK_MIN * 0.5:
+			h = peak + reach - y
+		var gap := rng.randf_range(GAP_MIN, GAP_MAX)
+		var strip := PieceShapes._clip(grown, Vector2(0, 1), y + gap / 2.0, y + h - gap / 2.0)
+		if strip.size() >= 3:
+			var thick := rng.randf_range(t - 0.03, t)
+			prism(strip, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -thick / 2.0, thick / 2.0, BEVEL * 0.7, _wood_shade(1.0), WOOD, _plank_uv(y + h / 2.0, h - gap), 0)
+		y += h
+	var timber := t + 0.03
+	var post := PieceShapes._clip(outline, Vector2(1, 0), -0.065, 0.065)
+	if post.size() >= 3:
+		prism(post, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -timber / 2.0, timber / 2.0, BEVEL, _wood_shade(0.8), WOOD, _generic_uv(), 1)
+	var sill := PieceShapes._clip(outline, Vector2(0, 1), 0.0, minf(0.11, peak * 0.4))
+	if sill.size() >= 3:
+		prism(sill, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -timber / 2.0, timber / 2.0, BEVEL, _wood_shade(0.8), WOOD, _generic_uv(), 0)
 
 
 # The door panel (it swings, so it's a mesh of its own): vertical planks, battens behind, dark

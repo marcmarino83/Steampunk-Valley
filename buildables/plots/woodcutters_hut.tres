@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1_plot")
 min_size = Vector2i(6, 6)
-needs_roof = true
+needs_roof = false
 needs_door = false
 furniture = Array[Dictionary]([{
 "count": 1,

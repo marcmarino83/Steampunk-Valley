@@ -63,9 +63,9 @@ const POLE := 0.15
 const HALF_HEIGHT := 1.25
 ## The top-up strip walls: what a 45° gable (2 m) lacks of a full wall's height
 const STRIP_HEIGHT := 0.5
-## The ridge gap a roof topper bridges: on a building an odd number of metres across, the 2 m
-## roofs from each side stop this far apart
-const TOPPER_GAP := 1.0
+## The ridge gap a roof topper bridges: on a building an odd number of foundation tiles across (3
+## tiles, 6 m), one 2 m roof up each side leaves this much at the ridge
+const TOPPER_GAP := 2.0
 ## How far below a roof's plain slab top its drawn shakes lie along the side edge (where inverse
 ## triangles stand on it)
 const ROOF_EDGE_SINK := 0.025
@@ -115,6 +115,16 @@ const SNAP_RULES := {
 	"topper_low_26": {"roof_high_26": [PI]},
 	"topper_low_45": {"roof_high_45": [PI]},
 	"topper_end": {"topper_end": [PI]},
+	# A topper overhang's end on a topper's end, carrying it on past the gable wall
+	"topper_overhang_end": {"topper_end": [PI]},
+	# A topper gable's bottom corner on the top of a gable's upright edge, reaching on past it
+	"topper_gable_corner": {"gable_peak": [PI]},
+	# Whole edges: a topper's low edge on a roof's high edge, and a roof's high edge on a topper's
+	# free low edge (roofs' high edges don't meet each other this way: that stays roof_high's job)
+	"edge_ridge_topper_26": {"edge_ridge_roof_26": [0.0, PI]},
+	"edge_ridge_topper_45": {"edge_ridge_roof_45": [0.0, PI]},
+	"edge_ridge_roof_26": {"edge_ridge_topper_26": [0.0, PI]},
+	"edge_ridge_roof_45": {"edge_ridge_topper_45": [0.0, PI]},
 	"roof_side_left_26": {"roof_side_right_26": [PI]},
 	"roof_side_right_26": {"roof_side_left_26": [PI]},
 	"roof_side_left_45": {"roof_side_right_45": [PI]},
@@ -206,7 +216,15 @@ const SNAP_RULES := {
 	# end, and on each other; floors, walls and roofs sit on pillar and pole tops
 	"pillar_base": {"post_spot": QUARTER_TURNS, "top_spot": QUARTER_TURNS, "pillar_top": QUARTER_TURNS},
 	"pole_bottom": {"post_spot": QUARTER_TURNS, "top_spot": QUARTER_TURNS, "pole_top": QUARTER_TURNS, "pillar_top": QUARTER_TURNS, "beam_end": QUARTER_TURNS},
-	"beam_end": {"beam_end": [PI, PI / 2.0, -PI / 2.0], "post_spot": QUARTER_TURNS, "top_spot": QUARTER_TURNS, "pole_top": QUARTER_TURNS, "pillar_top": QUARTER_TURNS},
+	# (and at a post's or pillar's foot, so a diagonal brace can run from one post's foot to the top
+	# of the next on bare ground)
+	"beam_end": {"beam_end": [PI, PI / 2.0, -PI / 2.0], "post_spot": QUARTER_TURNS, "top_spot": QUARTER_TURNS, "pole_top": QUARTER_TURNS, "pillar_top": QUARTER_TURNS,
+		"pole_bottom": QUARTER_TURNS, "pillar_base": QUARTER_TURNS},
+	# A beam's centre on another beam's middle, crossing through it. It first lies exactly over the
+	# other (a diagonal over a diagonal, the same way); R then turns it about its centre (see
+	# PiecePlacer._slender_placements), so the first press makes an X
+	"beam_mid_diag": {"beam_mid_diag": [0.0, PI], "beam_mid": [0.0, PI]},
+	"beam_mid": {"beam_mid": [0.0, PI / 2.0], "beam_mid_diag": [0.0, PI]},
 	"beam_under": {"wall_top": [0.0, PI]},
 	"beam_under_small": {"half_top": [0.0, PI]},
 	"post_spot": {"pillar_top": QUARTER_TURNS, "pole_top": QUARTER_TURNS},
@@ -303,6 +321,10 @@ static func build(shape: String) -> Dictionary:
 			_valley_eave_corner(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
 		"topper_26", "topper_45":
 			_topper(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
+		"topper_overhang_26", "topper_overhang_45":
+			_topper_overhang(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
+		"topper_gable_26", "topper_gable_45":
+			_topper_gable(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45)
 		"outer_eave_corner_26", "outer_eave_corner_45":
 			_outer_eave_corner(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
 		# Split-window walls: the window cut into the +X edge, so two side by side (one turned round)
@@ -365,7 +387,7 @@ static func build(shape: String) -> Dictionary:
 		"wall_strip_2": PI, "wall_strip_1": PI,
 		"foundation_wood": PI / 2.0, "foundation_stone": PI / 2.0,
 		"pillar_wood": PI / 2.0, "pillar_stone": PI / 2.0, "pole_1": PI / 2.0, "pole_2": PI / 2.0,
-		"beam_1": PI, "beam_2": PI, "ridge_26": PI, "ridge_45": PI, "topper_26": PI, "topper_45": PI,
+		"beam_1": PI, "beam_2": PI, "ridge_26": PI, "ridge_45": PI, "topper_26": PI, "topper_45": PI, "topper_gable_26": PI, "topper_gable_45": PI, "topper_overhang_26": PI, "topper_overhang_45": PI,
 		"railing_2": PI, "railing_1": PI, "fence": PI,
 	}.get(shape, 0.0)
 	# Pillars, poles, beams and ladders are slender: they only bump into each other, so floors,
@@ -557,6 +579,8 @@ static func _roof(d: Dictionary, rise: float, pitch: String) -> void:
 	var lift := ROOF_THICKNESS / cos(atan2(rise, GRID))
 	for side in [-1.0, 1.0]:
 		_socket(d, Vector3(side * GRID / 2.0, lift - ROOF_EDGE_SINK, 0), -PI / 2.0, "roof_top_corner" + pitch)
+	# Its high edge, whole, for a roof topper's low edge (the roof lies down the slope from it)
+	_ridge_edge(d, Vector3(-GRID / 2.0, rise, GRID), Vector3.BACK * -1.0, "edge_ridge_roof" + pitch)
 	d["roof"] = true
 
 
@@ -917,6 +941,8 @@ static func _gable(d: Dictionary, rise: float, base := 0.0, width := GRID) -> vo
 	# another gable at its tall edge (two make a gable end under a ridge)
 	_socket(d, Vector3(-half, 0, 0), 0.0, "gable_corner")
 	_socket(d, Vector3(half, 0, 0), PI / 2.0, "gable_tip")
+	# The top of its upright edge, facing on past it: where a topper gable's bottom corner goes
+	_socket(d, Vector3(half, rise, 0), PI / 2.0, "gable_peak")
 	# Along its slope, every 1 m: where an inverse triangle of the same pitch sits on it
 	var x := -half
 	while x < half - 0.01:
@@ -1276,42 +1302,29 @@ static func _outer_eave_corner(d: Dictionary, rise: float, pitch: String) -> voi
 	d["overhang"] = true
 
 
-# A roof topper: closes the ridge of a building an odd number of metres across, where the roofs from
-# each side stop TOPPER_GAP apart. 2 m long along the ridge (X), it bridges the gap from one roof's
-# high edge to the other's (z = -TOPPER_GAP/2 to +TOPPER_GAP/2), sloping up from both at the roofs'
-# pitch to a sharp peak over the middle, as two short slabs back to back. Its origin is under the
-# middle of its low edges, level with the roofs' high edges' underside. Its low edges snap to the
-# high edges of roofs of its pitch, its ends to other toppers; each end carries snap points along
-# both its sloped undersides (in the end's plane), where gables and half gables meet it edge to edge.
+# A roof topper: closes the ridge of a building an odd number of foundation tiles across, where the
+# roofs from each side stop TOPPER_GAP apart. 2 m long along the ridge (X), it bridges the gap from
+# one roof's high edge to the other's (z = -TOPPER_GAP/2 to +TOPPER_GAP/2), sloping up from both at
+# the roofs' pitch to a sharp peak over the middle, as two short slabs back to back. Its origin is
+# under the middle of its low edges, level with the roofs' high edges' underside.
+#   - Each low edge snaps on its own, whole edge to whole edge, to the high edge of a roof of its
+#     pitch (snap points at both ends and every 0.5 m along both; see _edge_sockets), so one roof
+#     is enough, and the other side's roof then snaps to its free edge the same way.
+#   - Its ends chain to other toppers along the ridge.
+#   - Each end carries snap points along both its sloped undersides (in the end's plane, every 0.5 m
+#     of run), where gables and half gables meet it edge to edge, never past its peak.
 static func _topper(d: Dictionary, rise: float, pitch: String) -> void:
-	var st: SurfaceTool = d["surface"]
-	var k := rise / GRID
-	var lift := ROOF_THICKNESS / cos(atan2(rise, GRID))
 	var g := TOPPER_GAP / 2.0
-	var peak := g * k
-	var halves := [
-		PackedVector2Array([Vector2(-g, 0), Vector2(0, peak), Vector2(0, peak + lift), Vector2(-g, lift)]),
-		PackedVector2Array([Vector2(0, peak), Vector2(g, 0), Vector2(g, lift), Vector2(0, peak + lift)]),
-	]
-	for section in halves:
-		var x := -GRID / 2.0
-		while x < GRID / 2.0 - 0.001:
-			var board := floori(x / BOARD + 0.001)
-			var next := minf((board + 1) * BOARD, GRID / 2.0)
-			_prism_x(st, section, x, next, _board_color(ROOF_COLOR, board))
-			x = next
-		var points := PackedVector3Array()
-		for p in section:
-			points.append(Vector3(-GRID / 2.0, p.y, p.x))
-			points.append(Vector3(GRID / 2.0, p.y, p.x))
-		var solid := ConvexPolygonShape3D.new()
-		solid.points = points
-		_collision(d, solid, Transform3D.IDENTITY)
+	var peak := g * rise / GRID
+	_topper_slabs(d, rise, GRID / 2.0)
 	# Its low edges on roofs' high edges (facing out: -Z and +Z), and end to end along the ridge
 	_socket(d, Vector3(0, 0, -g), PI, "topper_low" + pitch)
 	_socket(d, Vector3(0, 0, g), 0.0, "topper_low" + pitch)
 	_socket(d, Vector3(GRID / 2.0, peak, 0), PI / 2.0, "topper_end")
 	_socket(d, Vector3(-GRID / 2.0, peak, 0), -PI / 2.0, "topper_end")
+	# Its low edges, whole, for roofs' high edges (each lies along X; the topper is on its inner side)
+	for side in [-1.0, 1.0]:
+		_ridge_edge(d, Vector3(-GRID / 2.0, 0, side * g), Vector3(0, 0, -side), "edge_ridge_topper" + pitch)
 	# Each end's two sloped undersides, as edges (see _edge_sockets) in the end's upright plane: a
 	# wall piece there runs along Z (turned -90°), lying under the topper
 	var kind := "edge_slope" + pitch
@@ -1324,11 +1337,135 @@ static func _topper(d: Dictionary, rise: float, pitch: String) -> void:
 			if inward.y < 0.0:
 				inward = -inward
 			var length := a.distance_to(b)
-			# Capped at the peak: a gable under it may run on below its low end, never past its peak
-			for t in [0.0, length]:
+			# At both ends and every 0.5 m of run; capped at the peak: a gable under it may run on
+			# below its low end, never past its peak
+			var spots: Array[float] = []
+			var run := 0.0
+			while run < g - 0.01:
+				spots.append(run / g * length)
+				run += EDGE_STEP
+			spots.append(length)
+			for t in spots:
 				d["sockets"].append({"position": a + dir * t, "yaw": -PI / 2.0, "type": kind,
 					"edge_dir": dir, "edge_t": t, "edge_len": length, "edge_in": inward, "edge_cap": true})
 	d["roof"] = true
+
+
+# A roof topper's two slabs back to back (see _topper), from -x to x along the ridge, solid
+static func _topper_slabs(d: Dictionary, rise: float, x: float) -> void:
+	var st: SurfaceTool = d["surface"]
+	var lift := ROOF_THICKNESS / cos(atan2(rise, GRID))
+	var g := TOPPER_GAP / 2.0
+	var peak := g * rise / GRID
+	var halves := [
+		PackedVector2Array([Vector2(-g, 0), Vector2(0, peak), Vector2(0, peak + lift), Vector2(-g, lift)]),
+		PackedVector2Array([Vector2(0, peak), Vector2(g, 0), Vector2(g, lift), Vector2(0, peak + lift)]),
+	]
+	for section in halves:
+		var at := -x
+		while at < x - 0.001:
+			var board := floori(at / BOARD + 0.001)
+			var next := minf((board + 1) * BOARD, x)
+			_prism_x(st, section, at, next, _board_color(ROOF_COLOR, board))
+			at = next
+		var points := PackedVector3Array()
+		for p in section:
+			points.append(Vector3(-x, p.y, p.x))
+			points.append(Vector3(x, p.y, p.x))
+		var solid := ConvexPolygonShape3D.new()
+		solid.points = points
+		_collision(d, solid, Transform3D.IDENTITY)
+
+
+# A topper overhang: carries a roof topper's end on past the gable wall, OVERHANG long (along X,
+# centred on its origin), the topper's two slabs with a barge board down both sides of each slope
+# (the inner ones tuck under the topper's end, so the same piece fits either end). Its origin is
+# level with the topper's, so beside it the gable overhangs on the roofs either side run on in line
+# with its slopes. Snaps by either end to a topper's end.
+static func _topper_overhang(d: Dictionary, rise: float, pitch: String) -> void:
+	var half := OVERHANG / 2.0
+	var g := TOPPER_GAP / 2.0
+	var k := rise / GRID
+	var peak := g * k
+	_topper_slabs(d, rise, half)
+	# Barge boards: a roof's barge-board section over its top TOPPER_GAP / 2, moved onto each slope
+	var lift := ROOF_THICKNESS / cos(atan2(rise, GRID))
+	var section := _slab_section(GRID - g, GRID, rise, FASCIA_DROP, lift - 0.005)
+	for side in [-1.0, 1.0]:
+		var moved := PackedVector2Array()
+		for p in section:
+			moved.append(Vector2(-side * (p.x - GRID), p.y - (GRID - g) * k))
+		if side > 0.0:
+			moved.reverse()
+		for x_side in [-1.0, 1.0]:
+			var x: float = x_side * half
+			var x_out: float = x + x_side * FASCIA_THICKNESS
+			_prism_x(d["surface"], moved, minf(x, x_out), maxf(x, x_out), FASCIA_COLOR)
+	_socket(d, Vector3(-half, peak, 0), -PI / 2.0, "topper_overhang_end")
+	_socket(d, Vector3(half, peak, 0), PI / 2.0, "topper_overhang_end")
+	# (like the other overhangs, not roof for shelter)
+	d["overhang"] = true
+
+
+# A topper gable: the triangle under a roof topper's end, TOPPER_GAP wide along the bottom (at the
+# roofs' high edges' height) and peaking under the topper's peak, in a wall's upright plane. It
+# meets the topper's sloped undersides edge to edge (see _edge_sockets), stands on wall tops like a
+# gable, and its bottom corners snap onto the tops of the gables' upright edges below (between the
+# two gables under the roofs on either side).
+static func _topper_gable(d: Dictionary, rise: float) -> void:
+	var g := TOPPER_GAP / 2.0
+	var peak := g * rise / GRID
+	var outline := PackedVector2Array([Vector2(-g, 0), Vector2(g, 0), Vector2(0, peak)])
+	_outline_wall(d, outline)
+	_edge_sockets(d, outline, false)
+	_socket(d, Vector3.ZERO, 0.0, "gable_base")
+	_socket(d, Vector3(-g, 0, 0), -PI / 2.0, "topper_gable_corner")
+	_socket(d, Vector3(g, 0, 0), PI / 2.0, "topper_gable_corner")
+
+
+# An upright wall of this outline ((x, y), on its centre line), WALL_THICKNESS thick, in level
+# boards, solid as its outline
+static func _outline_wall(d: Dictionary, outline: PackedVector2Array) -> void:
+	var st: SurfaceTool = d["surface"]
+	var middle := Vector2.ZERO
+	var top := 0.0
+	for p in outline:
+		middle += p / outline.size()
+		top = maxf(top, p.y)
+	var t := WALL_THICKNESS / 2.0
+	var k := 0
+	var y := 0.0
+	while y < top - 0.001:
+		var band := _clip(outline, Vector2(0, 1), y, minf(y + BOARD, top))
+		if band.size() >= 3:
+			for side in [-1.0, 1.0]:
+				_upright(st, band, side * t, Vector3.BACK * side, _board_color(WALL_COLOR, k))
+		y += BOARD
+		k += 1
+	var points := PackedVector3Array()
+	for i in outline.size():
+		var a := outline[i]
+		var b := outline[(i + 1) % outline.size()]
+		var out2 := Vector2(b.y - a.y, -(b.x - a.x)).normalized()
+		if out2.dot((a + b) / 2.0 - middle) < 0.0:
+			out2 = -out2
+		_quad(st, Vector3(a.x, a.y, t), Vector3(b.x, b.y, t), Vector3(b.x, b.y, -t), Vector3(a.x, a.y, -t), Vector3(out2.x, out2.y, 0), WALL_COLOR)
+		points.append(Vector3(a.x, a.y, t))
+		points.append(Vector3(a.x, a.y, -t))
+	var solid := ConvexPolygonShape3D.new()
+	solid.points = points
+	_collision(d, solid, Transform3D.IDENTITY)
+
+
+# A level 2 m edge along X from `start`, as edge snap points (see _edge_sockets) at both ends and
+# every EDGE_STEP: a roof's high edge, or a roof topper's low edge. `inward` is the way the piece
+# lies from it.
+static func _ridge_edge(d: Dictionary, start: Vector3, inward: Vector3, kind: String) -> void:
+	var t := 0.0
+	while t < GRID + 0.01:
+		d["sockets"].append({"position": start + Vector3.RIGHT * t, "yaw": PI / 2.0, "type": kind,
+			"edge_dir": Vector3.RIGHT, "edge_t": t, "edge_len": GRID, "edge_in": inward})
+		t += EDGE_STEP
 
 
 # A ridge cap: an upside-down V of boards, 2 m long, sitting over the ridge where two roofs of
@@ -1356,16 +1493,23 @@ static func _beam(d: Dictionary, length: float) -> void:
 	_socket(d, Vector3(0, -BEAM / 2.0, 0), 0.0, "beam_under" if length > 1.5 else "beam_under_small")
 	# Its top, to go under a roof's low edge or an eave's outer edge
 	_socket(d, Vector3(0, BEAM / 2.0, 0), 0.0, "beam_top")
+	# Its middle, for another beam crossing through it
+	_socket(d, Vector3.ZERO, 0.0, "beam_mid")
 
 
-# A diagonal beam climbing `rise` over 2 m along X (the slope of the 26° or 45° roof)
+# A diagonal beam climbing `rise` over 2 m along X (the slope of the 26° or 45° roof). Its box is a
+# few millimetres off-centre front to back (z from -0.098 to 0.096), so a second one crossing it
+# the other way (turned half round) has its faces just in front on one side and just behind on the
+# other: never in the same plane, so they don't flicker. (A straight beam crossing it keeps ±0.1.)
 static func _diagonal_beam(d: Dictionary, rise: float) -> void:
 	var low := Vector3(-GRID / 2.0, 0, 0)
 	var high := Vector3(GRID / 2.0, rise, 0)
 	var basis := Basis(Vector3.BACK, atan2(rise, GRID))
-	_solid_box(d, Vector3(low.distance_to(high), BEAM, BEAM), Transform3D(basis, (low + high) / 2.0), LOG_COLOR)
+	_solid_box(d, Vector3(low.distance_to(high), BEAM, BEAM - 0.006), Transform3D(basis, (low + high) / 2.0 + Vector3(0, 0, -0.001)), LOG_COLOR)
 	_socket(d, low, -PI / 2.0, "beam_end")
 	_socket(d, high, PI / 2.0, "beam_end")
+	# Its middle, for another beam crossing through it (a second diagonal there makes an X)
+	_socket(d, (low + high) / 2.0, 0.0, "beam_mid_diag")
 
 
 # A square pole standing on its bottom middle, 1 m or 2 m tall, thinner than a pillar
@@ -1494,6 +1638,8 @@ const MODEL_EXTRAS := {
 			"fill": "res://assets/bushes/plant_fiber/plant_fiber.glb", "fill_size": Vector2(0.3, 0.13)},
 	],
 }
+## Wall-mounted furniture: shape -> how high its bottom hangs above the wall's foot
+const WALL_MOUNTS := {"tool_rack": 1.0}
 ## Models made facing another way, turned about their upright before fitting (radians): the bed
 ## model lies along X with its headboard at +X, so a quarter turn puts the headboard at -Z
 const MODEL_TURNS := {
@@ -1611,6 +1757,9 @@ static func _furniture(d: Dictionary, shape: String) -> void:
 		_socket(d, FIREPLACE_CHIMNEY, 0.0, "chimney_spot")
 	# These back up flush against a wall when placed near one (their back is -Z)
 	d["backs_to_wall"] = shape in ["bed", "storage_shelf", "tool_rack", "storehouse_storage", "firewood_rack"]
+	# Hung on a wall rather than standing: how far up its bottom is from the wall's foot (the tool
+	# rack's 0.86 m spans 1.0 to 1.86 m, its pegs about 1.2 to 1.6 m up; Page Up/Down moves it)
+	d["wall_mount"] = WALL_MOUNTS.get(shape, 0.0)
 	# The fireplace burns and warms like a campfire (see BuildPiece)
 	d["hearth"] = shape == "fireplace"
 

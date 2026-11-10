@@ -91,6 +91,16 @@ func _ready() -> void:
 		GameSettings.snap_points = GameSettings.SNAP_POINT_MODES[i]
 		GameSettings.save())
 
+	# Debug builds only: the lag spike logger (see SpikeLog)
+	if OS.is_debug_build():
+		column.add_child(_heading("Debug"))
+		var spikes := _check_row(column, "Log lag spikes", GameSettings.spike_log)
+		spikes.tooltip_text = "Writes a line to the output for every frame slower than 33 ms:\nwhat you were doing and the time each system took"
+		spikes.toggled.connect(func(on):
+			GameSettings.spike_log = on
+			SpikeLog.enabled = on
+			GameSettings.save())
+
 	var back := MenuStyle.button("Back")
 	back.focus_mode = Control.FOCUS_ALL
 	back.custom_minimum_size = Vector2(220, 50)

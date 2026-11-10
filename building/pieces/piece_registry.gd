@@ -59,7 +59,9 @@ func _exit_tree() -> void:
 ## A shape's look, collision and snap points (see PieceShapes.build)
 func shape_of(shape: String) -> Dictionary:
 	if not _shapes.has(shape):
+		var timing := SpikeLog.begin()
 		_shapes[shape] = PieceShapes.build(shape)
+		SpikeLog.end("piece shape made (first use)", timing)
 	return _shapes[shape]
 
 
@@ -111,7 +113,9 @@ func detail_mesh(shape: String, piece_id: int) -> Dictionary:
 	var variant := posmod(piece_id, DETAIL_VARIANTS)
 	var key := "%s#%d" % [shape, variant]
 	if not _details.has(key):
+		var timing := SpikeLog.begin()
 		_details[key] = PieceDetail.build(shape, hash(shape) + variant * 7919)
+		SpikeLog.end("detail look made (first use)", timing)
 	return _details[key]
 
 
@@ -122,7 +126,9 @@ func mid_mesh(shape: String, piece_id: int) -> Dictionary:
 	var variant := posmod(piece_id, DETAIL_VARIANTS)
 	var key := "%s#%d#mid" % [shape, variant]
 	if not _details.has(key):
+		var timing := SpikeLog.begin()
 		var mid := PieceDetail.build(shape, hash(shape) + variant * 7919, true)
+		SpikeLog.end("simplified look made (first use)", timing)
 		if mid.get("mesh") != null:
 			mid["shadow_from_mid"] = _triangles(mid["mesh"]) < _triangles(shape_of(shape)["mesh"])
 		_details[key] = mid
@@ -172,6 +178,13 @@ func wood_material() -> StandardMaterial3D:
 
 ## Puts a piece in the world. A new piece gets the next id; a loaded one keeps its own.
 func spawn(piece: PieceBuildable, where: Transform3D, paid: Dictionary, id := 0, owner_plot := "", state := {}) -> BuildPiece:
+	var timing := SpikeLog.begin()
+	var built: BuildPiece = _spawn(piece, where, paid, id, owner_plot, state)
+	SpikeLog.end("pieces put in the world", timing)
+	return built
+
+
+func _spawn(piece: PieceBuildable, where: Transform3D, paid: Dictionary, id: int, owner_plot: String, state: Dictionary) -> BuildPiece:
 	var built: BuildPiece = piece.scene.instantiate()
 	built.setup(piece, shape_of(piece.shape), material_for(piece.shape))
 	if id <= 0:
@@ -229,6 +242,7 @@ func ghost_pieces() -> Array:
 
 ## Takes a piece out of the world (and lets the grass grow back under a floor)
 func remove(piece: BuildPiece) -> void:
+	SpikeLog.note("a piece taken away")
 	_pieces.erase(piece.piece_id)
 	var valley = get_tree().get_first_node_in_group("valley")
 	var zone := piece.get_node_or_null("ClearZone")
@@ -315,8 +329,15 @@ func load_data(data: Dictionary) -> void:
 		remove(piece)
 	_pieces.clear()
 	_next_id = int(data.get("next_id", 1))
+	var dropped := {}
 	for entry in data.get("list", []):
-		var piece := load(str(entry.get("buildable", ""))) as PieceBuildable
+		# A piece that's since been taken out of the game (its buildable file is gone) is dropped
+		# quietly, without refunding it
+		var path := str(entry.get("buildable", ""))
+		if not ResourceLoader.exists(path):
+			dropped[path] = int(dropped.get(path, 0)) + 1
+			continue
+		var piece := load(path) as PieceBuildable
 		if piece == null:
 			continue
 		var where := Transform3D(Basis(Vector3.UP, float(entry.get("turn", 0.0))), SaveGame.to_vector(entry.get("position")))
@@ -325,3 +346,5 @@ func load_data(data: Dictionary) -> void:
 		for item in saved_paid:
 			paid[item] = int(saved_paid[item])
 		spawn(piece, where, paid, int(entry.get("id", 0)), str(entry.get("plot", "")), entry.get("state", {}))
+	for path in dropped:
+		print("[Pieces] %d piece(s) of %s left out: that piece is no longer in the game" % [dropped[path], path])

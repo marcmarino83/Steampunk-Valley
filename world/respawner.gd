@@ -16,6 +16,9 @@ var handler: Callable
 
 ## How often to check what's due, in seconds
 const CHECK_EVERY := 2.0
+## At most this many things come back in one check; if more are due the next check is SOON
+const MAX_PER_CHECK := 6
+const SOON := 0.1
 ## How long a whole day is if there's no sun to ask, in seconds
 const FALLBACK_DAY_SECONDS := 2400.0
 
@@ -49,14 +52,22 @@ func _process(delta: float) -> void:
 	if _until_check > 0.0:
 		return
 	_until_check = CHECK_EVERY
+	var timing := SpikeLog.begin()
 	var now := now_days()
+	var brought_back := 0
 	for i in range(_bookings.size() - 1, -1, -1):
 		var booking: Dictionary = _bookings[i]
 		if float(booking["due"]) > now or not _out_of_sight(SaveGame.to_vector(booking["where"])):
 			continue
+		# A few at a time (after a long sleep many are due at once); the rest follow shortly
+		if brought_back >= MAX_PER_CHECK:
+			_until_check = SOON
+			break
 		_bookings.remove_at(i)
+		brought_back += 1
 		if handler.is_valid():
 			handler.call(booking["kind"], booking["id"])
+	SpikeLog.end("respawns", timing)
 
 
 # True if the player is far enough away and not looking toward the spot

@@ -71,6 +71,7 @@ func _rebuild() -> void:
 	_dirty = false
 	if registry == null or registry.world == null or not is_inside_tree():
 		return
+	var timing := SpikeLog.begin()
 	var wanted := {}
 	var ends := {}
 	var ridges := {}
@@ -184,6 +185,7 @@ func _rebuild() -> void:
 			look.global_transform = Transform3D(Basis(dir, Vector3.UP, dir.cross(Vector3.UP)).orthonormalized(), spec["at"])
 		_shown[key] = look
 		_made_for[key] = spec
+	SpikeLog.end("corner posts and ridge logs rebuilt", timing)
 
 
 func _exit_tree() -> void:

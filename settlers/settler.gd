@@ -187,6 +187,12 @@ func interact(player) -> void:
 # ---- Thinking and moving ----
 
 func _physics_process(delta: float) -> void:
+	var timing := SpikeLog.begin()
+	_think_and_move(delta)
+	SpikeLog.end("settlers (thinking, paths, moving)", timing)
+
+
+func _think_and_move(delta: float) -> void:
 	_plan_in -= delta
 	_spell_left -= delta
 	if _plan_in <= 0.0:

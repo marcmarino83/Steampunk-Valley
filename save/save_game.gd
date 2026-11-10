@@ -51,6 +51,8 @@ var _world_id := ""
 var _play_seconds := 0.0
 # A picture of the game taken just before the pause menu covered it, for saves made from there
 var _snapshot: Image
+# A save still being written on a worker thread (its task id), or -1
+var _writing := -1
 var _sign: Label
 var _sign_tween: Tween
 var _test_note: Label
@@ -164,6 +166,7 @@ func save_and_quit() -> void:
 		autosave()
 		# A timer that keeps running while the game is paused (Quit is in the pause menu)
 		await get_tree().create_timer(QUIT_DELAY, true).timeout
+		finish_saving()
 	get_tree().quit()
 
 
@@ -189,15 +192,35 @@ func save_manual(save_name: String, overwrite_path := "") -> void:
 func autosave() -> void:
 	if not can_save():
 		return
+	# (the oldest autosaves are cleared away on the worker thread once this one's written)
 	_write(_world_dir().path_join("auto_%d.json" % int(Time.get_unix_time_from_system() * 1000.0)), "auto", "", false)
-	var autos := saves_in(_world_id).filter(func(s): return s["kind"] == "auto")
-	for old in autos.slice(AUTOSAVES_KEPT):
-		delete_save(old["path"])
 
 
 func _write(path: String, kind: String, save_name: String, custom: bool) -> void:
 	if not can_save():
 		return
+	var timing := SpikeLog.begin()
+	_write_now(path, kind, save_name, custom)
+	# A manual save is waited for (the save list shows it straight after); an autosave isn't
+	if kind != "auto":
+		finish_saving()
+	SpikeLog.end("saving (gathering; the file's written on a worker thread)", timing)
+	SpikeLog.note("a save written (%s)" % kind)
+
+
+## Waits for a save still being written on a worker thread (before quitting, or the next save)
+func finish_saving() -> void:
+	if _writing >= 0:
+		WorkerThreadPool.wait_for_task_completion(_writing)
+		_writing = -1
+
+
+func _exit_tree() -> void:
+	finish_saving()
+
+
+func _write_now(path: String, kind: String, save_name: String, custom: bool) -> void:
+	finish_saving()
 	_until_autosave = AUTOSAVE_SECONDS
 	DirAccess.make_dir_recursive_absolute(_world_dir())
 	if not FileAccess.file_exists(_world_dir().path_join("world.json")):
@@ -221,10 +244,26 @@ func _write(path: String, kind: String, save_name: String, custom: bool) -> void
 		},
 		"systems": systems,
 	}
+	# Gathered here; turned into text and written, with its picture, on a worker thread (a deep
+	# copy, so nothing the game changes meanwhile can reach it)
+	var image := _snapshot if _snapshot else _screen_image()
+	_writing = WorkerThreadPool.add_task(_write_files.bind(path, data.duplicate(true), image, _world_id if kind == "auto" else ""))
+	_show_sign()
+
+
+# On a worker thread: the save's file and its picture; after an autosave, the oldest autosaves
+# beyond AUTOSAVES_KEPT go
+func _write_files(path: String, data: Dictionary, image: Image, prune_world: String) -> void:
 	if not _write_json(path, data):
 		return
-	_save_thumbnail(path.get_basename() + ".png")
-	_show_sign()
+	if image:
+		image = image.duplicate()
+		image.resize(THUMB_SIZE.x, THUMB_SIZE.y, Image.INTERPOLATE_BILINEAR)
+		image.save_png(path.get_basename() + ".png")
+	if not prune_world.is_empty():
+		var autos := saves_in(prune_world).filter(func(s): return s["kind"] == "auto")
+		for old in autos.slice(AUTOSAVES_KEPT):
+			delete_save(old["path"])
 
 
 func _write_json(path: String, data: Dictionary) -> bool:
@@ -245,15 +284,6 @@ func take_snapshot() -> void:
 
 func clear_snapshot() -> void:
 	_snapshot = null
-
-
-func _save_thumbnail(path: String) -> void:
-	var image := _snapshot if _snapshot else _screen_image()
-	if image == null:
-		return
-	image = image.duplicate()
-	image.resize(THUMB_SIZE.x, THUMB_SIZE.y, Image.INTERPOLATE_BILINEAR)
-	image.save_png(path)
 
 
 func _screen_image() -> Image:

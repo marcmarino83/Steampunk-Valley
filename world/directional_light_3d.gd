@@ -61,6 +61,12 @@ func cycle_seconds() -> float:
 
 
 func _process(delta: float) -> void:
+	var timing := SpikeLog.begin()
+	_advance(delta)
+	SpikeLog.end("day and night (sun, sky)", timing)
+
+
+func _advance(delta: float) -> void:
 	# Move time forward: the half of the clock from sunrise to sunset takes day_minutes, the other
 	# half takes night_minutes. It wraps back to midnight after a full day.
 	var is_day := time_of_day >= 0.25 and time_of_day < 0.75

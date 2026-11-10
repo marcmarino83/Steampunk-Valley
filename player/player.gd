@@ -205,6 +205,9 @@ func _ready() -> void:
 	interact_ray.add_exception(self)
 	# So things like campfires can check what you're carrying
 	add_to_group("player")
+	# Debug builds: the lag spike logger (it writes nothing until it's turned on in Settings)
+	if OS.is_debug_build():
+		get_parent().add_child.call_deferred(SpikeLog.new())
 	_note_panel = NOTE_PANEL_SCENE.instantiate()
 	$HUD.add_child(_note_panel)
 	_fps_label = Label.new()
@@ -264,6 +267,8 @@ func _ready() -> void:
 	$HUD.add_child(_pause_menu)
 	_placer = BuildPlacer.new()
 	add_child(_placer)
+	# Every building look drawn once behind a brief cover, so no shader compiles mid-game
+	_warm_up_shaders.call_deferred()
 	_placer.plots.became_working.connect(func(plot): _announce("%s is now working" % plot.plot_name))
 	_settlers = SettlerManager.new()
 	_settlers.world = get_parent()
@@ -512,6 +517,12 @@ func open_plot_panel(plot: Plot) -> void:
 	_placer.plots.check(plot)
 	_plot_panel.open(plot, held_item == "Hammer")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+# Once the world's first frame is up (the camera exists by then)
+func _warm_up_shaders() -> void:
+	await get_tree().process_frame
+	ShaderWarmup.run(get_parent(), _placer.registry)
 
 
 ## Saves everything a plot owns (ghosts included) as a template under a name, with a rendered
@@ -1508,7 +1519,9 @@ func _open_build_menu() -> void:
 		if _build_resume == null:
 			return
 		_placer.cancel()
+	var timing := SpikeLog.begin()
 	build_menu.show()
+	SpikeLog.end("build menu opened", timing)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
@@ -1533,7 +1546,9 @@ func _on_buildable_chosen(buildable: Buildable) -> void:
 ## The game keeps running either way.
 func _toggle_inventory() -> void:
 	_placer.cancel()
+	var timing := SpikeLog.begin()
 	inventory_screen.visible = not inventory_screen.visible
+	SpikeLog.end("inventory opened or closed", timing)
 	action_bar.set_editing(inventory_screen.visible)
 	if inventory_screen.visible:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -1546,6 +1561,12 @@ func _toggle_inventory() -> void:
 ## Call this whenever the inventory changes, so the action bar, the backpack and the build menu
 ## all stay current. The backpack shows only what isn't on the bar.
 func _refresh_inventory_display() -> void:
+	var timing := SpikeLog.begin()
+	_refresh_inventory_now()
+	SpikeLog.end("inventory, crafting and build menu refreshed", timing)
+
+
+func _refresh_inventory_now() -> void:
 	action_bar.forget_missing(inventory)
 	inventory_screen.show_items(_backpack_contents())
 	_last_stations = nearby_stations()

@@ -65,11 +65,15 @@ func _physics_process(delta: float) -> void:
 	_check_in -= delta
 	if _check_in <= 0.0:
 		_check_in = CHECK_SECONDS
+		var timing := SpikeLog.begin()
 		_update_tiles()
+		SpikeLog.end("settler navigation: what changed", timing)
 	if not _queue.is_empty():
 		var key: Vector2i = _queue.pop_front()
 		if _tiles.has(key):
+			var timing := SpikeLog.begin()
 			_bake(key)
+			SpikeLog.end("settler navigation: tile baked", timing)
 
 
 # Works out which tiles are needed (adding and dropping tiles), and queues any that changed

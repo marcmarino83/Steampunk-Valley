@@ -34,6 +34,8 @@ static var fov := 75.0
 ## within a few meters of the crosshair, faint) or "all" (every one the piece could use around it)
 const SNAP_POINT_MODES := ["hidden", "nearby", "all"]
 static var snap_points := "nearby"
+## Debug builds only: write a line to the output for every frame slower than 33 ms (see SpikeLog)
+static var spike_log := false
 
 static var _loaded := false
 
@@ -56,6 +58,8 @@ static func ensure_loaded() -> void:
 		invert_y = bool(file.get_value("controls", "invert_y", invert_y))
 		fov = float(file.get_value("controls", "fov", fov))
 		snap_points = str(file.get_value("building", "snap_points", snap_points))
+		spike_log = bool(file.get_value("debug", "spike_log", spike_log))
+	SpikeLog.enabled = spike_log and OS.is_debug_build()
 	if not WINDOW_MODES.has(window_mode):
 		window_mode = "windowed"
 	if not SNAP_POINT_MODES.has(snap_points):
@@ -117,6 +121,7 @@ static func save() -> void:
 	file.set_value("controls", "invert_y", invert_y)
 	file.set_value("controls", "fov", fov)
 	file.set_value("building", "snap_points", snap_points)
+	file.set_value("debug", "spike_log", spike_log)
 	file.save(PATH)
 
 

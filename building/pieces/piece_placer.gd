@@ -103,8 +103,10 @@ var _slender_step := 0
 ## Which of its own snap points attaches (0: any; see _own_sockets), and the choices Q steps through
 var _attach := 0
 var _attach_choices: Array = []
-## The snap points this piece could meet near the crosshair, this frame (see _anchor_count)
+## The snap points this piece could meet near the crosshair, this frame (see _anchor_count), and
+## where the crosshair's line meets something (or ends), this frame
 var _pool: Array = []
+var _aim_at := Vector3.ZERO
 ## How near (m) a piece's own snap point must come to a placed one to count as resting on it
 const ANCHOR_DISTANCE := 0.03
 var _kept_for := ""
@@ -341,6 +343,12 @@ func _raise(direction: float, fine: bool) -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	var timing := SpikeLog.begin()
+	_follow_crosshair()
+	SpikeLog.end("placing: following the crosshair (snap search)", timing)
+
+
+func _follow_crosshair() -> void:
 	var camera: Camera3D = _player.camera
 	var from := camera.global_position
 	var far_point := from - camera.global_basis.z * REACH
@@ -386,6 +394,7 @@ func _snap(from: Vector3, end: Vector3) -> bool:
 	var wanted := PieceShapes.targets_for(_own_sockets())
 	var options := []
 	_pool.clear()
+	_aim_at = end
 	for piece in registry.pieces_near(end, SNAP_SEARCH):
 		var sockets: Array = piece.world_sockets()
 		for i in sockets.size():
@@ -408,6 +417,8 @@ func _snap(from: Vector3, end: Vector3) -> bool:
 		options = edges + options.filter(func(o): return not edges.has(o))
 	if _shape.get("slender", false) and not _is_square(_shape):
 		return _snap_beam(options)
+	if _shape.get("anchored", false):
+		return _snap_by_anchors(options)
 	var fallback := {}
 	for option in options.slice(0, SNAP_TRIES):
 		var fits := _placements(option)
@@ -455,6 +466,30 @@ func _snap_beam(options: Array) -> bool:
 	return true
 
 
+# Pieces that fit many snap points in ways that are only right in one place (hip corners, hip
+# ends: "anchored" in PieceShapes): of every way they fit the snap points near the crosshair, the
+# one that lands the most of their own snap points on matching ones around wins (a hip corner on
+# both wall tops and beside the end's roof; a hip end on the end roof's high edge, between both
+# side roofs' high edges, against the topper). The nearest decides among equals; turned as asked
+# (see _placements) when the best is the nearest snap point's own.
+const ANCHOR_TRIES := 16
+func _snap_by_anchors(options: Array) -> bool:
+	var best := {}
+	var best_where := Transform3D()
+	var best_score := -1
+	for option in options.slice(0, ANCHOR_TRIES):
+		for where in _fits(option["socket"]):
+			var score := _anchor_count(where)
+			if score > best_score:
+				best_score = score
+				best = option
+				best_where = where
+	if best.is_empty():
+		return false
+	_use_snap(best, Transform3D(Basis.IDENTITY, Vector3.UP * _height) * best_where)
+	return true
+
+
 func _use_snap(option: Dictionary, where: Transform3D) -> void:
 	_snap_key = option["key"]
 	_target = option["piece"]
@@ -471,7 +506,7 @@ func _use_snap(option: Dictionary, where: Transform3D) -> void:
 #     direction (the turn then counts from there).
 #   - Any other piece keeps the same snap point attached and stays on the same side of it: of the
 #     ways it really fits there (see PieceShapes.fits), the one turned nearest to what was asked,
-#     on the side the first way puts it, nearest that. R steps through those ways (see
+#     on the side of the snap point the crosshair is on, nearest that. R steps through those ways (see
 #     _next_turn); a finer turn left over (Alt + wheel's 15° steps) turns it about the snap point.
 func _placements(option: Dictionary) -> Array:
 	var socket: Dictionary = option["socket"]
@@ -491,7 +526,12 @@ func _placements(option: Dictionary) -> Array:
 		return fits.map(func(where: Transform3D): return shift * _turned_about(where, where * centre, turn))
 	if _shape.get("slender", false):
 		return _slender_placements(fits, pivot, centre, shift)
+	# The side of the snap point the crosshair is on decides (a roof on a wall top rising inward
+	# when you aim inside): of the ways it fits, the one whose middle is nearest where you aim first
 	var base: Transform3D = fits[0]
+	for where in fits:
+		if (where * centre).distance_to(_aim_at) < (base * centre).distance_to(_aim_at) - 0.01:
+			base = where
 	var base_centre: Vector3 = base * centre
 	var ref := Vector2(base_centre.x - pivot.x, base_centre.z - pivot.z)
 	var period: float = _shape["symmetry"] if _shape["symmetry"] > 0.0 else TAU

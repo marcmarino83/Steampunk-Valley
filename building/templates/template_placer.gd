@@ -42,8 +42,10 @@ var _template: BuildingTemplate
 var _look: Node3D
 var _outline: Plot
 var _glow: ShaderMaterial
-# Its outer snap points in its own space: {"position", "yaw", "type"}
+# Its outer snap points in its own space: {"position", "yaw", "type"}, and the types of placed snap
+# point any of them can meet
 var _outer: Array = []
+var _outer_wants := {}
 var _reach := 6.0
 var _turn := 0.0
 var _height := 0.0
@@ -72,6 +74,12 @@ func current() -> TemplateBuildable:
 
 
 func begin(buildable: TemplateBuildable) -> void:
+	var timing := SpikeLog.begin()
+	_begin(buildable)
+	SpikeLog.end("template preview built", timing)
+
+
+func _begin(buildable: TemplateBuildable) -> void:
 	cancel()
 	_buildable = buildable
 	_template = buildable.template
@@ -204,11 +212,15 @@ func _physics_process(_delta: float) -> void:
 	if moved:
 		_outline.global_transform = _where
 		_outline.rebuild()
-	_check_in -= 1
-	if moved or _check_in <= 0:
+	# Checked again every few frames (sooner once it's moved), not every frame it moves: checking
+	# each of its pieces where it stands is too much to do every frame while you sweep it about
+	_check_in -= 2 if moved else 1
+	if _check_in <= 0:
 		_check_in = CHECK_FRAMES
 		_checked_at = _where
+		var timing := SpikeLog.begin()
 		_problem = _check()
+		SpikeLog.end("template preview: checking where it stands", timing)
 		var bad := not _problem.is_empty()
 		var warned := not bad and not _warning.is_empty()
 		_glow.set_shader_parameter("glow_color", BAD_GLOW if bad else (WARN_GLOW if warned else GOOD_GLOW))
@@ -236,36 +248,51 @@ func _find_outer_snap_points() -> void:
 				break
 		if not shared:
 			_outer.append(all[i])
+	_outer_wants = PieceShapes.targets_for(_outer)
 
 
 # Where it goes if one of its outer snap points is close to a nearby building's snap point that
-# the snap rules let it meet at its current turn (the nearest pair wins), or null
+# the snap rules let it meet at its current turn (the nearest pair wins), or null. The nearby snap
+# points are first sorted into 1 m squares (only the kinds its outer points can meet), so each of
+# its outer points only looks at the few in the squares around it.
 func _snap(where: Transform3D):
 	if _outer.is_empty():
 		return null
-	var theirs := []
+	var timing := SpikeLog.begin()
+	var grid := {}
 	for piece in registry.pieces_near(where.origin, _reach + SNAP_RADIUS):
-		theirs.append_array(piece.world_sockets())
-	if theirs.is_empty():
-		return null
+		for other in piece.world_sockets():
+			if not _outer_wants.has(other["type"]):
+				continue
+			var there: Vector3 = other["position"]
+			var square := Vector2i(floori(there.x), floori(there.z))
+			if not grid.has(square):
+				grid[square] = []
+			grid[square].append(other)
 	var best_gap := SNAP_RADIUS
 	var shift = null
-	for own in _outer:
-		var at: Vector3 = where * (own["position"] as Vector3)
-		var yaw: float = _turn + float(own["yaw"])
-		for other in theirs:
-			var there: Vector3 = other["position"]
-			var gap := Vector2(there.x - at.x, there.z - at.z).length()
-			if gap >= best_gap or absf(there.y - at.y) > SNAP_HEIGHT:
-				continue
-			var lined_up := false
-			for turn in PieceShapes.turns_for(own["type"], other["type"]):
-				if absf(wrapf(float(other["yaw"]) - yaw + float(turn), -PI, PI)) < 0.03:
-					lined_up = true
-					break
-			if lined_up:
-				best_gap = gap
-				shift = there - at
+	if not grid.is_empty():
+		var squares := ceili(SNAP_RADIUS)
+		for own in _outer:
+			var at: Vector3 = where * (own["position"] as Vector3)
+			var yaw: float = _turn + float(own["yaw"])
+			var middle := Vector2i(floori(at.x), floori(at.z))
+			for dz in range(-squares, squares + 1):
+				for dx in range(-squares, squares + 1):
+					for other in grid.get(middle + Vector2i(dx, dz), []):
+						var there: Vector3 = other["position"]
+						var gap := Vector2(there.x - at.x, there.z - at.z).length()
+						if gap >= best_gap or absf(there.y - at.y) > SNAP_HEIGHT:
+							continue
+						var lined_up := false
+						for turn in PieceShapes.turns_for(own["type"], other["type"]):
+							if absf(wrapf(float(other["yaw"]) - yaw + float(turn), -PI, PI)) < 0.03:
+								lined_up = true
+								break
+						if lined_up:
+							best_gap = gap
+							shift = there - at
+	SpikeLog.end("template preview: snap search", timing)
 	if shift == null:
 		return null
 	return Transform3D(where.basis, where.origin + shift)
@@ -329,6 +356,7 @@ func _place() -> void:
 	if not _problem.is_empty():
 		_player.flash(_problem)
 		return
+	SpikeLog.note("a template laid out")
 	var plot := plots.create(_template.plot_type, _where, _template.size)
 	for item in _template.items:
 		var buildable: Buildable = item["buildable"]

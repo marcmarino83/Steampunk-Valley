@@ -1438,13 +1438,20 @@ func _scatter_starter_kit() -> void:
 ## scattered boulders and the small decorations painted by hand (ones with nothing solid to them)
 ## inside it
 func add_clear_zone(zone: Node3D) -> void:
+	var timing := SpikeLog.begin()
+	_add_clear_zone(zone)
+	SpikeLog.end("clear zone added (grass kept out from under a floor)", timing)
+
+
+func _add_clear_zone(zone: Node3D) -> void:
 	if not _clear_zones.has(zone):
 		_clear_zones.append(zone)
 	var reach: float = zone.radius
 	var middle := Vector2(zone.global_position.x, zone.global_position.z)
 	var foliage = get_node_or_null("Foliage")
 	if foliage and zone.clear_plants:
-		foliage.regrow_plants_in(Rect2(middle.x - reach, middle.y - reach, reach * 2.0, reach * 2.0))
+		# The grass and ferns already there inside it just go (no regrowing the whole patch)
+		foliage.hide_plants_in(middle, reach)
 	if not zone.clear_rocks:
 		return
 	if foliage:
@@ -2127,6 +2134,48 @@ func _rebuild_area(area: Rect2) -> void:
 	refresh_forest_floor()
 	_update_flow_map()
 	_refresh_marker_rings(area)
+
+
+## The Clear Zones keeping grass and ferns out that reach into this area (x, z), as plain circles
+## (x, z, radius): a snapshot the grass can be worked out from away from the main thread
+func plant_clear_circles(area: Rect2) -> PackedVector3Array:
+	var circles := PackedVector3Array()
+	for zone in _clear_zones:
+		if not is_instance_valid(zone) or not zone.is_inside_tree() or not zone.clear_plants:
+			continue
+		var r: float = zone.radius
+		var p: Vector3 = zone.global_position
+		if area.grow(r).has_point(Vector2(p.x, p.z)):
+			circles.append(Vector3(p.x, p.z, r))
+	return circles
+
+
+## The big placed objects' cleared circles (see is_under_placed) reaching into this area: a snapshot
+func placed_clears_in(area: Rect2) -> PackedVector3Array:
+	var found := PackedVector3Array()
+	for mark: Vector3 in _placed_clears:
+		if area.grow(mark.z).has_point(Vector2(mark.x, mark.y)):
+			found.append(mark)
+	return found
+
+
+## The taken spots (see is_spot_taken) in this area and `margin` around it: a snapshot, filed the
+## same way, for _distance_to_nearest
+func taken_spots_in(area: Rect2, margin: float) -> Dictionary:
+	var found := {}
+	var low := Vector2i(floori((area.position.x - margin) / SPOT_SQUARE), floori((area.position.y - margin) / SPOT_SQUARE))
+	var high := Vector2i(floori((area.end.x + margin) / SPOT_SQUARE), floori((area.end.y + margin) / SPOT_SQUARE))
+	for z in range(low.y, high.y + 1):
+		for x in range(low.x, high.x + 1):
+			var square := Vector2i(x, z)
+			if _taken_spots.has(square):
+				found[square] = (_taken_spots[square] as Array).duplicate()
+	return found
+
+
+## How near the nearest spot in a snapshot record is (see taken_spots_in), up to `reach`
+func distance_in_record(spot: Vector2, record: Dictionary, reach: float) -> float:
+	return _distance_to_nearest(spot, record, reach)
 
 
 ## True if a Clear Zone covering this spot keeps out `what`: "trees", "resources", "rocks" or "plants"

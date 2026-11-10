@@ -242,11 +242,13 @@ func _physics_process(delta: float) -> void:
 
 
 func _check_all() -> void:
+	var timing := SpikeLog.begin()
 	_recheck_in = RECHECK_SECONDS
 	for plot in all_plots():
 		check(plot)
 	# A Storehouse that stopped working or lost a shelf: what no longer fits drops by it
 	town.reconcile()
+	SpikeLog.end("plot checklists", timing)
 
 
 ## Works out the plot's checklist, whether it's working, and how many settlers it holds

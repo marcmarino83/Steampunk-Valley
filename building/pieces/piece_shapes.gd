@@ -136,21 +136,15 @@ const SNAP_RULES := {
 	"overhang_corner_left": {"roof_edge_corner_right": [PI]},
 	"overhang_corner_right": {"roof_edge_corner_left": [PI]},
 	"ridge_cap_26": {"roof_high_26": [0.0], "roof_high_45": [0.0]},
-	# T-junctions (a wing roof meeting the side of a main roof of its pitch partway up its slope):
-	# a valley junction over a main roof panel, at any 1 m along its low edge; against the end of
-	# the wing roof's panel (its side edge, whole: middle and facing pin it); left and right back to
-	# back along the wing's ridge line. A ridge end along that line from the valley junctions'
-	# ridge point, or from the wing roof's ridge (either way along it; R picks).
-	"valley_base_26": {"valley_spot_26": [0.0]},
-	"valley_base_45": {"valley_spot_45": [0.0]},
-	"valley_ridge_l_26": {"valley_ridge_r_26": [PI]},
-	"valley_ridge_r_26": {"valley_ridge_l_26": [PI]},
-	"valley_ridge_l_45": {"valley_ridge_r_45": [PI]},
-	"valley_ridge_r_45": {"valley_ridge_l_45": [PI]},
-	"ridge_end_base_26": {"ridge_end_spot_26": [0.0]},
-	"ridge_end_base_45": {"ridge_end_spot_45": [0.0]},
-	"ridge_end_wing_26": {"roof_high_26": [PI / 2.0, -PI / 2.0]},
-	"ridge_end_wing_45": {"roof_high_45": [PI / 2.0, -PI / 2.0]},
+	# Hip roofs: an outer (hip) corner stacked on the one below it, its foot on that one's top, the
+	# hip line carrying on up; a hip end (odd widths) sitting on the end roof panel's high edge, its
+	# sides along the side roofs' high edges, toppers carrying the ridge on from its far end
+	"hip_foot_26": {"hip_top_26": [0.0]},
+	"hip_foot_45": {"hip_top_45": [0.0]},
+	"hip_end_side_26": {"roof_high_26": [PI]},
+	"hip_end_side_45": {"roof_high_45": [PI]},
+	"hip_end_foot_26": {"hip_top_26": QUARTER_TURNS},
+	"hip_end_foot_45": {"hip_top_45": QUARTER_TURNS},
 	"ridge_cap_45": {"roof_high_45": [0.0], "roof_high_26": [0.0]},
 	# Overhangs: eaves on a roof's low edge (and end to end along it), gable overhangs on a roof's
 	# side edge (and up the slope, and back to back at the ridge), corners under a gable overhang's
@@ -336,10 +330,8 @@ static func build(shape: String) -> Dictionary:
 			_valley_eave_corner(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
 		"topper_26", "topper_45":
 			_topper(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
-		"valley_left_26", "valley_right_26", "valley_left_45", "valley_right_45":
-			_valley(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3), 1.0 if shape.contains("left") else -1.0)
-		"ridge_end_26", "ridge_end_45":
-			_ridge_end(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
+		"hip_end_26", "hip_end_45":
+			_hip_end(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
 		"topper_overhang_26", "topper_overhang_45":
 			_topper_overhang(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
 		"topper_gable_26", "topper_gable_45":
@@ -600,9 +592,6 @@ static func _roof(d: Dictionary, rise: float, pitch: String) -> void:
 		_socket(d, Vector3(side * GRID / 2.0, lift - ROOF_EDGE_SINK, 0), -PI / 2.0, "roof_top_corner" + pitch)
 	# Its high edge, whole, for a roof topper's low edge (the roof lies down the slope from it)
 	_ridge_edge(d, Vector3(-GRID / 2.0, rise, GRID), Vector3.BACK * -1.0, "edge_ridge_roof" + pitch)
-	# Along its low edge every 1 m (middle first): where a valley junction of its pitch sits over it
-	for x in [0.0, -GRID / 2.0, GRID / 2.0]:
-		_socket(d, Vector3(x, 0, 0), PI, "valley_spot" + pitch)
 	d["roof"] = true
 
 
@@ -1086,6 +1075,13 @@ static func _roof_corner(d: Dictionary, rise: float, pitch: String, inner: bool)
 		_socket(d, Vector3(half, 0, 0), PI / 2.0, "roof_corner")
 		# Its low corner, where an outer eave corner goes under it
 		_socket(d, Vector3(half, 0, 0), 0.0, "outer_eave_spot" + pitch)
+		# Stacking up a wide hip end: its foot (the low corner) on the top (the high corner) of the
+		# hip corner below, the same way round, so the hip line carries straight on up
+		_socket(d, Vector3(half, 0, 0), 0.0, "hip_foot" + pitch)
+		_socket(d, Vector3(-half, rise, GRID), 0.0, "hip_top" + pitch)
+		# It fits wall tops many ways round; the right one lands on both walls and beside the end's
+		# roof at once (see PiecePlacer._snap_by_anchors)
+		d["anchored"] = true
 	d["roof"] = true
 
 
@@ -1445,77 +1441,81 @@ static func _topper_gable(d: Dictionary, rise: float) -> void:
 	_socket(d, Vector3(g, 0, 0), PI / 2.0, "topper_gable_corner")
 
 
-# A valley junction: where a wing roof meets the side of a main roof of its pitch, the wing's
-# slope carried on over the main roof until it dies into it. It sits over one main roof panel
-# (the same 2 m square: x from -1 to 1, z from 0 to 2 up the main slope, origin at the middle of
-# the panel's low edge, at its underside), on the side of the wing given by `side` (+1: the wing's
-# left half, its slope rising toward +X to the wing's ridge over x = 1; -1: the right half,
-# mirrored). With equal pitches the two slopes meet along the diagonal from the low corner under
-# the wing's eave (A) to the high corner under its ridge (C): the valley. The piece is the
-# triangle of wing slope above the main slope (A, B at the wing's ridge over the low edge, C),
-# whose valley edge lies on the main roof (its close-up look adds a strip of shakes on the main
-# roof's side of the fold and a valley board in it; see PieceDetail).
-#   - It sits over a main roof panel at any 1 m along its low edge (valley_spot), against the end
-#     of the wing roof's panel (its side edge, whole), and back to back with the other side's
-#     valley junction along the wing's ridge line (B to C), where the ridge end goes.
-static func _valley(d: Dictionary, rise: float, pitch: String, side: float) -> void:
-	var st: SurfaceTool = d["surface"]
+# A hip end: closes the top of a hip roof's end on a building an odd number of tiles across (3
+# tiles, 6 m: the side roofs stop TOPPER_GAP apart, as under a roof topper). It covers the 2 m
+# square between the side roofs' high edges, from the high edge of the end roof panel below it
+# (z = 0, its origin at the middle of that edge, at the underside) to z = 2. Its underside is the
+# lower of the end's slope (rising with z) and the side roofs' slopes (rising toward the middle):
+# a three-faced hip top, the two hip lines rising from its low corners (on the tops of the hip
+# corners below) to its apex 1 m in, on the middle, the ridge running on from there to its far
+# edge, which has a roof topper's cross-section, so toppers carry the ridge on from it. (Close up,
+# hip logs run up both hip lines to the apex and the ridge log on from it; see PieceDetail.)
+#   - It sits on the end roof panel's high edge (as a roof row stacks on the one below), its sides
+#     along the side roofs' high edges, and toppers go on its far end (topper_end).
+static func _hip_end(d: Dictionary, rise: float, pitch: String) -> void:
 	var k := rise / GRID
 	var lift := ROOF_THICKNESS / cos(atan2(rise, GRID))
-	var a := Vector3(-side, 0, 0)
-	var b := Vector3(side, rise, 0)
-	var c := Vector3(side, rise, GRID)
-	var up := Vector3(-side * k, 1, 0).normalized()
-	var top := [a + Vector3.UP * lift, b + Vector3.UP * lift, c + Vector3.UP * lift]
-	_triangle(st, top[0], top[1], top[2], up, ROOF_COLOR)
-	_triangle(st, a, b, c, -up, ROOF_COLOR.darkened(0.1))
-	var middle := (a + b + c) / 3.0
-	for e in [[a, b], [b, c], [c, a]]:
-		var p: Vector3 = e[0]
-		var q: Vector3 = e[1]
-		var out := (q - p).cross(Vector3.UP).normalized()
-		if out.dot((p + q) / 2.0 - middle) < 0.0:
-			out = -out
-		_quad(st, p, q, q + Vector3.UP * lift, p + Vector3.UP * lift, out, ROOF_COLOR)
-	var solid := ConvexPolygonShape3D.new()
-	solid.points = PackedVector3Array([a, b, c, top[0], top[1], top[2]])
-	_collision(d, solid, Transform3D.IDENTITY)
-	_socket(d, Vector3.ZERO, PI, "valley_base" + pitch)
-	# The end of the wing roof's panel: its side edge runs from A up to B
-	_socket(d, (a + b) / 2.0, PI, ("roof_side_right" if side > 0.0 else "roof_side_left") + pitch)
-	# The wing's ridge line, B to C: the other side's valley junction, and the ridge end from B
-	_socket(d, (b + c) / 2.0, side * PI / 2.0, ("valley_ridge_l" if side > 0.0 else "valley_ridge_r") + pitch)
-	_socket(d, b, 0.0, "ridge_end_spot" + pitch)
-	d["roof"] = true
-
-
-# A ridge end: where a wing roof's ridge runs into the side of the main roof, it carries the ridge
-# on over the valley junctions (2 m along +Z, from where the wing's panels end) to where it meets
-# the main slope: saddle boards over the fold between the two valley junctions' slopes, and (close
-# up) the ridge log, its end buried in the main roof. Origin on the ridge line where the wing's
-# panels end, at their underside.
-#   - It goes on the valley junctions' ridge point, or on the wing roof's ridge (the high edge of
-#     the wing's last panel, either way along it: R picks).
-## How long a ridge end's saddle boards are: 2 m to where the main roof's top is level with the
-## ridge, then on until the boards (6 cm thick, and 2 cm more) are sunk into the rising main roof
-static func ridge_end_saddle(rise: float) -> float:
-	return GRID + 0.08 / (rise / GRID)
-
-
-static func _ridge_end(d: Dictionary, rise: float, pitch: String) -> void:
-	var slope := atan2(rise, GRID)
-	var lift := ROOF_THICKNESS / cos(slope)
-	var reach := 0.4
-	var thick := 0.06
-	var length := ridge_end_saddle(rise)
+	for facet in hip_end_facets():
+		var outline: PackedVector2Array = facet
+		var low := []
+		var high := []
+		for p in outline:
+			var h := hip_end_height(p, k)
+			low.append(Vector3(p.x, h, p.y))
+			high.append(Vector3(p.x, h + lift, p.y))
+		_slab_facet(d, low, high, _board_color(ROOF_COLOR, low.size() + 5))
+	_socket(d, Vector3.ZERO, PI, "roof_low")
 	for side in [-1.0, 1.0]:
-		# Each half lies on one valley junction's slope, falling away from the ridge across X
-		var basis := Basis(Vector3.BACK, -slope * side)
-		var center := Vector3(side * reach / 2.0, lift - reach / 2.0 * tan(slope), length / 2.0) + basis.y * thick / 2.0
-		_planked_box(d, Vector3(reach / cos(slope) + 0.04, thick, length), center, basis, ROOF_COLOR.darkened(0.15), 2, 0.0)
-	_socket(d, Vector3.ZERO, 0.0, "ridge_end_base" + pitch)
-	_socket(d, Vector3(0, 0, -GRID / 2.0), 0.0, "ridge_end_wing" + pitch)
+		_socket(d, Vector3(side, 0, GRID / 2.0), side * PI / 2.0, "hip_end_side" + pitch)
+	_socket(d, Vector3(0, k, GRID), 0.0, "topper_end")
+	# Its low corners, on the tops of the hip corners below (where the hip lines carry on up)
+	for side in [-1.0, 1.0]:
+		_socket(d, Vector3(side, 0, 0), 0.0, "hip_end_foot" + pitch)
 	d["roof"] = true
+	# Its sides fit any side roof's high edge; the right place also lands it on the end roof's high
+	# edge and the hip corners' tops (see PiecePlacer._snap_by_anchors)
+	d["anchored"] = true
+
+
+## A hip end's three faces, as outlines seen from above (x, z): the end's face, then the left and
+## right side roofs' faces
+static func hip_end_facets() -> Array:
+	return [
+		PackedVector2Array([Vector2(-1, 0), Vector2(1, 0), Vector2(0, 1)]),
+		PackedVector2Array([Vector2(-1, 0), Vector2(0, 1), Vector2(0, GRID), Vector2(-1, GRID)]),
+		PackedVector2Array([Vector2(1, 0), Vector2(1, GRID), Vector2(0, GRID), Vector2(0, 1)]),
+	]
+
+
+## A hip end's underside height at (x, z): the lower of the end's slope and the side roofs'
+static func hip_end_height(p: Vector2, k: float) -> float:
+	return minf(p.y * k, (1.0 - absf(p.x)) * k)
+
+
+# One flat face of a roof slab: its underside and top outlines (the same points, the top `lift`
+# above), with the faces between them all round, solid
+static func _slab_facet(d: Dictionary, low: Array, high: Array, color: Color) -> void:
+	var st: SurfaceTool = d["surface"]
+	var up: Vector3 = ((high[1] as Vector3) - (high[0] as Vector3)).cross((high[2] as Vector3) - (high[0] as Vector3)).normalized()
+	if up.y < 0.0:
+		up = -up
+	for i in range(1, low.size() - 1):
+		_triangle(st, high[0], high[i], high[i + 1], up, color)
+		_triangle(st, low[0], low[i], low[i + 1], -up, color)
+	var middle := Vector3.ZERO
+	for p in low:
+		middle += (p as Vector3) / low.size()
+	for i in low.size():
+		var j := (i + 1) % low.size()
+		var a: Vector3 = low[i]
+		var b: Vector3 = low[j]
+		var out := Vector3(b.z - a.z, 0, -(b.x - a.x)).normalized()
+		if out.dot((a + b) / 2.0 - middle) < 0.0:
+			out = -out
+		_quad(st, a, b, high[j], high[i], out, color)
+	var solid := ConvexPolygonShape3D.new()
+	solid.points = PackedVector3Array(low + high)
+	_collision(d, solid, Transform3D.IDENTITY)
 
 
 # An upright wall of this outline ((x, y), on its centre line), WALL_THICKNESS thick, in level

@@ -188,11 +188,16 @@ func _process(_delta: float) -> void:
 		_last_dusk_day = today if t >= DUSK_TIME else today - 1
 	if t >= ARRIVAL_TIME and _last_dawn_day < today:
 		_last_dawn_day = today
+		var timing := SpikeLog.begin()
 		economy.dawn()
 		_morning_arrival()
+		SpikeLog.end("dawn (day's output, arrivals)", timing)
+		SpikeLog.note("dawn")
 	if t >= DUSK_TIME and _last_dusk_day < today:
 		_last_dusk_day = today
+		var timing := SpikeLog.begin()
 		economy.dusk()
+		SpikeLog.end("dusk (meals)", timing)
 	_forget_missing_plots()
 	_see_off_leavers()
 

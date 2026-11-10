@@ -61,6 +61,27 @@ func _ready() -> void:
 	_patch_noise.frequency = 0.035
 
 
+# Grass and ferns are worked out a patch (one terrain chunk) at a time on a worker thread, from a
+# snapshot of what keeps them out there, and swapped in when ready, so growing a patch never holds
+# up a frame: patches being worked out (chunk -> task id), what they came to (chunk -> the grass's
+# and ferns' MultiMesh buffers; a mutex guards it), the buffers of the patches shown (to hide
+# plants under a new floor at once), and patches to work out again (a floor came down there: the
+# old patch stays until the new one is in)
+const MAX_PATCH_TASKS := 2
+var _pending := {}
+var _done := {}
+var _done_lock := Mutex.new()
+var _patch_buffers := {}
+var _stale := {}
+
+
+func _exit_tree() -> void:
+	# A patch still being worked out mustn't outlive this node
+	for chunk in _pending:
+		WorkerThreadPool.wait_for_task_completion(_pending[chunk])
+	_pending.clear()
+
+
 func _process(_delta: float) -> void:
 	if Engine.is_editor_hint() or valley == null:
 		return
@@ -69,36 +90,71 @@ func _process(_delta: float) -> void:
 		return
 	var here := Vector2(camera.global_position.x, camera.global_position.z)
 	var center: Vector2i = valley.chunk_at(here.x, here.y)
+	_take_finished(here)
 
-	# Grow the nearest chunk that needs plants. Just one per frame, so walking around stays smooth.
-	var best := Vector2i.ZERO
-	var best_distance := INF
-	for dz in range(-2, 3):
-		for dx in range(-2, 3):
-			var chunk := center + Vector2i(dx, dz)
-			if _patches.has(chunk) or not valley.has_chunk(chunk):
-				continue
-			var distance := _distance_to_chunk(chunk, here)
-			if distance < grass_distance and distance < best_distance:
-				best = chunk
-				best_distance = distance
-	if best_distance < INF:
-		_patches[best] = _grow_patch(best)
+	# Start working out the nearest chunk that needs plants (or needs them again)
+	if _pending.size() < MAX_PATCH_TASKS:
+		var best := Vector2i.ZERO
+		var best_distance := INF
+		for dz in range(-2, 3):
+			for dx in range(-2, 3):
+				var chunk := center + Vector2i(dx, dz)
+				if (_patches.has(chunk) and not _stale.has(chunk)) or _pending.has(chunk) or not valley.has_chunk(chunk):
+					continue
+				var distance := _distance_to_chunk(chunk, here)
+				if distance < grass_distance and distance < best_distance:
+					best = chunk
+					best_distance = distance
+		if best_distance < INF:
+			var timing := SpikeLog.begin()
+			_start_patch(best)
+			SpikeLog.end("grass and ferns: patch started (snapshot)", timing)
 
 	# Clear away chunks you've left well behind
 	for chunk in _patches.keys():
 		if _distance_to_chunk(chunk, here) > grass_distance + 60.0:
 			_patches[chunk].queue_free()
 			_patches.erase(chunk)
+			_patch_buffers.erase(chunk)
+			_stale.erase(chunk)
 
 
-## Throws away the grass and ferns of every chunk that overlaps this area (x, z), so they grow
-## again over the next frames, keeping out of any Clear Zone added since
+## Works out the grass and ferns of every chunk that overlaps this area (x, z) again, keeping out
+## of any Clear Zone added or taken away since; the old ones stay until the new ones are ready
 func regrow_plants_in(area: Rect2) -> void:
-	for chunk in _patches.keys():
+	for chunk in _patches.keys() + _pending.keys():
 		if valley.chunk_rect(chunk).intersects(area):
-			_patches[chunk].queue_free()
-			_patches.erase(chunk)
+			_stale[chunk] = true
+
+
+## Takes away the grass and ferns already growing within `reach` of a spot (x, z) at once (a floor
+## went down there), without working the patch out again
+func hide_plants_in(middle: Vector2, reach: float) -> void:
+	var timing := SpikeLog.begin()
+	for chunk in _patches.keys():
+		if not valley.chunk_rect(chunk).grow(reach).has_point(middle):
+			continue
+		var patch: Node3D = _patches[chunk]
+		var buffers: Dictionary = _patch_buffers.get(chunk, {})
+		for i in 2:
+			var key := "grass" if i == 0 else "fern"
+			var buffer: PackedFloat32Array = buffers.get(key, PackedFloat32Array())
+			var changed := false
+			for j in range(0, buffer.size(), 16):
+				var dx := buffer[j + 3] - middle.x
+				var dz := buffer[j + 11] - middle.y
+				if dx * dx + dz * dz < reach * reach and buffer[j + 5] != 0.0:
+					for k in [0, 1, 2, 4, 5, 6, 8, 9, 10]:
+						buffer[j + k] = 0.0
+					changed = true
+			if changed and patch.get_child_count() > i:
+				buffers[key] = buffer
+				((patch.get_child(i) as MultiMeshInstance3D).multimesh as MultiMesh).buffer = buffer
+	# A patch being worked out from before the floor went down: work it out again
+	for chunk in _pending.keys():
+		if valley.chunk_rect(chunk).grow(reach).has_point(middle):
+			_stale[chunk] = true
+	SpikeLog.end("grass and ferns hidden under a new floor", timing)
 
 
 func _distance_to_chunk(chunk: Vector2i, here: Vector2) -> float:
@@ -107,15 +163,94 @@ func _distance_to_chunk(chunk: Vector2i, here: Vector2) -> float:
 	return nearest.distance_to(here)
 
 
-# Scatters grass and ferns over one chunk
-func _grow_patch(chunk: Vector2i) -> Node3D:
+# Hands a chunk to a worker thread, with a snapshot of what keeps plants out there
+func _start_patch(chunk: Vector2i) -> void:
+	_stale.erase(chunk)
 	var rect: Rect2 = valley.chunk_rect(chunk)
+	var snapshot := {
+		"chunk": chunk, "rect": rect, "dry_above": valley.water_height() + 0.15,
+		"clear": valley.plant_clear_circles(rect), "placed": valley.placed_clears_in(rect),
+		"taken": valley.taken_spots_in(rect, 1.5),
+	}
+	_pending[chunk] = WorkerThreadPool.add_task(_work_out_patch.bind(snapshot))
+
+
+# Swaps in a patch whose working out has finished (one a frame), unless it was asked for again
+# meanwhile, or you've walked well away from it
+func _take_finished(here: Vector2) -> void:
+	for chunk in _pending.keys():
+		var task: int = _pending[chunk]
+		if not WorkerThreadPool.is_task_completed(task):
+			continue
+		WorkerThreadPool.wait_for_task_completion(task)
+		_pending.erase(chunk)
+		_done_lock.lock()
+		var result: Dictionary = _done.get(chunk, {})
+		_done.erase(chunk)
+		_done_lock.unlock()
+		if result.is_empty() or (_stale.has(chunk) and _patches.has(chunk)) or _distance_to_chunk(chunk, here) > grass_distance + 60.0:
+			continue
+		var timing := SpikeLog.begin()
+		var patch := Node3D.new()
+		patch.add_child(_scatter_from(_grass_mesh, result["grass"], false))
+		patch.add_child(_scatter_from(_fern_mesh, result["fern"], true))
+		add_child(patch)
+		if _patches.has(chunk):
+			_patches[chunk].queue_free()
+		_patches[chunk] = patch
+		_patch_buffers[chunk] = result
+		SpikeLog.end("grass and ferns: patch swapped in", timing)
+		return
+
+
+# A finished patch's plants as one MultiMesh, set in one go from its buffer (16 floats each: the
+# transform's three rows, then the tint)
+func _scatter_from(mesh: Mesh, buffer: PackedFloat32Array, shadows: bool) -> MultiMeshInstance3D:
+	var multimesh := MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.use_colors = true
+	multimesh.mesh = mesh
+	multimesh.instance_count = buffer.size() / 16
+	if not buffer.is_empty():
+		multimesh.buffer = buffer
+	var scatter := MultiMeshInstance3D.new()
+	scatter.multimesh = multimesh
+	scatter.material_override = _plant_material
+	scatter.layers = FOLIAGE_LAYER
+	scatter.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	scatter.visibility_range_end = grass_distance
+	scatter.visibility_range_end_margin = 10.0
+	scatter.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	return scatter
+
+
+# One plant's transform and tint, onto a MultiMesh buffer
+static func _push(buffer: PackedFloat32Array, t: Transform3D, tint: Color) -> void:
+	buffer.append_array([t.basis.x.x, t.basis.y.x, t.basis.z.x, t.origin.x, t.basis.x.y, t.basis.y.y, t.basis.z.y, t.origin.y,
+		t.basis.x.z, t.basis.y.z, t.basis.z.z, t.origin.z, tint.r, tint.g, tint.b, tint.a])
+
+
+# True if a spot is inside one of these circles (x, z, radius)
+static func _in_circles(x: float, z: float, circles: PackedVector3Array) -> bool:
+	for c in circles:
+		if (x - c.x) * (x - c.x) + (z - c.y) * (z - c.y) < c.z * c.z:
+			return true
+	return false
+
+
+# On a worker thread: scatters grass and ferns over one chunk, from the snapshot (the ground's
+# heights, slopes and trails are only read); the result goes into _done for _take_finished
+func _work_out_patch(snapshot: Dictionary) -> void:
+	var chunk: Vector2i = snapshot["chunk"]
+	var rect: Rect2 = snapshot["rect"]
+	var clear: PackedVector3Array = snapshot["clear"]
+	var placed: PackedVector3Array = snapshot["placed"]
+	var taken: Dictionary = snapshot["taken"]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(chunk)
-	var dry_above: float = valley.water_height() + 0.15
+	var dry_above: float = snapshot["dry_above"]
 
-	var grass_spots: Array[Transform3D] = []
-	var grass_tints: Array[Color] = []
+	var grass := PackedFloat32Array()
 	for i in int(rect.get_area() * grass_density):
 		var x := rect.position.x + rng.randf() * rect.size.x
 		var z := rect.position.y + rng.randf() * rect.size.y
@@ -124,7 +259,7 @@ func _grow_patch(chunk: Vector2i) -> Node3D:
 		if h < dry_above or valley.get_normal(x, z).y < 0.72 or valley.is_near_crash_site(x, z, 0.5):
 			continue
 		# Leave a little clear ground around trees and resources, so things you can gather stand out
-		if valley.is_spot_taken(x, z, 1.2) or valley.is_cleared(x, z, "plants") or valley.is_under_placed(x, z):
+		if valley.distance_in_record(Vector2(x, z), taken, 1.2) < 1.2 or _in_circles(x, z, clear) or _in_circles(x, z, placed):
 			continue
 		var patchiness: float = _patch_noise.get_noise_2d(x, z)
 		# Off trails, except where a trail has Edge Grass: tufts along its frayed edges, and
@@ -144,34 +279,30 @@ func _grow_patch(chunk: Vector2i) -> Node3D:
 		elif rng.randf() > smoothstep(-0.8, 0.1, patchiness):
 			continue
 		var size := rng.randf_range(0.8, 1.4) if tuft else rng.randf_range(0.6, 1.3)
-		grass_spots.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * size), Vector3(x, h - 0.05, z)))
+		var spot := Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * size), Vector3(x, h - 0.05, z))
 		var shade := rng.randf_range(0.8, 1.15)
-		grass_tints.append(Color(shade * rng.randf_range(0.95, 1.1), shade, shade * 0.85))
+		_push(grass, spot, Color(shade * rng.randf_range(0.95, 1.1), shade, shade * 0.85))
 		# Edge tufts grow thick: a second clump right beside the first
 		if tuft and worn < 0.75:
 			var near := Vector3(x + rng.randf_range(-0.3, 0.3), 0.0, z + rng.randf_range(-0.3, 0.3))
 			near.y = valley.get_height(near.x, near.z) - 0.05
-			grass_spots.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * size * 0.8), near))
-			grass_tints.append(Color(shade, shade * 1.05, shade * 0.8))
+			_push(grass, Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * size * 0.8), near), Color(shade, shade * 1.05, shade * 0.8))
 
-	var fern_spots: Array[Transform3D] = []
-	var fern_tints: Array[Color] = []
+	var fern := PackedFloat32Array()
 	for i in int(rect.get_area() * fern_density):
 		var x := rect.position.x + rng.randf() * rect.size.x
 		var z := rect.position.y + rng.randf() * rect.size.y
 		var h: float = valley.get_height(x, z)
-		if h < dry_above or valley.get_normal(x, z).y < 0.7 or valley.is_near_crash_site(x, z, 0.5) or valley.is_spot_taken(x, z, 1.2) or valley.trail_amount(x, z) > 0.2 or valley.is_on_trail(x, z, 0.0) or valley.is_cleared(x, z, "plants") or valley.is_under_placed(x, z):
+		if h < dry_above or valley.get_normal(x, z).y < 0.7 or valley.is_near_crash_site(x, z, 0.5) or valley.distance_in_record(Vector2(x, z), taken, 1.2) < 1.2 or valley.trail_amount(x, z) > 0.2 or valley.is_on_trail(x, z, 0.0) or _in_circles(x, z, clear) or _in_circles(x, z, placed):
 			continue
 		var size := rng.randf_range(0.7, 1.4)
-		fern_spots.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * size), Vector3(x, h - 0.05, z)))
+		var spot := Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * size), Vector3(x, h - 0.05, z))
 		var shade := rng.randf_range(0.5, 0.75)
-		fern_tints.append(Color(shade * 0.8, shade * 1.1, shade * 0.6))
+		_push(fern, spot, Color(shade * 0.8, shade * 1.1, shade * 0.6))
 
-	var patch := Node3D.new()
-	patch.add_child(_make_scatter(_grass_mesh, grass_spots, grass_tints, _plant_material, false, grass_distance))
-	patch.add_child(_make_scatter(_fern_mesh, fern_spots, fern_tints, _plant_material, true, grass_distance))
-	add_child(patch)
-	return patch
+	_done_lock.lock()
+	_done[chunk] = {"grass": grass, "fern": fern}
+	_done_lock.unlock()
 
 
 ## Scatters boulders over the whole map, mostly on steep slopes where the ground turns rocky

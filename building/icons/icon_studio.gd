@@ -72,10 +72,8 @@ const CONTEXT := {
 	],
 	# A faint topper over the topper gable (its end on the gable's plane)
 	"topper_gable_{p}": [{"shape": "topper_{p}", "place": "over_topper_gable"}],
-	# A faint main roof panel under the valley junction; a faint valley junction under the ridge end
-	"valley_left_{p}": [{"shape": "{roof}", "mode": "under", "mine": "valley_base_{p}", "theirs": "valley_spot_{p}"}],
-	"valley_right_{p}": [{"shape": "{roof}", "mode": "under", "mine": "valley_base_{p}", "theirs": "valley_spot_{p}"}],
-	"ridge_end_{p}": [{"shape": "valley_left_{p}", "mode": "under", "mine": "ridge_end_base_{p}", "theirs": "ridge_end_spot_{p}"}],
+	# A faint end roof panel under the hip end (it sits on that panel's high edge)
+	"hip_end_{p}": [{"shape": "{roof}", "mode": "under", "mine": "roof_low", "theirs": "roof_high_{p}"}],
 	# A faint topper, the overhang carrying on past its end
 	"topper_overhang_{p}": [{"shape": "topper_{p}", "mode": "under", "mine": "topper_overhang_end", "theirs": "topper_end"}],
 	# Two faint roofs with the gap between them, the topper bridging it

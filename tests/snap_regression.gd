@@ -86,6 +86,16 @@ func _run() -> void:
 		await _grid_standard_shot()
 		_finish()
 		return
+	# (-- --templates-grid-shot, in a window: only the built-in templates laid out, with their picture)
+	if "--templates-grid-shot" in OS.get_cmdline_user_args():
+		await _templates_grid_shot()
+		_finish()
+		return
+	# (-- --template-joints: only the built-in templates' joint audit)
+	if "--template-joints" in OS.get_cmdline_user_args():
+		await _case_template_joints()
+		_finish()
+		return
 	await _case_floor_beside()
 	await _case_hole()
 	await _case_wall_edge()
@@ -102,6 +112,7 @@ func _run() -> void:
 	await _case_stairs_grid()
 	await _case_collision_matches_look()
 	await _case_grid_saves()
+	await _case_template_joints()
 	await _case_common_joins()
 	await _case_stair_paths()
 	await _case_pillar_fan()
@@ -412,6 +423,85 @@ func _case_collision_matches_look() -> void:
 			if not off.is_empty():
 				wrong.append("%s: %s" % [b.shape, ", ".join(off)])
 	_check("every piece's collision within 2 cm of its drawn look (window and door frames, and roofs' overhang trim, allowed past)", wrong.is_empty() and checked > 50, "%d checked%s" % [checked, ("; " + "; ".join(wrong)) if not wrong.is_empty() else ", all within"])
+
+
+## Template joints: snap corners of two pieces this close are one joint (m)...
+const JOINT_EXACT := 0.001
+## ...and closer than this but not that close, a joint that's off (a gap, or a piece poking past)
+const JOINT_NEAR := 0.3
+
+
+# Every built-in template, laid out as it's read (a template from before the grid standard brought
+# up to it first): written on the grid standard ("grid": 2, no pieces that are gone); every joint
+# 0 mm (no two pieces' snap corners between JOINT_EXACT and JOINT_NEAR apart: each pair either
+# meets exactly or is clearly apart); every building piece meeting another by at least one corner
+# (nothing floating). Furniture, which has no corners, is only laid out.
+func _case_template_joints() -> void:
+	for file in DirAccess.get_files_at(BuildingTemplate.BUILT_IN_FOLDER):
+		if not file.ends_with(".json"):
+			continue
+		var path := BuildingTemplate.BUILT_IN_FOLDER.path_join(file)
+		var data = JSON.parse_string(FileAccess.get_file_as_string(path))
+		var template := BuildingTemplate.read(path)
+		var wrong := []
+		if not data is Dictionary or int(data.get("grid", 1)) < GridUpgrade.GRID_VERSION:
+			wrong.append("not written on the grid standard (no \"grid\": %d)" % GridUpgrade.GRID_VERSION)
+		var gone := 0
+		for entry in (data.get("items", []) if data is Dictionary else []):
+			if not ResourceLoader.exists(str(entry.get("buildable", ""))):
+				gone += 1
+		if gone > 0:
+			wrong.append("%d pieces that are gone" % gone)
+		var pieces := await _lay_out(template)
+		var corners := []
+		for piece in pieces:
+			for c in SnapCorners.in_world(piece):
+				corners.append([piece, c])
+		var near := []
+		var met := {}
+		for i in corners.size():
+			for j in range(i + 1, corners.size()):
+				if corners[i][0] == corners[j][0]:
+					continue
+				# (a chimney joins only its fireplace and other chimney pieces: one passing a wall
+				# top or a roof edge isn't a joint)
+				if _stack_piece(corners[i][0]) != _stack_piece(corners[j][0]):
+					continue
+				var d: float = (corners[i][1] as Vector3).distance_to(corners[j][1])
+				if d <= JOINT_EXACT:
+					met[corners[i][0]] = true
+					met[corners[j][0]] = true
+				elif d < JOINT_NEAR:
+					near.append("%s / %s %.0f mm at %s" % [_name(corners[i][0]), _name(corners[j][0]), d * 1000.0, _local(corners[i][1]).snapped(Vector3.ONE * 0.01)])
+		var floating := []
+		for piece in pieces:
+			if not (piece as BuildPiece).shape_def().get("furniture", false) and not met.has(piece):
+				floating.append("%s at %s" % [_name(piece), _local((piece as Node3D).global_position).snapped(Vector3.ONE * 0.01)])
+		if not near.is_empty():
+			wrong.append("%d joints off: %s%s" % [near.size(), ", ".join(near.slice(0, 12)), " …" if near.size() > 12 else ""])
+		if not floating.is_empty():
+			wrong.append("%d pieces meeting nothing: %s" % [floating.size(), ", ".join(floating.slice(0, 12))])
+		_check("template %s on the grid standard, every joint 0 mm" % (template.template_name if template else file), template != null and wrong.is_empty(), "%d pieces%s" % [pieces.size(), ("; " + "; ".join(wrong)) if not wrong.is_empty() else ", every joint exact"])
+		await _clear()
+
+
+# True for a fireplace or chimney piece (they join only each other)
+func _stack_piece(piece: BuildPiece) -> bool:
+	var def := piece.shape_def()
+	return def.get("furniture", false) or def.get("chimney", false)
+
+
+# A template's pieces put down at O as it lays them out (furniture pieces included; the storage
+# chest and other non-piece buildings left out). Returns the pieces.
+func _lay_out(template: BuildingTemplate) -> Array:
+	var pieces := []
+	if template == null:
+		return pieces
+	for item in template.items:
+		if item["buildable"] is PieceBuildable:
+			pieces.append(registry.spawn(item["buildable"], Transform3D(Basis.IDENTITY, O) * (item["relative"] as Transform3D), {}))
+	await _frames(3)
+	return pieces
 
 
 # A save from before the building grid standard (no grid version) loads onto it: Foundation Steps as
@@ -748,6 +838,55 @@ func _stairs_grid_shots() -> void:
 	_check("the stairs grid pictures (side, and from above) saved", err == OK, STAIRS_GRID_SHOT)
 
 
+# For pictures of builds only: no screen overlays, nothing in the player's hands
+func _hide_overlays() -> void:
+	for node in get_tree().root.find_children("*", "CanvasLayer", true, false):
+		(node as CanvasLayer).visible = false
+	for child in player.camera.get_children():
+		if child is Node3D:
+			(child as Node3D).visible = false
+
+
+## Where the built-in templates' picture goes (see _templates_grid_shot)
+const TEMPLATES_GRID_SHOT := "res://docs/reference/ours/templates_grid.png"
+## Each built-in template's view: from (eye) at (look), round where it's laid out, front three-quarter
+const TEMPLATE_VIEWS := {
+	"basic_house": [Vector3(-12.0, 7.0, 10.0), Vector3(1.0, 2.5, 0.5)],
+	"forager_s_hut": [Vector3(10.0, 7.5, -14.0), Vector3(0.5, 2.5, 1.0)],
+	"woodcutter_s_hut": [Vector3(-8.0, 5.5, -10.0), Vector3(0.4, 2.0, 1.3)],
+	"storehouse": [Vector3(9.0, 7.0, -13.0), Vector3(0.0, 2.5, 1.0)],
+}
+
+
+# Each built-in template laid out alone in daylight and pictured from its front three-quarter view,
+# the pictures tiled two by two in one picture (in TEMPLATE_VIEWS order)
+func _templates_grid_shot() -> void:
+	var sun = get_tree().get_first_node_in_group("sun")
+	if sun:
+		sun.time_of_day = 0.45
+	_hide_overlays()
+	var pictures := []
+	for slug in TEMPLATE_VIEWS:
+		var template := BuildingTemplate.read(BuildingTemplate.BUILT_IN_FOLDER.path_join(slug + ".json"))
+		await _lay_out(template)
+		await _frames(20)
+		var view: Array = TEMPLATE_VIEWS[slug]
+		await _aim(view[0], view[1])
+		for k in 6:
+			await RenderingServer.frame_post_draw
+		pictures.append(get_viewport().get_texture().get_image())
+		await _clear()
+	var a: Image = pictures[0]
+	var w := a.get_width()
+	var h := a.get_height()
+	var sheet := Image.create_empty(w * 2, h * 2, false, a.get_format())
+	for i in pictures.size():
+		var p: Image = pictures[i]
+		sheet.blit_rect(p, Rect2i(Vector2i.ZERO, p.get_size()), Vector2i((i % 2) * w, (i / 2) * h))
+	var err := sheet.save_png(ProjectSettings.globalize_path(TEMPLATES_GRID_SHOT))
+	_check("the built-in templates' picture saved", err == OK, TEMPLATES_GRID_SHOT)
+
+
 ## Where the grid standard picture goes (see _grid_standard_shot)
 const GRID_STANDARD_SHOT := "res://docs/reference/ours/grid_standard.png"
 
@@ -815,12 +954,7 @@ func _grid_standard_shot() -> void:
 	var sun = get_tree().get_first_node_in_group("sun")
 	if sun:
 		sun.time_of_day = 0.45
-	# (the build only: no screen overlays, nothing in the player's hands)
-	for node in get_tree().root.find_children("*", "CanvasLayer", true, false):
-		(node as CanvasLayer).visible = false
-	for child in player.camera.get_children():
-		if child is Node3D:
-			(child as Node3D).visible = false
+	_hide_overlays()
 	var pictures := []
 	for view in [[Vector3(6.5, 5.5, 9.5), Vector3(0.5, 1.2, -2.0)], [Vector3(13.0, 6.5, -11.0), Vector3(0.0, 1.5, -2.5)]]:
 		await _aim(view[0], view[1])

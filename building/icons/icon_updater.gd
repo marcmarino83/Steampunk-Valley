@@ -23,7 +23,8 @@ const STAGING_VERSION := 1
 ## A buildable marked with this in MANIFEST (instead of a fingerprint) keeps its icon file as it is,
 ## even with "icons all": the furniture whose icons are made from their concept images
 const FIXED := "fixed"
-## How template pictures are staged: a picture older than this file is drawn again
+## How template pictures are staged: a picture older than this file (or than its template's file)
+## is drawn again
 const THUMBNAIL_CODE := "res://building/templates/template_thumbnail.gd"
 ## Code that changes how pieces look
 const CODE := [
@@ -128,13 +129,16 @@ func update(all := false) -> int:
 	return stale.size() + old_pictures.size()
 
 
-# Templates whose picture is older than the thumbnail code (or every one, with `all`)
+# Templates whose picture is older than the thumbnail code or than the template's own file (or
+# every one, with `all`)
 func _stale_template_pictures(all: bool) -> Array:
 	var staged := FileAccess.get_modified_time(THUMBNAIL_CODE)
 	var found := []
 	for template in BuildingTemplate.load_all():
 		var picture := (template as BuildingTemplate).path.get_basename() + ".png"
-		if all or not FileAccess.file_exists(picture) or FileAccess.get_modified_time(picture) < staged:
+		# (or drawn before the template itself last changed)
+		var changed := FileAccess.get_modified_time((template as BuildingTemplate).path)
+		if all or not FileAccess.file_exists(picture) or FileAccess.get_modified_time(picture) < maxi(staged, changed):
 			found.append(template)
 	return found
 

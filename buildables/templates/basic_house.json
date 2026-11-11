@@ -605,56 +605,56 @@
 			"turn": -1.57079637050629
 		},
 		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
+			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				-2.91676759719849,
 				3.23147010803223,
-				2.51260375976563
-			],
-			"turn": -1.57079637050629
-		},
-		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
-			"position": [
-				-2.91676759719849,
-				3.23147010803223,
-				1.51260375976563
-			],
-			"turn": -1.57079637050629
-		},
-		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
-			"position": [
-				-2.91676759719849,
-				3.23147010803223,
-				0.512603759765625
-			],
-			"turn": -1.57079637050629
-		},
-		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
-			"position": [
-				-2.91676759719849,
-				3.23147010803223,
-				-0.487396240234375
-			],
-			"turn": -1.57079637050629
-		},
-		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
-			"position": [
-				5.08323287963867,
-				3.23147010803223,
-				1.51260375976563
+				2.01260375976563
 			],
 			"turn": 1.57079637050629
 		},
 		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
+			"buildable": "res://buildables/structure/inverse_2_26.tres",
+			"position": [
+				-2.91676759719849,
+				3.23147010803223,
+				2.01260375976563
+			],
+			"turn": 1.57079637050629
+		},
+		{
+			"buildable": "res://buildables/structure/gable_26.tres",
+			"position": [
+				-2.91676759719849,
+				3.23147010803223,
+				0.012603759765625
+			],
+			"turn": -1.57079637050629
+		},
+		{
+			"buildable": "res://buildables/structure/inverse_2_26.tres",
+			"position": [
+				-2.91676759719849,
+				3.23147010803223,
+				0.012603759765625
+			],
+			"turn": -1.57079637050629
+		},
+		{
+			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				5.08323287963867,
 				3.23147010803223,
-				2.51260375976563
+				2.01260375976563
+			],
+			"turn": 1.57079637050629
+		},
+		{
+			"buildable": "res://buildables/structure/inverse_2_26.tres",
+			"position": [
+				5.08323287963867,
+				3.23147010803223,
+				2.01260375976563
 			],
 			"turn": 1.57079637050629
 		},
@@ -668,22 +668,22 @@
 			"turn": 1.57079637050629
 		},
 		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
+			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				5.08323240280151,
 				3.23147010803223,
-				-0.487396240234375
+				0.012603759765625
 			],
-			"turn": 1.57079637050629
+			"turn": -1.57079637050629
 		},
 		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
+			"buildable": "res://buildables/structure/inverse_2_26.tres",
 			"position": [
 				5.08323240280151,
 				3.23147010803223,
-				0.512603759765625
+				0.012603759765625
 			],
-			"turn": 1.57079637050629
+			"turn": -1.57079637050629
 		},
 		{
 			"buildable": "res://buildables/structure/gable_26.tres",
@@ -868,36 +868,36 @@
 		{
 			"buildable": "res://buildables/furniture/chimney_section.tres",
 			"position": [
-				1.10210835933685,
-				1.91847038269043,
-				-4.62986755371094
+				1.09430628,
+				1.98147011,
+				-4.63994936
 			],
 			"turn": 0.0
 		},
 		{
 			"buildable": "res://buildables/furniture/chimney_section.tres",
 			"position": [
-				1.10210835933685,
-				2.91847038269043,
-				-4.62986755371094
+				1.09430628,
+				3.23147011,
+				-4.63994936
 			],
 			"turn": 0.0
 		},
 		{
 			"buildable": "res://buildables/furniture/chimney_section.tres",
 			"position": [
-				1.10210835933685,
-				3.91847229003906,
-				-4.62986755371094
+				1.09430628,
+				4.48147011,
+				-4.63994936
 			],
 			"turn": 0.0
 		},
 		{
 			"buildable": "res://buildables/furniture/chimney_top.tres",
 			"position": [
-				1.10210835933685,
-				4.91847229003906,
-				-4.62986755371094
+				1.09430628,
+				5.73147011,
+				-4.63994936
 			],
 			"turn": 0.0
 		},
@@ -983,6 +983,7 @@
 			"turn": -1.57079637050629
 		}
 	],
+	"grid": 2,
 	"name": "Basic House",
 	"plot_type": "res://buildables/plots/house.tres",
 	"size": [

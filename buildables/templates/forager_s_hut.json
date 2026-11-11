@@ -443,46 +443,46 @@
 			"turn": -3.14159250259399
 		},
 		{
-			"buildable": "res://buildables/structure/pillar_wood.tres",
+			"buildable": "res://buildables/structure/pillar_wood_half.tres",
 			"position": [
 				-1.0758056640625,
-				0.0,
+				-0.75,
 				-4.9464168548584
 			],
 			"turn": -3.14159250259399
 		},
 		{
-			"buildable": "res://buildables/structure/pillar_wood.tres",
+			"buildable": "res://buildables/structure/pillar_wood_half.tres",
 			"position": [
 				-3.0758056640625,
-				0.0,
+				-0.75,
 				-4.9464168548584
 			],
 			"turn": -3.14159250259399
 		},
 		{
-			"buildable": "res://buildables/structure/pillar_wood.tres",
+			"buildable": "res://buildables/structure/pillar_wood_half.tres",
 			"position": [
 				0.9241943359375,
-				0.0,
+				-0.75,
 				-4.9464111328125
 			],
 			"turn": -3.14159250259399
 		},
 		{
-			"buildable": "res://buildables/structure/pillar_wood.tres",
+			"buildable": "res://buildables/structure/pillar_wood_half.tres",
 			"position": [
 				2.92422485351563,
-				0.0,
+				-0.75,
 				-4.94641494750977
 			],
 			"turn": -3.14159250259399
 		},
 		{
-			"buildable": "res://buildables/structure/pillar_wood.tres",
+			"buildable": "res://buildables/structure/pillar_wood_half.tres",
 			"position": [
 				4.92422485351563,
-				0.0,
+				-0.75,
 				-4.94641494750977
 			],
 			"turn": -3.14159250259399
@@ -632,46 +632,37 @@
 			"turn": -3.14159250259399
 		},
 		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
+			"buildable": "res://buildables/structure/gable_45.tres",
 			"position": [
-				0.4241943359375,
+				-0.0758056640625,
 				3.0,
 				-2.9464111328125
 			],
-			"turn": -3.14159250259399
+			"turn": 0.0
 		},
 		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
+			"buildable": "res://buildables/structure/inverse_2_45.tres",
 			"position": [
-				1.42422485351563,
+				-0.0758056640625,
+				3.0,
+				-2.9464111328125
+			],
+			"turn": 0.0
+		},
+		{
+			"buildable": "res://buildables/structure/gable_45.tres",
+			"position": [
+				1.92422485351563,
 				3.0,
 				-2.94641494750977
 			],
 			"turn": -3.14159250259399
 		},
 		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
+			"buildable": "res://buildables/structure/inverse_2_45.tres",
 			"position": [
-				1.42422485351563,
-				4.0,
-				-2.94641494750977
-			],
-			"turn": -3.14159250259399
-		},
-		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
-			"position": [
-				2.42422485351563,
+				1.92422485351563,
 				3.0,
-				-2.94641494750977
-			],
-			"turn": -3.14159250259399
-		},
-		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
-			"position": [
-				2.42422485351563,
-				4.0,
 				-2.94641494750977
 			],
 			"turn": -3.14159250259399
@@ -1082,33 +1073,6 @@
 			"turn": 0.0000000437113882867379
 		},
 		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
-			"position": [
-				-0.5758056640625,
-				3.0,
-				-2.9464111328125
-			],
-			"turn": -3.14159250259399
-		},
-		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
-			"position": [
-				-0.5758056640625,
-				4.0,
-				-2.9464111328125
-			],
-			"turn": -3.14159250259399
-		},
-		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
-			"position": [
-				0.4241943359375,
-				4.0,
-				-2.9464111328125
-			],
-			"turn": -3.14159250259399
-		},
-		{
 			"buildable": "res://buildables/structure/ridge_45.tres",
 			"position": [
 				-2.0758056640625,
@@ -1282,45 +1246,45 @@
 		{
 			"buildable": "res://buildables/furniture/chimney_section.tres",
 			"position": [
-				0.937896728515625,
-				1.6870002746582,
-				6.77769470214844
+				0.94569559,
+				1.75,
+				6.78778033
 			],
 			"turn": 0.000000150995802528087
 		},
 		{
 			"buildable": "res://buildables/furniture/chimney_section.tres",
 			"position": [
-				0.937896728515625,
-				2.6870002746582,
-				6.77769470214844
+				0.94569559,
+				3.0,
+				6.78778033
 			],
 			"turn": -3.14159250259399
 		},
 		{
 			"buildable": "res://buildables/furniture/chimney_section.tres",
 			"position": [
-				0.937896728515625,
-				3.6870002746582,
-				6.77769470214844
+				0.94569559,
+				4.25,
+				6.78778033
 			],
 			"turn": 0.000000150995802528087
 		},
 		{
 			"buildable": "res://buildables/furniture/chimney_section.tres",
 			"position": [
-				0.937896728515625,
-				4.6870002746582,
-				6.77769470214844
+				0.94569559,
+				5.5,
+				6.78778033
 			],
 			"turn": -3.14159250259399
 		},
 		{
 			"buildable": "res://buildables/furniture/chimney_top.tres",
 			"position": [
-				0.937896728515625,
-				5.6870002746582,
-				6.77769470214844
+				0.94569559,
+				6.75,
+				6.78778033
 			],
 			"turn": 0.000000150995802528087
 		},
@@ -1397,6 +1361,7 @@
 			"turn": 0.0000000556362707015978
 		}
 	],
+	"grid": 2,
 	"name": "Forager's Hut",
 	"plot_type": "res://buildables/plots/foragers_hut.tres",
 	"size": [

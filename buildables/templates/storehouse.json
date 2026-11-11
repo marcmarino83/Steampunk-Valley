@@ -581,7 +581,7 @@
 			"buildable": "res://buildables/structure/beam_2.tres",
 			"position": [
 				1.99017333984375,
-				2.90000152587891,
+				3.0,
 				-2.03295469284058
 			],
 			"turn": -3.14159226417542
@@ -590,7 +590,7 @@
 			"buildable": "res://buildables/structure/beam_2.tres",
 			"position": [
 				-0.00982666015625,
-				2.90000152587891,
+				3.0,
 				-2.03295373916626
 			],
 			"turn": -3.14159226417542
@@ -599,7 +599,7 @@
 			"buildable": "res://buildables/structure/beam_2.tres",
 			"position": [
 				-2.00982666015625,
-				2.90000152587891,
+				3.0,
 				-2.03295278549194
 			],
 			"turn": -3.14159226417542
@@ -695,40 +695,13 @@
 			"turn": 1.57079637050629
 		},
 		{
-			"buildable": "res://buildables/structure/pole_1.tres",
-			"position": [
-				-3.00982666015625,
-				3.0,
-				-0.0329666137695313
-			],
-			"turn": 0.000000194707183709397
-		},
-		{
-			"buildable": "res://buildables/structure/pole_1.tres",
+			"buildable": "res://buildables/structure/beam_2.tres",
 			"position": [
 				-3.00982666015625,
 				4.0,
-				-0.0329666137695313
+				0.967033386230469
 			],
-			"turn": 0.000000194707183709397
-		},
-		{
-			"buildable": "res://buildables/structure/pole_1.tres",
-			"position": [
-				-3.00982666015625,
-				3.0,
-				1.96703338623047
-			],
-			"turn": -0.0000000437113882867379
-		},
-		{
-			"buildable": "res://buildables/structure/pole_1.tres",
-			"position": [
-				-3.00982666015625,
-				4.0,
-				1.96703338623047
-			],
-			"turn": -0.0000000437113882867379
+			"turn": -1.57079637050629
 		},
 		{
 			"buildable": "res://buildables/structure/beam_diag_26.tres",
@@ -749,40 +722,13 @@
 			"turn": -1.57079613208771
 		},
 		{
-			"buildable": "res://buildables/structure/pole_1.tres",
-			"position": [
-				2.99017333984375,
-				3.0,
-				-0.0329551696777344
-			],
-			"turn": 0.000000194707183709397
-		},
-		{
-			"buildable": "res://buildables/structure/pole_1.tres",
+			"buildable": "res://buildables/structure/beam_2.tres",
 			"position": [
 				2.99017333984375,
 				4.0,
-				-0.0329551696777344
+				0.967044830322266
 			],
-			"turn": 0.000000194707183709397
-		},
-		{
-			"buildable": "res://buildables/structure/pole_1.tres",
-			"position": [
-				2.99017333984375,
-				3.0,
-				1.96704483032227
-			],
-			"turn": -0.0000000437113882867379
-		},
-		{
-			"buildable": "res://buildables/structure/pole_1.tres",
-			"position": [
-				2.99017333984375,
-				4.0,
-				1.96704483032227
-			],
-			"turn": -0.0000000437113882867379
+			"turn": -1.57079637050629
 		},
 		{
 			"buildable": "res://buildables/structure/beam_diag_26.tres",
@@ -866,6 +812,7 @@
 			"turn": 1.57079637050629
 		}
 	],
+	"grid": 2,
 	"name": "Storehouse",
 	"plot_type": "res://buildables/plots/storehouse.tres",
 	"size": [

@@ -218,18 +218,18 @@
 			"turn": 0.0
 		},
 		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
+			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
-				0.889862060546875,
+				0.389862060546875,
 				3.0,
 				4.27700805664063
 			],
 			"turn": 0.0
 		},
 		{
-			"buildable": "res://buildables/structure/wall_quarter.tres",
+			"buildable": "res://buildables/structure/inverse_2_26.tres",
 			"position": [
-				-0.110137939453125,
+				0.389862060546875,
 				3.0,
 				4.27700805664063
 			],
@@ -410,7 +410,7 @@
 			"buildable": "res://buildables/structure/pole_1.tres",
 			"position": [
 				-2.61013793945313,
-				-0.5,
+				-0.75,
 				-1.72299194335938
 			],
 			"turn": 0.0
@@ -419,7 +419,7 @@
 			"buildable": "res://buildables/structure/pole_1.tres",
 			"position": [
 				3.38986206054688,
-				-0.5,
+				-0.75,
 				-1.72299194335938
 			],
 			"turn": 0.0000000556362707015978
@@ -524,22 +524,13 @@
 			"turn": -3.14159250259399
 		},
 		{
-			"buildable": "res://buildables/structure/pole_1.tres",
+			"buildable": "res://buildables/structure/beam_2.tres",
 			"position": [
-				1.38986206054688,
-				3.0,
+				0.389862060546875,
+				4.0,
 				0.276998519897461
 			],
-			"turn": -1.57079613208771
-		},
-		{
-			"buildable": "res://buildables/structure/pole_1.tres",
-			"position": [
-				-0.610137939453125,
-				3.0,
-				0.276998519897461
-			],
-			"turn": -1.57079613208771
+			"turn": -3.14159250259399
 		},
 		{
 			"buildable": "res://buildables/structure/beam_diag_26.tres",
@@ -560,20 +551,38 @@
 			"turn": 0.0000000556362707015978
 		},
 		{
-			"buildable": "res://buildables/structure/beam_2.tres",
+			"buildable": "res://buildables/structure/beam_1.tres",
 			"position": [
 				3.38986206054688,
-				1.5,
-				-0.722991943359375
+				1.75,
+				-1.22299194335938
 			],
 			"turn": -1.57079637050629
 		},
 		{
-			"buildable": "res://buildables/structure/beam_2.tres",
+			"buildable": "res://buildables/structure/beam_1.tres",
+			"position": [
+				3.38986206054688,
+				1.75,
+				-0.222991943359375
+			],
+			"turn": -1.57079637050629
+		},
+		{
+			"buildable": "res://buildables/structure/beam_1.tres",
 			"position": [
 				-2.61013793945313,
-				1.5,
-				-0.722991943359375
+				1.75,
+				-1.22299194335938
+			],
+			"turn": -1.57079637050629
+		},
+		{
+			"buildable": "res://buildables/structure/beam_1.tres",
+			"position": [
+				-2.61013793945313,
+				1.75,
+				-0.222991943359375
 			],
 			"turn": -1.57079637050629
 		},
@@ -596,6 +605,7 @@
 			"turn": -3.14159250259399
 		}
 	],
+	"grid": 2,
 	"name": "Woodcutter's Hut",
 	"plot_type": "res://buildables/plots/woodcutters_hut.tres",
 	"size": [

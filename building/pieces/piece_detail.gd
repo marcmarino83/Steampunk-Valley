@@ -88,32 +88,36 @@ static func build(shape: String, seed_value: int, simple_look := false) -> Dicti
 	match shape:
 		"wall":
 			b._wall(G, H, [])
-		"doorway":
+		"doorway", "doorway_2m":
+			# (the Standard one, "_2m", on the 2 m wall; the Tall one on the 2.5 m wall)
+			var standard := shape.ends_with("_2m")
 			var hole := PieceShapes.DOOR_WIDTH / 2.0
-			b._wall(G, H, [Rect2(-hole, 0.0, hole * 2.0, PieceShapes.DOOR_HEIGHT)])
-		"window":
+			b._wall(G, PieceShapes.GRID_WALL_HEIGHT if standard else H, [Rect2(-hole, 0.0, hole * 2.0, PieceShapes.GRID_DOOR_HEIGHT if standard else PieceShapes.DOOR_HEIGHT)])
+		"window", "window_2m":
+			var standard := shape.ends_with("_2m")
 			var hole := PieceShapes.WINDOW_WIDTH / 2.0
-			b._wall(G, H, [Rect2(-hole, PieceShapes.WINDOW_BOTTOM, hole * 2.0, PieceShapes.WINDOW_TOP - PieceShapes.WINDOW_BOTTOM)])
-		"window_split_2", "window_split_1":
-			var width := G if shape == "window_split_2" else 1.0
+			var sill: float = PieceShapes.GRID_WINDOW_BOTTOM if standard else PieceShapes.WINDOW_BOTTOM
+			var head: float = PieceShapes.GRID_WINDOW_TOP if standard else PieceShapes.WINDOW_TOP
+			b._wall(G, PieceShapes.GRID_WALL_HEIGHT if standard else H, [Rect2(-hole, sill, hole * 2.0, head - sill)])
+		"window_split_2", "window_split_1", "window_split_2_2m", "window_split_1_2m":
+			var standard := shape.ends_with("_2m")
+			var width := G if shape.begins_with("window_split_2") else 1.0
 			var opening: float = PieceShapes.SPLIT_WINDOWS[width]
-			b._wall(width, H, [Rect2(width / 2.0 - opening, PieceShapes.WINDOW_BOTTOM, opening, PieceShapes.SPLIT_WINDOW_HEIGHT)])
+			var sill: float = PieceShapes.GRID_WINDOW_BOTTOM if standard else PieceShapes.WINDOW_BOTTOM
+			b._wall(width, PieceShapes.GRID_WALL_HEIGHT if standard else H, [Rect2(width / 2.0 - opening, sill, opening, PieceShapes.GRID_SPLIT_WINDOW_HEIGHT if standard else PieceShapes.SPLIT_WINDOW_HEIGHT)])
 		"wall_long":
 			b._wall(PieceShapes.LONG_EDGE, H, [])
 		"wall_short":
 			b._wall(PieceShapes.SHORT_EDGE, H, [])
 		"wall_1":
 			b._wall(1.0, H, [])
-		"wall_half_2":
-			b._wall(G, PieceShapes.HALF_HEIGHT, [])
-		"wall_half_1":
-			b._wall(1.0, PieceShapes.HALF_HEIGHT, [])
-		"wall_strip_2":
-			b._wall(G, PieceShapes.STRIP_HEIGHT, [])
-		"wall_strip_1":
-			b._wall(1.0, PieceShapes.STRIP_HEIGHT, [])
+		"wall_2m":
+			b._wall(G, PieceShapes.GRID_WALL_HEIGHT, [])
+		"wall_half_2", "wall_half_1", "wall_strip_2", "wall_strip_1", "wall_half_2_tall", "wall_half_1_tall", "wall_strip_2_tall", "wall_strip_1_tall":
+			var size: Array = PieceShapes.PLAIN_WALLS[shape]
+			b._wall(float(size[0]), float(size[1]), [])
 		"gable_wall_45":
-			# A plank strip with a 45° gable on top
+			# The Tall 45° gable wall: a plank strip with a 45° gable on top
 			var base := PieceShapes.WALL_HEIGHT - PieceShapes.ROOF_RISE_45
 			b._wall(G, base, [])
 			b._gable(PieceShapes.ROOF_RISE_45, base)
@@ -135,10 +139,10 @@ static func build(shape: String, seed_value: int, simple_look := false) -> Dicti
 			b._gable(PieceShapes.ROOF_RISE)
 		"gable_45":
 			b._gable(PieceShapes.ROOF_RISE_45)
-		"door":
+		"door", "door_2m":
 			door = PieceDetail.new(seed_value + 7)
 			door.simple = simple_look
-			door._door()
+			door._door(PieceShapes.GRID_DOOR_HEIGHT if shape == "door_2m" else PieceShapes.DOOR_HEIGHT)
 		"floor":
 			b._floor(_rect(G / 2.0), -PieceShapes.FLOOR_THICKNESS)
 		"floor_1":
@@ -199,20 +203,20 @@ static func build(shape: String, seed_value: int, simple_look := false) -> Dicti
 			return {"mesh": _topper(_rise_of(shape), seed_value, true, simple_look), "door_mesh": null}
 		"cone_roof":
 			b._cone_roof()
-		"stairs", "half_stairs":
+		"stairs", "half_stairs", "stairs_tall", "half_stairs_tall":
 			b._stairs(PieceShapes.FLIGHTS[shape][0], PieceShapes.FLIGHTS[shape][1])
-		"pillar_wood", "pillar_wood_half":
-			b._wood_pillar(PieceShapes.HALF_PILLAR_HEIGHT if shape.ends_with("_half") else PieceShapes.PILLAR_HEIGHT)
-		"pillar_stone", "pillar_stone_half":
-			b._stone_pillar(PieceShapes.HALF_PILLAR_HEIGHT if shape.ends_with("_half") else PieceShapes.PILLAR_HEIGHT)
-		"pole_1", "pole_2", "pole_5":
+		"pillar_wood", "pillar_wood_2m", "pillar_wood_half", "pillar_wood_half_tall":
+			b._wood_pillar(PieceShapes.PILLAR_HEIGHTS[shape])
+		"pillar_stone", "pillar_stone_2m", "pillar_stone_half", "pillar_stone_half_tall":
+			b._stone_pillar(PieceShapes.PILLAR_HEIGHTS[shape])
+		"pole_1", "pole_2", "pole_4":
 			b._pole(PieceShapes.POLE_HEIGHTS[shape])
-		"beam_1", "beam_2", "beam_4":
+		"beam_2", "beam_4":
 			b._beam(PieceShapes.BEAM_LENGTHS[shape])
-		"beam_diag_26", "beam_diag_45":
-			b._diagonal_beam(_rise_of(shape))
-		"ladder":
-			b._ladder()
+		"beam_diag_26", "beam_diag_45", "beam_diag_26_4", "beam_diag_45_4":
+			b._diagonal_beam(PieceShapes.DIAGONALS[shape][0], PieceShapes.DIAGONALS[shape][1])
+		"ladder", "ladder_tall":
+			b._ladder(PieceShapes.LADDER_HEIGHTS[shape])
 		"railing_2", "railing_1":
 			b._railing(G if shape == "railing_2" else 1.0)
 		"fence":
@@ -505,7 +509,9 @@ func _gable(rise: float, base := 0.0) -> void:
 			prism(strip, at, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -thick / 2.0, thick / 2.0, BEVEL * 0.7, _wood_shade(1.0), WOOD, _plank_uv(base + y + h / 2.0, h - gap), 0)
 		y += h
 	var timber := t + 0.03
-	var post := PieceShapes._clip(outline, Vector2(1, 0), half - 0.13, half - 0.005)
+	# (the post runs right to the upright edge, so the peak is drawn exactly at the triangle's height:
+	# flush with a wall of that height beside it, no step)
+	var post := PieceShapes._clip(outline, Vector2(1, 0), half - 0.13, half)
 	prism(post, at, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -timber / 2.0, timber / 2.0, BEVEL, _wood_shade(0.8), WOOD, _generic_uv(), 1)
 	var sill := PieceShapes._clip(outline, Vector2(0, 1), 0.0, 0.11)
 	sill = PieceShapes._clip(sill, Vector2(1, 0), -half + 0.01, half - 0.13)
@@ -532,8 +538,8 @@ func _triangle_wall(outline: PackedVector2Array, half: float, post_left: bool, r
 	var reach := PieceShapes.INFILL_OVERLAP
 	var grown: PackedVector2Array = Geometry2D.offset_polygon(outline, reach, Geometry2D.JOIN_SQUARE)[0]
 	prism(grown, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -0.03, 0.03, 0.0, Color(1, 1, 1), DARK, Transform2D.IDENTITY, 0)
-	var post_lo := -half + 0.005 if post_left else half - 0.13
-	var post_hi := -half + 0.13 if post_left else half - 0.005
+	var post_lo := -half if post_left else half - 0.13
+	var post_hi := -half + 0.13 if post_left else half
 	var open_lo := post_hi if post_left else -half - reach
 	var open_hi := half + reach if post_left else post_lo
 	var y := -reach
@@ -589,9 +595,9 @@ func _peak_gable(half: float, peak: float) -> void:
 
 # The door panel (it swings, so it's a mesh of its own): vertical planks, battens behind, dark
 # iron strap hinges down its hinge side, and a rope pull on each face
-func _door() -> void:
+func _door(height := PieceShapes.DOOR_HEIGHT) -> void:
 	var w := PieceShapes.DOOR_WIDTH - 0.04
-	var h := PieceShapes.DOOR_HEIGHT - 0.02
+	var h := height - 0.02
 	var half := w / 2.0
 	var boards := 5
 	# A dark core between the boards, so a lit room doesn't shine through their gaps
@@ -1101,16 +1107,15 @@ func _beam(length: float) -> void:
 
 
 # The same along its slope: its top on the line between its ends
-func _diagonal_beam(rise: float) -> void:
-	var a := atan2(rise, PieceShapes.GRID)
+func _diagonal_beam(rise: float, run := PieceShapes.GRID) -> void:
+	var a := atan2(rise, run)
 	var up := Vector3(-sin(a), cos(a), 0)
 	var under := -up * PieceShapes.BEAM / 2.0
-	log_part(Vector3(-PieceShapes.GRID / 2.0, 0, 0) + under, Vector3(PieceShapes.GRID / 2.0, rise, 0) + under, PieceShapes.BEAM / 2.0, 8, 0.07, _wood_shade(0.85), WOOD, Plane(), Plane(), up)
+	log_part(Vector3(-run / 2.0, 0, 0) + under, Vector3(run / 2.0, rise, 0) + under, PieceShapes.BEAM / 2.0, 8, 0.07, _wood_shade(0.85), WOOD, Plane(), Plane(), up)
 
 
-func _ladder() -> void:
+func _ladder(h := PieceShapes.LADDER_HEIGHT) -> void:
 	var width := 0.6
-	var h := PieceShapes.LADDER_HEIGHT
 	for side in [-1.0, 1.0]:
 		log_part(Vector3(side * (width / 2.0 - 0.04), 0, 0), Vector3(side * (width / 2.0 - 0.04), h, 0), 0.04, 6, 0.08, _wood_shade(0.85), WOOD)
 	var y := 0.15

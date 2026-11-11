@@ -12,7 +12,7 @@ extends Node3D
 ## targeted one), the see-through placing preview and the red take-down glow.
 
 ## Shapes covering every kind of piece surface (wood, roof, beam, post, stone) and a door
-const SHAPES := ["wall", "floor", "roof", "beam_1", "pillar_wood", "foundation_stone", "door"]
+const SHAPES := ["wall", "floor", "roof", "beam_2", "pillar_wood", "foundation_stone", "door"]
 ## How many frames the looks stay drawn
 const FRAMES := 6
 

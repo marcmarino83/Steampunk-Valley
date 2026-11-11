@@ -68,7 +68,7 @@ static func read(file_path: String) -> BuildingTemplate:
 	for entry in data.get("items", []):
 		pieces.append({"buildable": str(entry.get("buildable", "")), "where": Transform3D(SaveGame.to_rotation(entry), SaveGame.to_vector(entry.get("position")))})
 	if int(data.get("grid", 1)) < GridUpgrade.GRID_VERSION:
-		GridUpgrade.upgrade(pieces)
+		GridUpgrade.upgrade(pieces, int(data.get("grid", 1)))
 	for p in pieces:
 		var buildable := load(str(p["buildable"])) as Buildable if ResourceLoader.exists(str(p["buildable"])) else null
 		if buildable == null:

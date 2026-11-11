@@ -89,20 +89,31 @@ const CONTEXT := {
 	# A split-window wall with its mirrored partner, making one window
 	"window_split_2": [{"shape": "window_split_2", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "opposite"}],
 	"window_split_1": [{"shape": "window_split_1", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "opposite"}],
+	"window_split_2_2m": [{"shape": "window_split_2_2m", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "opposite"}],
+	"window_split_1_2m": [{"shape": "window_split_1_2m", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "opposite"}],
 	"door": [{"shape": "doorway", "mode": "under", "mine": "door_base", "theirs": "door_slot"}],
+	"door_2m": [{"shape": "doorway_2m", "mode": "under", "mine": "door_base", "theirs": "door_slot_2m"}],
 	"stairs": [{"shape": "floor", "mode": "under", "mine": "stairs_top", "theirs": "floor_edge", "pick": "far"}],
 	"half_stairs": [{"shape": "floor", "mode": "under", "mine": "stairs_top", "theirs": "floor_edge", "pick": "far"}],
+	"stairs_tall": [{"shape": "floor", "mode": "under", "mine": "stairs_top", "theirs": "floor_edge", "pick": "far"}],
+	"half_stairs_tall": [{"shape": "floor", "mode": "under", "mine": "stairs_top", "theirs": "floor_edge", "pick": "far"}],
+	"pillar_wood_half_tall": [{"shape": "floor", "mode": "on", "mine": "pillar_top", "theirs": "post_spot", "pick": "far"}],
+	"pillar_stone_half_tall": [{"shape": "floor", "mode": "on", "mine": "pillar_top", "theirs": "post_spot", "pick": "far"}],
+	"ladder_tall": [{"shape": "floor", "mode": "under", "mine": "ladder_top", "theirs": "floor_edge", "pick": "back"}],
+	"wall_half_2_tall": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
+	"wall_half_1_tall": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
+	"wall_strip_2_tall": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
+	"wall_strip_1_tall": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
+	"gable_wall_45": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
 	"pillar_wood": [{"shape": "floor", "mode": "on", "mine": "pillar_top", "theirs": "post_spot", "pick": "far"}],
 	"pillar_stone": [{"shape": "floor", "mode": "on", "mine": "pillar_top", "theirs": "post_spot", "pick": "far"}],
+	"pillar_wood_2m": [{"shape": "floor", "mode": "on", "mine": "pillar_top", "theirs": "post_spot", "pick": "far"}],
+	"pillar_stone_2m": [{"shape": "floor", "mode": "on", "mine": "pillar_top", "theirs": "post_spot", "pick": "far"}],
 	"pillar_wood_half": [{"shape": "floor", "mode": "on", "mine": "pillar_top", "theirs": "post_spot", "pick": "far"}],
 	"pillar_stone_half": [{"shape": "floor", "mode": "on", "mine": "pillar_top", "theirs": "post_spot", "pick": "far"}],
 	"pole_1": [{"shape": "floor_1", "mode": "on", "mine": "pole_top", "theirs": "post_spot", "pick": "far"}],
 	"pole_2": [{"shape": "floor", "mode": "on", "mine": "pole_top", "theirs": "post_spot", "pick": "far"}],
-	"pole_5": [{"shape": "floor", "mode": "on", "mine": "pole_top", "theirs": "post_spot", "pick": "far"}],
-	"beam_1": [
-		{"shape": "pole_2", "mode": "under", "mine": "beam_end", "theirs": "pole_top", "pick": "left"},
-		{"shape": "pole_2", "mode": "under", "mine": "beam_end", "theirs": "pole_top", "pick": "left", "mirror": true},
-	],
+	"pole_4": [{"shape": "floor", "mode": "on", "mine": "pole_top", "theirs": "post_spot", "pick": "far"}],
 	"beam_2": [
 		{"shape": "pole_2", "mode": "under", "mine": "beam_end", "theirs": "pole_top", "pick": "left"},
 		{"shape": "pole_2", "mode": "under", "mine": "beam_end", "theirs": "pole_top", "pick": "left", "mirror": true},
@@ -115,26 +126,25 @@ const CONTEXT := {
 	"railing_1": [{"shape": "floor", "mode": "under", "mine": "small_railing_base", "theirs": "half_edge", "pick": "back"}],
 	"railing_2": [{"shape": "floor", "mode": "under", "mine": "railing_base", "theirs": "floor_edge", "pick": "back"}],
 	"wall_1": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
-	"wall_half_1": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
-	"wall_half_2": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
+	"wall_2m": [{"shape": "wall_2m", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
+	"wall_half_1": [{"shape": "wall_2m", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
+	"wall_half_2": [{"shape": "wall_2m", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
 	"wall_long": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
 	"wall_short": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
 	"wall_strip_2": [{"shape": "gable_45", "mode": "on", "mine": "wall_top", "theirs": "gable_base"}],
-	"wall_strip_1": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
-	"gable_wall_45": [{"shape": "wall", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
+	"wall_strip_1": [{"shape": "wall_2m", "mode": "on", "mine": "wall_end", "theirs": "wall_end", "pick": "straight"}],
 	# A half gable on a faint 1 m wall, beside a faint full gable
 	"gable_half_1_{p}": [
 		{"shape": "wall_1", "mode": "under", "mine": "small_gable_base", "theirs": "half_top"},
 		{"shape": "gable_{p}", "mode": "on", "mine": "gable_tip", "theirs": "gable_tip"},
 	],
-	# An inverse triangle on a faint gable's slope, under a faint beam
+	# An inverse triangle on a faint gable's slope (the 2 m one under a faint beam)
 	"inverse_2_{p}": [
 		{"shape": "gable_{p}", "mode": "under", "mine": "inverse_low_{p}", "theirs": "gable_slope_{p}", "pick": "right"},
 		{"shape": "beam_2", "mode": "under", "mine": "inverse_top", "theirs": "beam_under"},
 	],
 	"inverse_1_{p}": [
 		{"shape": "gable_{p}", "mode": "under", "mine": "inverse_low_{p}", "theirs": "gable_slope_{p}", "pick": "left"},
-		{"shape": "beam_1", "mode": "under", "mine": "inverse_top_small", "theirs": "beam_under_small"},
 	],
 	"curved_wall_45": [{"shape": "round_floor", "mode": "under", "mine": "curve_base", "theirs": "round_edge"}],
 	"curved_wall_22": [{"shape": "round_floor_22", "mode": "under", "mine": "curve22_base", "theirs": "round_edge_small"}],
@@ -148,7 +158,7 @@ const CONTEXT := {
 
 ## Pieces turned on the stage so their neighbours stand behind them and the camera sees their
 ## good side: shape -> turn (radians). Pieces in the Roofs tab otherwise turn half round (see turn_of).
-const TURNS := {"stairs": PI, "half_stairs": PI, "gable_26": PI / 2.0, "gable_45": PI / 2.0}
+const TURNS := {"stairs": PI, "half_stairs": PI, "stairs_tall": PI, "half_stairs_tall": PI, "gable_26": PI / 2.0, "gable_45": PI / 2.0}
 ## How far the framing leans from the piece's middle toward the middle of it and its neighbours
 const LEAN := 0.35
 ## Pieces framed together with their neighbours (they only make sense on top of them)
@@ -156,10 +166,18 @@ const FRAME_WHOLE := ["chimney_section", "chimney_top"]
 
 ## Corner badges: shape -> text (pitches and arcs are worked out from the name, see badge_for)
 const BADGES := {
-	"floor": "2×2", "floor_1": "1×1", "wall": "2 m", "wall_1": "1 m", "wall_half_2": "2 m", "wall_half_1": "1 m",
-	"wall_long": "2.83 m", "wall_short": "1.53 m", "wall_strip_2": "2×⅝", "wall_strip_1": "1×⅝",
-	"gable_wall_45": "2.5 m", "window_split_2": "2 m", "window_split_1": "1 m", "beam_1": "1 m", "beam_2": "2 m", "beam_4": "4 m",
-	"pole_1": "1.25 m", "pole_2": "2.5 m", "pole_5": "5 m", "pillar_wood_half": "½", "pillar_stone_half": "½",
+	"floor": "2×2", "floor_1": "1×1", "wall": "2.5 m", "wall_1": "1×2.5", "wall_2m": "2×2", "wall_half_2": "2×1", "wall_half_1": "1×1",
+	"wall_long": "2.83 m", "wall_short": "1.53 m", "wall_strip_2": "2×½", "wall_strip_1": "1×½",
+	"wall_half_2_tall": "2×1.25", "wall_half_1_tall": "1×1.25", "wall_strip_2_tall": "2×⅝", "wall_strip_1_tall": "1×⅝",
+	"gable_wall_45": "2.5 m", "stairs_tall": "2.5 m", "half_stairs_tall": "1.25 m", "ladder_tall": "2.5 m", "ladder": "2 m",
+	"stairs": "2 m", "half_stairs": "1 m", "doorway": "2.5 m", "doorway_2m": "2 m", "door": "2.5 m", "door_2m": "2 m",
+	"window": "2.5 m", "window_2m": "2 m", "window_split_2_2m": "2 m", "window_split_1_2m": "1 m",
+	"pillar_wood_half_tall": "1.25 m", "pillar_stone_half_tall": "1.25 m",
+	"window_split_2": "2 m", "window_split_1": "1 m", "beam_2": "2 m", "beam_4": "4 m",
+	"beam_diag_26_4": "4 m", "beam_diag_45_4": "4 m",
+	"pole_1": "1 m", "pole_2": "2 m", "pole_4": "4 m",
+	"pillar_wood": "2.5 m", "pillar_stone": "2.5 m", "pillar_wood_2m": "2 m", "pillar_stone_2m": "2 m",
+	"pillar_wood_half": "1 m", "pillar_stone_half": "1 m",
 	"railing_1": "1 m", "railing_2": "2 m", "roof": "26°",
 	"curved_wall_22": "22.5°", "curved_wall_45": "45°", "round_floor": "45°", "round_floor_22": "22.5°",
 	"round_foundation_wood": "45°", "round_foundation_stone": "45°", "round_foundation_wood_22": "22.5°",

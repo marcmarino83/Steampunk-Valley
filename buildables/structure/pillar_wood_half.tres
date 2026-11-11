@@ -6,14 +6,14 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "pillar_wood_half"
-display_name = "Half Wood Pillar"
+display_name = "Half Wood Pillar 1 m"
 starts_locked = true
 unlocked_by = "Craft"
 unlock_item = "Planks"
 unlock_hint = "Craft planks to unlock"
 scene = ExtResource("2_scene")
 section = "Beams & Pillars"
-menu_order = 3
+menu_order = 5
 costs = Array[Dictionary]([{
 "Wood": 1
 }])

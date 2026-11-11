@@ -11,18 +11,23 @@
 
 - Every building piece has fixed dimensions. Never build pieces that stretch, resize or regenerate to fit where they're placed. When a new size is needed, add a new fixed piece. (Raising or lowering a free piece with PgUp/PgDn is fine: that moves it, it doesn't reshape it.)
 - Every piece follows the building grid standard (details in DESIGN.md, Building system):
-  - Horizontal unit 1 m, in 2 m cells: widths and lengths of 1, 2 or 4 m, on the 1 m grid.
-  - Vertical unit 1.25 m: heights are whole units (the 0.625 m Wall Strip is the one half unit), with bottoms and tops on unit heights. Foundations' tops are 1.25 m above the ground.
+  - The grid is 2 m, set by the foundation (2 m) and the 45° triangle wall (2 m base, 2 m tall).
+  - Horizontal: 2 m cells with a 1 m half step; widths and lengths of 1, 2 or 4 m, on the 1 m grid.
+  - Pieces that match a wall's height come in two permanent families, both in the build menu:
+    - Standard: built on the 2 m wall, with a 1 m vertical unit (half wall 1 m, wall 2 m, strip 0.5 m). Heights are whole units (or the half-unit strip), bottoms and tops on unit heights.
+    - Tall: built on the 2.5 m wall, with a 1.25 m unit (half wall 1.25 m, strip 0.625 m). Tall pieces are named "Tall …".
+    - New wall-height pieces must come in both families unless I say otherwise.
+    - Nothing else may be sized from the Tall family unless I specifically ask.
+  - Pieces with no wall height to match are on the standard sizes only: poles 1, 2 or 4 m; the fence 1 m; foundations, their tops 1 m above the ground; beams; the fireplace and chimney.
   - Walls are 0.2 m thick, centred on their line. Floors are 0.2 m thick, top on the level. Foundations fill their cell and go 2 m into the ground. Beams are 0.2 m square with their top on the level.
-  - Posts are 1.25, 2.5 or 5 m. Beams are 1, 2 or 4 m (plus the diagonals).
+  - Straight beams are 2 or 4 m only. Each diagonal beam is exactly as long as the sloped edge of its matching triangle on a 2 m base (26.6° and 45°), its ends on the triangle's corners, plus double-length ones for 4 m spans.
   - Exempt:
     - roof pitches, 26.6° and 45° (only their bottoms on unit heights);
     - the octagon and circle families;
     - the 0.5 m roof overhang trim;
-    - window and door frames sticking out as trim;
-    - railings (1.0 m tall).
+    - window and door frames sticking out as trim.
   - Collision stays within 2 cm of the drawn look, and common joins meet at 0 mm. The snap regression checks both.
-  - When a piece is resized, old saves and templates must still load: add the change to building/grid_upgrade.gd (bumping GRID_VERSION) so placed pieces keep their snap position.
+  - When a piece changes, old saves and templates must still load as they were: add the change to building/grid_upgrade.gd (bumping GRID_VERSION). Where a piece of the old size still exists, load as that piece unchanged; otherwise keep its snap position.
 
 ## Running the game for checks or screenshots:
 

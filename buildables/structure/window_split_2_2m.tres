@@ -2,21 +2,19 @@
 
 [ext_resource type="Script" path="res://building/pieces/piece_buildable.gd" id="1_piece"]
 [ext_resource type="PackedScene" path="res://building/pieces/build_piece.tscn" id="2_scene"]
-[ext_resource type="Texture2D" path="res://assets/icons/build/beam_1.png" id="3_icon"]
 
 [resource]
 script = ExtResource("1_piece")
-shape = "beam_1"
-display_name = "Beam 1 m"
+shape = "window_split_2_2m"
+display_name = "Split Window Wall 2 m"
 starts_locked = true
 unlocked_by = "Craft"
 unlock_item = "Planks"
 unlock_hint = "Craft planks to unlock"
 scene = ExtResource("2_scene")
-section = "Beams & Pillars"
-menu_order = 5
+section = "Walls"
+menu_order = 30
 costs = Array[Dictionary]([{
-"Planks": 1
+"Planks": 3
 }])
-icon_color = Color(0.55, 0.4, 0.26, 1)
-icon = ExtResource("3_icon")
+icon_color = Color(0.62, 0.46, 0.3, 1)

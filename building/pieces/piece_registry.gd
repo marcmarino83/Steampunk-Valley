@@ -126,9 +126,9 @@ func material_for(shape: String) -> Material:
 		kind = "roof"
 	elif shape.begins_with("curved_wall") or shape.begins_with("round"):
 		kind = "round"
-	elif shape == "beam_1" or shape == "beam_2":
+	elif shape == "beam_2":
 		kind = "beam"
-	elif shape.begins_with("pole") or shape.begins_with("pillar") or shape == "ladder":
+	elif shape.begins_with("pole") or shape.begins_with("pillar") or shape.begins_with("ladder"):
 		kind = "post"
 	if not _surfaces.has(kind):
 		_surfaces[kind] = _make_surface(kind)
@@ -269,6 +269,8 @@ const STAIRS_PATH := "res://buildables/structure/stairs.tres"
 const FLIGHT_PATHS := {
 	"stairs": STAIRS_PATH,
 	"half_stairs": "res://buildables/structure/half_stairs.tres",
+	"stairs_tall": "res://buildables/structure/stairs_tall.tres",
+	"half_stairs_tall": "res://buildables/structure/half_stairs_tall.tres",
 }
 
 
@@ -393,15 +395,16 @@ func load_data(data: Dictionary) -> void:
 	for entry in data.get("list", []):
 		pieces.append({"buildable": str(entry.get("buildable", "")), "where": Transform3D(SaveGame.to_rotation(entry), SaveGame.to_vector(entry.get("position"))), "entry": entry})
 	if int(data.get("grid", 1)) < GridUpgrade.GRID_VERSION:
-		GridUpgrade.upgrade(pieces)
+		GridUpgrade.upgrade(pieces, int(data.get("grid", 1)))
 	for p in pieces:
 		var entry: Dictionary = p["entry"]
 		var path: String = p["buildable"]
 		var where: Transform3D = p["where"]
 		var state: Dictionary = entry.get("state", {})
 		# A flight of stairs saved while stairs were fitted to their drop (its height saved with it,
-		# at 35°) comes back as the fixed flight nearest that height, its top step where it was
-		if path == STAIRS_PATH and state.has("stairs_height"):
+		# at 35°) comes back as the fixed flight nearest that height, its top step where it was (it was
+		# saved as Stairs, which a save that old brings back as Tall Stairs first: see GridUpgrade)
+		if path in FLIGHT_PATHS.values() and state.has("stairs_height"):
 			var old_height := float(state["stairs_height"])
 			var top_edge := where * Vector3(0, old_height, old_height / tan(deg_to_rad(35.0)) / 2.0)
 			var nearest := "stairs"

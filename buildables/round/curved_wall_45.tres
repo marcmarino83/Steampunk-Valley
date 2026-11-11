@@ -7,7 +7,7 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "curved_wall_45"
-display_name = "Curved Wall 45°"
+display_name = "Tall Curved Wall 45°"
 starts_locked = true
 unlocked_by = "Craft"
 unlock_item = "Planks"

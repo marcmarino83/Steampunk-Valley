@@ -13,8 +13,13 @@ extends Node
 ##      piece already there, or not enough materials).
 ##   4. Turning: the wheel turns it WHEEL_STEP a notch, measured against the target (0° is lined up
 ##      with whatever you're pointing at; with no target, with the world). The turn stays until the
-##      player changes it, across pieces too. Nothing else ever turns it. Holding Shift places it
-##      free, without snapping, and the wheel turns FINE_WHEEL_STEP a notch meanwhile.
+##      player changes it, across pieces too. Nothing else ever turns it. Z turns snapping off (the
+##      piece goes free where the crosshair is, and the wheel turns FINE_WHEEL_STEP a notch) and on
+##      again; it stays as set, across pieces. (Shift is sprint and does nothing here.)
+##   Pillars, poles and beams (slender pieces) snap where the player points and turn freely while
+##   snapped, with no exceptions: none of the pairing limits, edge-to-edge preference or "never into
+##   the target" rule apply to them, and besides corners they take the 1 m spots along floor edges
+##   and wall tops (edge and wall-top middles; see SnapCorners.post_spots_in_world).
 ##   5. Snap: the ghost goes at the crosshair's hit, by its origin, at the player's turn, and slides
 ##      so the closest pair between its corners and the target's (and the touching pieces') corners
 ##      meet exactly (see _best_pair), skipping any pair that would sink it into the target or a
@@ -24,7 +29,8 @@ extends Node
 ##      aimed at the ground beside a building, up to SNAP_RANGE (see _beside).
 ##   6. Sticky corner: once snapped, it keeps the same target corner while the player turns it, only
 ##      re-picking which of its own corners meets it; it moves to another target corner only when the
-##      crosshair gets nearer that one by more than STICKY_SWITCH.
+##      crosshair gets nearer that one by more than STICKY_SWITCH (a pillar, pole or beam: only once
+##      the crosshair has also moved more than STICKY_SWITCH from where it was when it snapped there).
 ##
 ## Left click places, the middle button demolishes (see Demolisher), right click cancels.
 ## Furniture stands on the floor or ground under the crosshair (see FurnitureSpot), turned by the
@@ -52,7 +58,7 @@ const CONTACT_PREFERENCE := 0.25
 ## this close meet
 const TIE := 0.15
 const MEET := 0.01
-## Turning: one wheel notch, and with Shift held
+## Turning: one wheel notch, and with snapping off
 const WHEEL_STEP := PI / 8.0
 const FINE_WHEEL_STEP := PI / 180.0
 ## The ghost: how opaque its real look is, and its red where it can't go
@@ -67,8 +73,10 @@ const BAR_HEIGHT := 0.9
 const BAR_RADIUS := 0.018
 ## The controls row while placing a building piece, and while placing furniture or the workbench,
 ## chest and campfire (which aren't raised or lowered)
-const CONTROLS := [["Place", "LMB"], ["Turn", "Wheel"], ["Raise/Lower", "PgUp/PgDn"], ["No snap (turn 1°)", "Hold Shift"], ["Demolish", "MMB"], ["Cancel", "RMB"]]
-const FURNITURE_CONTROLS := [["Place", "LMB"], ["Turn", "Wheel"], ["No snap (turn 1°)", "Hold Shift"], ["Demolish", "MMB"], ["Cancel", "RMB"]]
+const CONTROLS := [["Place", "LMB"], ["Turn", "Wheel"], ["Raise/Lower", "PgUp/PgDn"], ["Snap", "Z"], ["Demolish", "MMB"], ["Cancel", "RMB"]]
+const FURNITURE_CONTROLS := [["Place", "LMB"], ["Turn", "Wheel"], ["Snap", "Z"], ["Demolish", "MMB"], ["Cancel", "RMB"]]
+## What the placement panel says while snapping is off
+const SNAP_OFF_TEXT := "Snapping off (turn 1°)"
 ## Page Up / Page Down raise and lower a free (unsnapped) piece this much a press, with no limit
 ## (that moves it; no piece is ever reshaped to fit where it goes)
 const RAISE_STEP := 0.25
@@ -81,6 +89,8 @@ var demolisher: Demolisher
 ## The player's turn (radians), measured against the target: kept until the player changes it,
 ## across pieces, furniture and the workbench, chest and campfire
 var turn := 0.0
+## Snapping on or off (Z): stays as set, across pieces
+var snap_on := true
 
 var _player: CharacterBody3D
 var _buildable: PieceBuildable
@@ -119,9 +129,11 @@ var _kind_cache := {}
 const POINT_FLOOR := 1
 const POINT_STAIRS := 2
 const POINT_OTHER := 4
-# The sticky corner: the piece and the snap point the ghost last met (Vector3.INF: none)
+# The sticky corner: the piece and the snap point the ghost last met (Vector3.INF: none), and where
+# the crosshair was when it first met it
 var _sticky_target: BuildPiece
 var _sticky_point := Vector3.INF
+var _sticky_spot := Vector3.INF
 
 
 func _ready() -> void:
@@ -148,9 +160,17 @@ func is_furniture() -> bool:
 	return _buildable != null and _shape.get("furniture", false)
 
 
-## Snapping right now: unless Shift is held
+## Snapping right now: unless Z has turned it off
 func snapping_now() -> bool:
-	return not Input.is_key_pressed(KEY_SHIFT)
+	return snap_on
+
+
+## Z: turns snapping off or on again. True if it was Z.
+func toggle_snap(event: InputEvent) -> bool:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_Z:
+		snap_on = not snap_on
+		return true
+	return false
 
 
 ## Starts placing a piece (at the turn the player last set). `_keep` changes nothing.
@@ -202,6 +222,8 @@ func handle_input(event: InputEvent) -> bool:
 	# Finish or cancel this before putting the hammer away (Tab opens the build menu to switch)
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode >= KEY_1 and event.keycode <= KEY_9:
 		return true
+	if toggle_snap(event):
+		return true
 	# Page Up / Page Down: a free piece up or down (repeating while held)
 	if event is InputEventKey and event.pressed and event.keycode in [KEY_PAGEUP, KEY_PAGEDOWN] and not is_furniture():
 		_lift += RAISE_STEP * (1.0 if event.keycode == KEY_PAGEUP else -1.0)
@@ -220,15 +242,14 @@ func handle_input(event: InputEvent) -> bool:
 	return false
 
 
-## The wheel: turns WHEEL_STEP a notch (FINE_WHEEL_STEP with Shift held; many mice send Shift +
-## wheel as a sideways scroll, which does the same). True if it was a wheel notch.
+## The wheel: turns WHEEL_STEP a notch (FINE_WHEEL_STEP with snapping off; Shift changes nothing).
+## True if it was a wheel notch.
 func turn_by_wheel(event: InputEventMouseButton) -> bool:
 	var button := event.button_index
 	if not button in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
 		return false
 	var up := 1.0 if button in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_LEFT] else -1.0
-	var fine: bool = event.shift_pressed or button in [MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT] or not snapping_now()
-	turn = wrapf(turn + (FINE_WHEEL_STEP if fine else WHEEL_STEP) * up, 0.0, TAU)
+	turn = wrapf(turn + (WHEEL_STEP if snapping_now() else FINE_WHEEL_STEP) * up, 0.0, TAU)
 	return true
 
 
@@ -241,6 +262,8 @@ func hud_state() -> Dictionary:
 		details.append(turn_text(turn))
 	if _pair.is_empty() and not is_zero_approx(_lift) and not is_furniture():
 		details.append("%s %.2f m" % ["Raised" if _lift > 0.0 else "Lowered", absf(_lift)])
+	if not snapping_now():
+		details.append(SNAP_OFF_TEXT)
 	if not _problem.is_empty():
 		details.append(_problem)
 	return {"controls": FURNITURE_CONTROLS if is_furniture() else CONTROLS, "info": {
@@ -312,7 +335,7 @@ func _follow_crosshair() -> void:
 		if snapping:
 			var pair := _best_pair(target, spot, MAX_SLIDE)
 			if not pair.is_empty():
-				_use_pair(target, pair)
+				_use_pair(target, pair, spot)
 	elif snapping:
 		target = _beside(spot)
 	if target == null:
@@ -364,12 +387,15 @@ static func hold_point(def: Dictionary) -> Vector3:
 # empty for none.
 func _best_pair(target: BuildPiece, spot: Vector3, reach: float) -> Dictionary:
 	var ghost := _ghost_at(spot, target)
-	var points := _points_round(target)
+	var points: Array = _slender_points_round(target) if _is_slender() else _points_round(target)
 	if _sticky_target == target and points.any(func(p): return (p as Vector3).distance_to(_sticky_point) < MEET):
 		var nearest := INF
 		for p in points:
 			nearest = minf(nearest, spot.distance_to(p))
-		if spot.distance_to(_sticky_point) <= nearest + STICKY_SWITCH:
+		# (a pillar, pole or beam keeps its snap point while the crosshair stays where it was when it
+		# snapped there, so it turns freely in place, whichever point the crosshair is nearest)
+		var still := _is_slender() and spot.distance_to(_sticky_spot) <= STICKY_SWITCH
+		if still or spot.distance_to(_sticky_point) <= nearest + STICKY_SWITCH:
 			var held := _pick(ghost, spot, points, [_sticky_point], target, reach)
 			if not held.is_empty():
 				return held
@@ -397,6 +423,14 @@ func _pick(ghost: Transform3D, spot: Vector3, points: Array, anchors: Array, tar
 			return a_spot < b_spot
 		return (a[1] as Vector3).distance_to(eye) < (b[1] as Vector3).distance_to(eye))
 	var best := {}
+	# A pillar, pole or beam: simply the closest pair (ties as above), where the player points: no
+	# edge-to-edge preference, and it never counts as sinking in (see PieceOverlap)
+	if _is_slender():
+		if pairs.is_empty():
+			return best
+		var first: Array = pairs[0]
+		var at := ghost.translated((first[2] as Vector3) - (first[1] as Vector3))
+		return {"own": first[1], "at": first[2], "gap": first[0], "landed": _landed(at, points), "where": at}
 	for pair in pairs:
 		if not best.is_empty() and float(pair[0]) > float(best["gap"]) + CONTACT_PREFERENCE:
 			break
@@ -429,10 +463,13 @@ func _sinks_in(where: Transform3D, target: BuildPiece) -> bool:
 	return false
 
 
-# Snaps the ghost by `pair` with `target`, and makes that the sticky corner
-func _use_pair(target: BuildPiece, pair: Dictionary) -> void:
+# Snaps the ghost by `pair` with `target` (the crosshair at `spot`), and makes that the sticky
+# corner (noting where the crosshair was when it became the sticky corner)
+func _use_pair(target: BuildPiece, pair: Dictionary, spot: Vector3) -> void:
 	_where = pair["where"]
 	_pair = [pair["own"], pair["at"], pair["gap"]]
+	if target != _sticky_target or (pair["at"] as Vector3).distance_to(_sticky_point) > MEET:
+		_sticky_spot = spot
 	_sticky_target = target
 	_sticky_point = pair["at"]
 
@@ -446,7 +483,7 @@ func _beside(spot: Vector3) -> BuildPiece:
 	if is_instance_valid(_sticky_target) and spot.distance_to(_sticky_point) <= _bounds.size.length() + SNAP_RANGE:
 		var held := _best_pair(_sticky_target, spot, MAX_SLIDE)
 		if not held.is_empty():
-			_use_pair(_sticky_target, held)
+			_use_pair(_sticky_target, held, spot)
 			return _sticky_target
 	var best: BuildPiece = null
 	var best_pair := {}
@@ -458,7 +495,7 @@ func _beside(spot: Vector3) -> BuildPiece:
 			best = piece
 			best_pair = pair
 	if best:
-		_use_pair(best, best_pair)
+		_use_pair(best, best_pair, spot)
 	return best
 
 
@@ -481,6 +518,26 @@ func _points_round(piece: BuildPiece) -> Array:
 	return _round_cache[key]
 
 
+# For a pillar, pole or beam: the snap points round a piece (see _points_round) and also the 1 m
+# spots along the floor edges and wall tops there (see SnapCorners.post_spots_in_world)
+func _slender_points_round(piece: BuildPiece) -> Array:
+	var key := "slender_%d" % piece.get_instance_id()
+	if not _round_cache.has(key):
+		var points := _points_round(piece).duplicate()
+		for other in _pieces_round(piece):
+			for p: Vector3 in SnapCorners.post_spots_in_world(other):
+				if not points.any(func(q): return (q as Vector3).distance_to(p) < MEET):
+					points.append(p)
+		_round_cache[key] = points
+	return _round_cache[key]
+
+
+# True while placing a pillar, pole or beam (not a ladder, which hangs by its own corners): see
+# the note at the top
+func _is_slender() -> bool:
+	return _shape.get("slender", false) and not _shape.get("ladder", false)
+
+
 # What the snap point `p` round a piece is (see _points_round): POINT_FLOOR, POINT_STAIRS and
 # POINT_OTHER together, for each kind of piece with a corner there
 func _point_kind(piece: BuildPiece, p: Vector3) -> int:
@@ -497,7 +554,10 @@ static func _point_key(p: Vector3) -> Vector3i:
 # corners (all of which are on its top's edge); on bare ground it simply stands where it's put. And
 # so the other way round: a point that is only a flight's corners only takes a floor or foundation.
 # Nothing else pairs with a flight, so a flight never meets anything by a wrong corner, leaving a gap.
+# A pillar, pole or beam meets any snap point (no exceptions: see the note at the top).
 func _may_meet(kind: int) -> bool:
+	if _is_slender():
+		return true
 	if _shape.get("stairs", false):
 		return kind & POINT_FLOOR != 0
 	if kind & POINT_STAIRS and kind & (POINT_FLOOR | POINT_OTHER) == 0:
@@ -698,6 +758,11 @@ func _show_markers() -> void:
 	if _marker_root == null:
 		return
 	var points: Array = SnapCorners.in_world(_target) if is_instance_valid(_target) and snapping_now() else []
+	# (a pillar, pole or beam also shows the target's 1 m spots it may take)
+	if not points.is_empty() and _is_slender():
+		for p: Vector3 in SnapCorners.post_spots_in_world(_target):
+			if not points.any(func(q): return (q as Vector3).distance_to(p) < MEET):
+				points.append(p)
 	for i in _dots.size():
 		_dots[i].visible = i < points.size()
 		if i < points.size():

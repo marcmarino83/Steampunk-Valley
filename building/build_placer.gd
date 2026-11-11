@@ -272,7 +272,10 @@ func handle_input(event: InputEvent) -> bool:
 		# Finish or cancel this one before putting the hammer away (Tab opens the build menu)
 		if event.keycode >= KEY_1 and event.keycode <= KEY_9:
 			return true
-	# As for pieces: the wheel turns it (the same turn) about where it stands
+	# As for pieces: Z turns snapping off and on, and the wheel turns it (the same turn) about where
+	# it stands
+	if _pieces.toggle_snap(event):
+		return true
 	if event is InputEventMouseButton and event.pressed and _pieces.turn_by_wheel(event):
 		return true
 	# A click while the mouse is free just grabs it again, as it does any other time
@@ -304,6 +307,8 @@ func hud_state() -> Dictionary:
 		var details: PackedStringArray = []
 		if not is_zero_approx(_pieces.turn):
 			details.append(ValheimPlacer.turn_text(_pieces.turn))
+		if not _pieces.snapping_now():
+			details.append(ValheimPlacer.SNAP_OFF_TEXT)
 		if not _problem.is_empty():
 			details.append(_problem)
 		elif not _warning.is_empty():

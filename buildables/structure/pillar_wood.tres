@@ -7,7 +7,7 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "pillar_wood"
-display_name = "Wood Pillar"
+display_name = "Tall Wood Pillar 2.5 m"
 starts_locked = true
 unlocked_by = "Craft"
 unlock_item = "Planks"

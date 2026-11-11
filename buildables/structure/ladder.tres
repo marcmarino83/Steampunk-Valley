@@ -7,7 +7,7 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "ladder"
-display_name = "Ladder 2.5 m"
+display_name = "Ladder 2 m"
 starts_locked = true
 unlocked_by = "Craft"
 unlock_item = "Planks"

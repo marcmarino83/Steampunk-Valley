@@ -27,12 +27,24 @@ static func overlaps(shape: String, def: Dictionary, where: Transform3D, other: 
 		return false
 	var mine_box := where * PieceShapes.bounds_of(def)
 	var other_box := other.global_transform * PieceShapes.bounds_of(other_def)
-	if not mine_box.grow(-MARGIN).intersects(other_box.grow(-MARGIN)):
+	if not _shrunk(mine_box).intersects(_shrunk(other_box)):
 		return false
 	var mine := _info(shape, def)
 	var theirs := _info(other.shape_name, other_def)
 	return _any_inside(mine["samples"], where, theirs["parts"], other.global_transform) \
 		or _any_inside(theirs["samples"], other.global_transform, mine["parts"], where)
+
+
+# A box taken in by MARGIN on every side; along a side thinner than that, down to its middle (never
+# a negative size: a door is only 8 cm thick)
+static func _shrunk(box: AABB) -> AABB:
+	var lo := box.position
+	var hi := box.end
+	for axis in 3:
+		var middle := (lo[axis] + hi[axis]) / 2.0
+		lo[axis] = minf(lo[axis] + MARGIN, middle)
+		hi[axis] = maxf(hi[axis] - MARGIN, middle)
+	return AABB(lo, hi - lo)
 
 
 ## True if a point (in a shape's own space) is in or within `reach` of one of its solid parts

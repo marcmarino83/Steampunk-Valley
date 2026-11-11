@@ -18,6 +18,8 @@ class_name SnapCorners
 ##   - furniture: none
 ## A doorway also has the door's two bottom corners where the door goes, and a fireplace or chimney
 ## section the next section's bottom corners where it stacks, so doors and chimneys snap in.
+## Pillars, poles and beams alone also take the 1 m spots along floor edges and wall tops (see
+## post_spots_in_world), so a pillar goes on a floor edge's middle as well as its corners.
 
 ## Points closer than this are one point
 const MERGE := 0.01
@@ -28,7 +30,7 @@ const CORNER_TURN := deg_to_rad(20.0)
 ## The outline edges of triangle-type wall pieces (see PieceShapes._edge_sockets)
 const OUTLINE_EDGES := ["edge_flat", "edge_vertical", "edge_slope_26", "edge_slope_45", "edge_floor"]
 ## A doorway's door, and where a chimney stacks: the guest piece and its own point that goes there
-const SLOTS := {"door_slot": ["door", "door_base"], "chimney_spot": ["chimney_section", "chimney_base"]}
+const SLOTS := {"door_slot": ["door", "door_base"], "door_slot_2m": ["door_2m", "door_base"], "chimney_spot": ["chimney_section", "chimney_base"]}
 
 static var _cache := {}
 
@@ -47,6 +49,19 @@ static func in_world(piece: BuildPiece) -> Array:
 		return found
 	for p in of(piece.shape_name, piece.shape_def()):
 		found.append(piece.global_transform * (p as Vector3))
+	return found
+
+
+## Where a pillar, pole or beam may also go on a placed piece, besides its corners: the 1 m spots
+## along its floor edges (a floor's or foundation's edge middles) and its wall top (a wall's top
+## middle), from its "post_spot" and "top_spot" typed points, in the world
+static func post_spots_in_world(piece: BuildPiece) -> Array:
+	var found := []
+	if piece.buildable == null:
+		return found
+	for s in piece.shape_def()["sockets"]:
+		if s["type"] in ["post_spot", "top_spot"]:
+			found.append(piece.global_transform * (s["position"] as Vector3))
 	return found
 
 
@@ -85,7 +100,7 @@ static func _own_corners(shape: String, def: Dictionary) -> Array:
 		# A ladder: the corners of its back (-Z) face, at its foot and its top, so hung from a floor
 		# edge its top is level with the floor's top and its back flush against the edge
 		var half_width := box.size.x / 2.0
-		for y in [0.0, PieceShapes.LADDER_HEIGHT]:
+		for y in [0.0, float(def.get("ladder_height", PieceShapes.LADDER_HEIGHT))]:
 			for x in [-half_width, half_width]:
 				points.append(Vector3(x, y, box.position.z))
 	elif def.get("slender", false):

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="PieceBuildable" format=3]
+
+[ext_resource type="Script" path="res://building/pieces/piece_buildable.gd" id="1_piece"]
+[ext_resource type="PackedScene" path="res://building/pieces/build_piece.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_piece")
+shape = "pillar_wood_half_tall"
+display_name = "Tall Half Wood Pillar 1.25 m"
+starts_locked = true
+unlocked_by = "Craft"
+unlock_item = "Planks"
+unlock_hint = "Craft planks to unlock"
+scene = ExtResource("2_scene")
+section = "Beams & Pillars"
+menu_order = 16
+costs = Array[Dictionary]([{
+"Wood": 1
+}])
+icon_color = Color(0.55, 0.4, 0.26, 1)

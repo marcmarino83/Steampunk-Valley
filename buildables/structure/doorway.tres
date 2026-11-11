@@ -7,7 +7,7 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "doorway"
-display_name = "Doorway Wall"
+display_name = "Tall Doorway Wall"
 starts_locked = true
 unlocked_by = "Craft"
 unlock_item = "Planks"

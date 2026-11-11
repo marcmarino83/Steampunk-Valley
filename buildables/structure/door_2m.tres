@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PieceBuildable" format=3]
+
+[ext_resource type="Script" path="res://building/pieces/piece_buildable.gd" id="1_piece"]
+[ext_resource type="PackedScene" path="res://building/pieces/build_piece.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_piece")
+shape = "door_2m"
+display_name = "Door"
+starts_locked = true
+unlocked_by = "Craft"
+unlock_item = "Planks"
+unlock_hint = "Craft planks to unlock"
+scene = ExtResource("2_scene")
+section = "Stairs & Doors"
+menu_order = 8
+costs = Array[Dictionary]([{
+"Planks": 3,
+"Rope": 1
+}])
+icon_color = Color(0.5, 0.34, 0.21, 1)

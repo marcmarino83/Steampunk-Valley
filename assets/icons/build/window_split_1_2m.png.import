@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://drhulmgyprlci"
-path="res://.godot/imported/beam_1.png-22d6a26566b1ad3dc5d7778233988839.ctex"
+uid="uid://crj4g75tpugpp"
+path="res://.godot/imported/window_split_1_2m.png-e7b0c39e81e722615909f653b59aac0b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/icons/build/beam_1.png"
-dest_files=["res://.godot/imported/beam_1.png-22d6a26566b1ad3dc5d7778233988839.ctex"]
+source_file="res://assets/icons/build/window_split_1_2m.png"
+dest_files=["res://.godot/imported/window_split_1_2m.png-e7b0c39e81e722615909f653b59aac0b.ctex"]
 
 [params]
 

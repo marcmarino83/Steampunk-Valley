@@ -5,16 +5,16 @@
 
 [resource]
 script = ExtResource("1_piece")
-shape = "pole_5"
-display_name = "Pole 5 m"
+shape = "half_stairs_tall"
+display_name = "Tall Half Stairs"
 starts_locked = true
 unlocked_by = "Craft"
 unlock_item = "Planks"
 unlock_hint = "Craft planks to unlock"
 scene = ExtResource("2_scene")
-section = "Beams & Pillars"
-menu_order = 12
+section = "Stairs & Doors"
+menu_order = 6
 costs = Array[Dictionary]([{
-"Planks": 4
+"Planks": 3
 }])
 icon_color = Color(0.55, 0.4, 0.26, 1)

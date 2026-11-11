@@ -5,8 +5,15 @@ class_name PieceShapes
 ## edges line up perfectly. A piece can show a real model instead (PieceBuildable.model_scene);
 ## its collision and snap points still come from here.
 ##
-## Every piece follows the building grid standard (DESIGN.md, Building system): a 1 m horizontal
-## unit (2 m cells), a 1.25 m vertical unit (a half wall), standard thicknesses and positions.
+## Every piece follows the building grid standard (DESIGN.md, Building system): 2 m cells with a
+## 1 m half step across, with standard thicknesses and positions. Pieces that match a wall's height
+## come in two permanent families:
+##   - Standard: built on the 2 m wall (GRID_WALL_HEIGHT), a 1 m vertical unit (UNIT), set by the
+##     foundation (2 m) and the 45° triangle wall (2 m base, 2 m tall);
+##   - Tall: built on the 2.5 m wall (WALL_HEIGHT), a 1.25 m unit (TALL_UNIT): the walls, doorway and
+##     windows, and Tall versions of the half walls, strips, stairs, half pillars, ladder and pillars.
+## Nothing else is sized from the Tall family. Pieces with no wall height to match (poles, fences,
+## foundations, beams, the fireplace and chimney) are on the standard sizes only.
 ## Square pieces sit on the 2 m grid. Round pieces share one circle of radius RING_RADIUS, so a 45°
 ## arc spans exactly 2 m and eight of them close into a circle about 5.2 m across.
 ##
@@ -17,7 +24,22 @@ class_name PieceShapes
 ## icon studio stages pieces with them, and the corner posts and foundation lips read them.
 
 const GRID := 2.0
+## The vertical unit: a half wall's height (two make a wall)
+const UNIT := 1.0
+## A wall on the grid standard: two units, as tall as a 2 m cell is wide and as the 45° triangle
+## wall (so that triangle stands flush beside it)
+const GRID_WALL_HEIGHT := 2.0 * UNIT
+## The Tall family's wall (wall, doorway, window, 1 m, long and short, split-window and curved walls):
+## 2.5 m, with its own 1.25 m unit (a Tall half wall). Only the Tall family is sized from it.
 const WALL_HEIGHT := 2.5
+const TALL_UNIT := WALL_HEIGHT / 2.0
+## Each family's openings: the door's height, the window's sill and head, and the split window's
+## sill (its opening is SPLIT_WINDOW_HEIGHT or GRID_SPLIT_WINDOW_HEIGHT tall). The Standard ones
+## stop at 1.8 m, under where an upper floor laid on the 2 m wall reaches down to.
+const GRID_DOOR_HEIGHT := 1.8
+const GRID_WINDOW_BOTTOM := 0.8
+const GRID_WINDOW_TOP := 1.6
+const GRID_SPLIT_WINDOW_HEIGHT := 0.8
 const WALL_THICKNESS := 0.2
 const FLOOR_THICKNESS := 0.2
 const ROOF_RISE := 1.0
@@ -33,15 +55,19 @@ const WINDOW_TOP := 1.9
 ## the opening's height (from WINDOW_BOTTOM)
 const SPLIT_WINDOWS := {2.0: 1.0, 1.0: 0.6}
 const SPLIT_WINDOW_HEIGHT := 1.1
-## One storey: from a ground floor's top to the top of a floor laid on walls standing on it (the
-## walls' height; measured through the placer by the snap regression test)
-const STOREY := WALL_HEIGHT
+## One storey: from a ground floor's top to the top of a floor laid on walls standing on it (a
+## grid standard wall's height; measured through the placer by the snap regression test)
+const STOREY := GRID_WALL_HEIGHT
 ## The flights of stairs: fixed pieces, like every building piece (never stretched or fitted to
 ## where they go; a new size is a new piece), all GRID wide (a floor's width): shape -> [height,
-## run]. Stairs: one storey over two cells (4 m). Half Stairs: half a storey (a half wall's height,
-## and a foundation's height above the ground) over one cell (2 m). (Foundation Steps, 1 m over 2 m,
-## are gone: with foundations 1.25 m up they'd be Half Stairs; old ones load as Half Stairs.)
-const FLIGHTS := {"stairs": [STOREY, 4.0], "half_stairs": [STOREY / 2.0, 2.0]}
+## run]. Stairs: one storey (2 m) over two cells (4 m). Half Stairs: one unit (a half wall's height,
+## and a foundation's height above the ground, 1 m) over one cell (2 m). The Tall family's: a Tall
+## storey (2.5 m, TALL_STOREY) and a Tall unit (1.25 m), over the same runs.
+const TALL_STOREY := WALL_HEIGHT
+const FLIGHTS := {
+	"stairs": [STOREY, 4.0], "half_stairs": [STOREY / 2.0, 2.0],
+	"stairs_tall": [TALL_STOREY, 4.0], "half_stairs_tall": [TALL_STOREY / 2.0, 2.0],
+}
 ## How deep a flight's walking ramp is, under the line of its steps' fronts (see _stairs)
 const RAMP_DEPTH := 0.2
 const STAIRS_HEIGHT := STOREY
@@ -70,25 +96,41 @@ const ARC_STEP_DEGREES := 7.5
 ## side (the gap between two 2 m sides 45° apart): walls come in these widths too
 const LONG_EDGE := 2.8284271
 const SHORT_EDGE := 1.5307337
-## Pillars: how thick (wood, stone) and how tall (full: a wall's height; half: a half wall's).
-## A wood pillar's solid is a little wider than its post, taking in the rope lashings round its top.
+## Pillars: how thick (wood, stone) and how tall, by shape: the 2.5 m pillars match the irregular
+## tall walls (an exception, kept as they are); the rest are on the vertical unit, 2 m (a grid wall's
+## height) and half pillars 1 m. A wood pillar's solid is a little wider than its post, taking in
+## the rope lashings round its top.
 const WOOD_PILLAR := 0.3
 const WOOD_PILLAR_SOLID := 0.34
 const STONE_PILLAR := 0.4
-const PILLAR_HEIGHT := 2.5
-const HALF_PILLAR_HEIGHT := 1.25
-## Poles' heights, by shape: half, full and double a wall's height
-const POLE_HEIGHTS := {"pole_1": 1.25, "pole_2": 2.5, "pole_5": 5.0}
-## Beams' lengths, by shape: half, full and double a cell
-const BEAM_LENGTHS := {"beam_1": 1.0, "beam_2": 2.0, "beam_4": 4.0}
+const PILLAR_HEIGHT := WALL_HEIGHT
+const GRID_PILLAR_HEIGHT := GRID_WALL_HEIGHT
+const HALF_PILLAR_HEIGHT := UNIT
+const PILLAR_HEIGHTS := {
+	"pillar_wood": PILLAR_HEIGHT, "pillar_stone": PILLAR_HEIGHT,
+	"pillar_wood_2m": GRID_PILLAR_HEIGHT, "pillar_stone_2m": GRID_PILLAR_HEIGHT,
+	"pillar_wood_half": HALF_PILLAR_HEIGHT, "pillar_stone_half": HALF_PILLAR_HEIGHT,
+	"pillar_wood_half_tall": TALL_UNIT, "pillar_stone_half_tall": TALL_UNIT,
+}
+## Poles' heights, by shape: half, full and double a grid wall's height
+const POLE_HEIGHTS := {"pole_1": UNIT, "pole_2": GRID_WALL_HEIGHT, "pole_4": 2.0 * GRID_WALL_HEIGHT}
+## Straight beams' lengths, by shape: one cell and two
+const BEAM_LENGTHS := {"beam_2": GRID, "beam_4": 2.0 * GRID}
+## Diagonal beams, by shape: [rise, run]. Each lies along the sloped edge of its matching triangle
+## (the 26.6° gable rises 1 m over its 2 m base, the 45° one 2 m), its ends on the triangle's
+## corners, so it's exactly that edge's length; the _4 ones are twice as long, for 4 m spans.
+const DIAGONALS := {
+	"beam_diag_26": [ROOF_RISE, GRID], "beam_diag_45": [ROOF_RISE_45, GRID],
+	"beam_diag_26_4": [2.0 * ROOF_RISE, 2.0 * GRID], "beam_diag_45_4": [2.0 * ROOF_RISE_45, 2.0 * GRID],
+}
 ## Every way a square thing can turn and still line up with the grid
 const QUARTER_TURNS := [0.0, PI / 2.0, PI, -PI / 2.0]
 ## Beams (square, lying down), poles (square, standing, thinner than pillars), and how high a
 ## half-height wall, a ladder, a railing and a fence are
 const BEAM := 0.2
 const POLE := 0.15
-const HALF_HEIGHT := 1.25
-## The top-up strip walls: half a vertical unit
+const HALF_HEIGHT := UNIT
+## The top-up strip walls: half a vertical unit (0.5 m)
 const STRIP_HEIGHT := HALF_HEIGHT / 2.0
 ## The ridge gap a roof topper bridges: on a building an odd number of foundation tiles across (3
 ## tiles, 6 m), one 2 m roof up each side leaves this much at the ridge
@@ -104,8 +146,15 @@ const ROOF_EDGE_SINK := 0.025
 ## How far the plank infill of the small triangle walls (half gables, inverse triangles) reaches
 ## past their edges (none: drawn to their outlines, as the grid standard has every piece)
 const INFILL_OVERLAP := 0.0
-## A ladder reaches one storey; a railing is 1 m (exempt from the vertical unit); a fence one unit
-const LADDER_HEIGHT := WALL_HEIGHT
+## A ladder reaches one storey (2 m; the Tall Ladder a Tall storey, 2.5 m); a railing is 1 m; a fence
+## one unit (1 m)
+const LADDER_HEIGHT := STOREY
+const LADDER_HEIGHTS := {"ladder": LADDER_HEIGHT, "ladder_tall": TALL_STOREY}
+## Each family's half walls and strips, by shape: [width, height]
+const PLAIN_WALLS := {
+	"wall_half_2": [2.0, 1.0], "wall_half_1": [1.0, 1.0], "wall_strip_2": [2.0, 0.5], "wall_strip_1": [1.0, 0.5],
+	"wall_half_2_tall": [2.0, 1.25], "wall_half_1_tall": [1.0, 1.25], "wall_strip_2_tall": [2.0, 0.625], "wall_strip_1_tall": [1.0, 0.625],
+}
 const RAILING_HEIGHT := 1.0
 const FENCE_HEIGHT := HALF_HEIGHT
 ## A fence's depth, centred on its line: the rails behind, the pickets in front
@@ -141,7 +190,7 @@ const SNAP_RULES := {
 	# A gable on a wall's top, or on any wall's top points (a small wall's ends and middle, say), facing
 	# either way
 	"gable_base": {"wall_top": [0.0, PI], "top_point": [0.0, PI], "edge_step": [0.0, PI]},
-	"door_base": {"door_slot": [0.0, PI]},
+	"door_base": {"door_slot": [0.0, PI], "door_slot_2m": [0.0, PI]},
 	# Roofs: any pitch goes on a wall top or carries on up from another roof's high edge; sides,
 	# ridges, corners and ridge caps only meet roofs of their own pitch
 	"roof_low": {"wall_top": [0.0, PI], "roof_high_26": [PI], "roof_high_45": [PI]},
@@ -314,7 +363,7 @@ static func build(shape: String) -> Dictionary:
 						_socket(d, Vector3(x * 0.5, 0, z * 0.5), 0.0, "post_spot")
 			d["floor"] = true
 			d["clear_radius"] = 0.8
-		"wall", "doorway", "window":
+		"wall", "doorway", "window", "doorway_2m", "window_2m":
 			_wall(d, shape)
 		"wall_long":
 			_plain_wall(d, LONG_EDGE, WALL_HEIGHT, "long_wall_base", "long_wall_top")
@@ -322,17 +371,17 @@ static func build(shape: String) -> Dictionary:
 			_plain_wall(d, SHORT_EDGE, WALL_HEIGHT, "short_wall_base", "short_wall_top")
 		"wall_1":
 			_plain_wall(d, 1.0, WALL_HEIGHT, "small_wall_base", "half_top")
-		"wall_half_2":
-			_plain_wall(d, GRID, HALF_HEIGHT, "wall_base", "wall_top")
-		"wall_half_1":
-			_plain_wall(d, 1.0, HALF_HEIGHT, "small_wall_base", "half_top")
-		# Top-up strips, half a vertical unit (0.625 m) tall
-		"wall_strip_2":
-			_plain_wall(d, GRID, STRIP_HEIGHT, "wall_base", "wall_top")
-		"wall_strip_1":
-			_plain_wall(d, 1.0, STRIP_HEIGHT, "small_wall_base", "half_top")
-		# A 45° gable on a 0.5 m strip, in one: 2 m wide, 0.5 m tall at its low end and as tall as a
-		# full wall at its high end
+		# The grid standard wall: 2 m wide and 2 m (two units) tall, so the 45° triangle wall (2 m
+		# base, 2 m tall) stands flush beside it
+		"wall_2m":
+			_plain_wall(d, GRID, GRID_WALL_HEIGHT, "wall_base", "wall_top")
+		# Half walls (one unit tall) and top-up strips (half a unit), Standard and Tall (PLAIN_WALLS)
+		"wall_half_2", "wall_half_1", "wall_strip_2", "wall_strip_1", "wall_half_2_tall", "wall_half_1_tall", "wall_strip_2_tall", "wall_strip_1_tall":
+			var size: Array = PLAIN_WALLS[shape]
+			var small: bool = float(size[0]) < 1.5
+			_plain_wall(d, float(size[0]), float(size[1]), "small_wall_base" if small else "wall_base", "half_top" if small else "wall_top")
+		# The Tall 45° gable wall: a 45° gable on a 0.5 m strip, in one: 2 m wide, 0.5 m tall at its low
+		# end and as tall as a Tall wall (2.5 m) at its high end
 		"gable_wall_45":
 			_gable(d, ROOF_RISE_45, WALL_HEIGHT - ROOF_RISE_45)
 		# Half gables: 1 m along the bottom, half a 2 m gable (the 2 m gables are the full size)
@@ -379,24 +428,22 @@ static func build(shape: String) -> Dictionary:
 			_outer_eave_corner(d, ROOF_RISE if shape.ends_with("26") else ROOF_RISE_45, shape.right(3))
 		# Split-window walls: the window cut into the +X edge, so two side by side (one turned round)
 		# make one wide window across the joint
-		"window_split_2", "window_split_1":
-			_split_window_wall(d, GRID if shape == "window_split_2" else 1.0)
-		"beam_1", "beam_2", "beam_4":
+		"window_split_2", "window_split_1", "window_split_2_2m", "window_split_1_2m":
+			_split_window_wall(d, GRID if shape.begins_with("window_split_2") else 1.0, shape.ends_with("_2m"))
+		"beam_2", "beam_4":
 			_beam(d, BEAM_LENGTHS[shape])
-		"beam_diag_26":
-			_diagonal_beam(d, ROOF_RISE)
-		"beam_diag_45":
-			_diagonal_beam(d, ROOF_RISE_45)
-		"pole_1", "pole_2", "pole_5":
+		"beam_diag_26", "beam_diag_45", "beam_diag_26_4", "beam_diag_45_4":
+			_diagonal_beam(d, DIAGONALS[shape][0], DIAGONALS[shape][1])
+		"pole_1", "pole_2", "pole_4":
 			_pole(d, POLE_HEIGHTS[shape])
-		"ladder":
-			_ladder(d)
+		"ladder", "ladder_tall":
+			_ladder(d, LADDER_HEIGHTS[shape])
 		"railing_2", "railing_1":
 			_railing(d, GRID if shape == "railing_2" else 1.0)
 		"fence":
 			_fence(d)
-		"pillar_wood", "pillar_stone", "pillar_wood_half", "pillar_stone_half":
-			_pillar(d, shape.begins_with("pillar_stone"), HALF_PILLAR_HEIGHT if shape.ends_with("_half") else PILLAR_HEIGHT)
+		"pillar_wood", "pillar_stone", "pillar_wood_2m", "pillar_stone_2m", "pillar_wood_half", "pillar_stone_half", "pillar_wood_half_tall", "pillar_stone_half_tall":
+			_pillar(d, shape.begins_with("pillar_stone"), PILLAR_HEIGHTS[shape])
 		"floor_rtri", "foundation_wood_rtri", "foundation_stone_rtri":
 			_triangle_piece(d, _right_triangle(), ["floor_edge", "floor_edge_long", "floor_edge"], _kind_of(shape), "rtri")
 		"floor_tri45", "foundation_wood_tri45", "foundation_stone_tri45":
@@ -405,11 +452,11 @@ static func build(shape: String) -> Dictionary:
 			_round_floor(d, 11.25)
 		"round_foundation_wood_22", "round_foundation_stone_22":
 			_round_foundation(d, shape.contains("stone"), 11.25)
-		"door":
-			_door(d)
+		"door", "door_2m":
+			_door(d, GRID_DOOR_HEIGHT if shape == "door_2m" else DOOR_HEIGHT)
 		"roof":
 			_roof(d, ROOF_RISE, "_26")
-		"stairs", "half_stairs":
+		"stairs", "half_stairs", "stairs_tall", "half_stairs_tall":
 			_stairs(d, FLIGHTS[shape][0], FLIGHTS[shape][1])
 		"curved_wall_45":
 			_curved_wall(d, 22.5, "curve_base", "curve_top")
@@ -432,19 +479,20 @@ static func build(shape: String) -> Dictionary:
 			push_error("PieceShapes: no shape called %s" % shape)
 	# Turning a symmetric piece by this much looks the same, so those turns aren't offered twice
 	d["symmetry"] = {
-		"floor": PI / 2.0, "floor_1": PI / 2.0, "wall": PI, "doorway": PI, "window": PI,
-		"wall_long": PI, "wall_short": PI, "wall_1": PI, "wall_half_2": PI, "wall_half_1": PI,
-		"wall_strip_2": PI, "wall_strip_1": PI,
+		"floor": PI / 2.0, "floor_1": PI / 2.0, "wall": PI, "doorway": PI, "window": PI, "doorway_2m": PI, "window_2m": PI,
+		"wall_long": PI, "wall_short": PI, "wall_1": PI, "wall_2m": PI, "wall_half_2": PI, "wall_half_1": PI,
+		"wall_strip_2": PI, "wall_strip_1": PI, "wall_half_2_tall": PI, "wall_half_1_tall": PI, "wall_strip_2_tall": PI, "wall_strip_1_tall": PI,
 		"foundation_wood": PI / 2.0, "foundation_stone": PI / 2.0,
-		"pillar_wood": PI / 2.0, "pillar_stone": PI / 2.0, "pillar_wood_half": PI / 2.0, "pillar_stone_half": PI / 2.0,
-		"pole_1": PI / 2.0, "pole_2": PI / 2.0, "pole_5": PI / 2.0,
-		"beam_1": PI, "beam_2": PI, "beam_4": PI, "ridge_26": PI, "ridge_45": PI, "topper_26": PI, "topper_45": PI, "topper_gable_26": PI, "topper_gable_45": PI, "topper_overhang_26": PI, "topper_overhang_45": PI,
+		"pillar_wood": PI / 2.0, "pillar_stone": PI / 2.0, "pillar_wood_2m": PI / 2.0, "pillar_stone_2m": PI / 2.0,
+		"pillar_wood_half": PI / 2.0, "pillar_stone_half": PI / 2.0, "pillar_wood_half_tall": PI / 2.0, "pillar_stone_half_tall": PI / 2.0,
+		"pole_1": PI / 2.0, "pole_2": PI / 2.0, "pole_4": PI / 2.0,
+		"beam_2": PI, "beam_4": PI, "ridge_26": PI, "ridge_45": PI, "topper_26": PI, "topper_45": PI, "topper_gable_26": PI, "topper_gable_45": PI, "topper_overhang_26": PI, "topper_overhang_45": PI,
 		"railing_2": PI, "railing_1": PI, "fence": PI,
 	}.get(shape, 0.0)
 	# Pillars, poles, beams and ladders are slender: they only bump into each other, so floors,
 	# walls and roofs can rest on and against them
-	d["slender"] = shape.begins_with("pillar") or shape.begins_with("pole") or shape.begins_with("beam") or shape == "ladder"
-	d["ladder"] = shape == "ladder"
+	d["slender"] = shape.begins_with("pillar") or shape.begins_with("pole") or shape.begins_with("beam") or shape.begins_with("ladder")
+	d["ladder"] = shape.begins_with("ladder")
 	# How far R turns it while snapped: 45° for round and triangle pieces, 90° for the rest
 	var fine_turn := shape.contains("round") or shape.contains("curved") or shape.contains("cone") or shape.contains("tri")
 	d["turn_step"] = PI / 4.0 if fine_turn else PI / 2.0
@@ -505,30 +553,35 @@ static func targets_for(sockets: Array) -> Dictionary:
 
 # ---- The pieces ----
 
-# A straight wall, 2 m wide and 2.5 m high, standing on its bottom middle; the doorway and window
+# A straight tall wall, 2 m wide and 2.5 m high (an irregular piece, an exception to the grid
+# standard), standing on its bottom middle; the doorway and window
 # walls are the same with a hole
 static func _wall(d: Dictionary, shape: String) -> void:
 	var half := GRID / 2.0
 	var hole := DOOR_WIDTH / 2.0
+	# (the Standard doorway and window, "_2m", on the 2 m wall; the Tall ones on the 2.5 m wall)
+	var standard := shape.ends_with("_2m")
+	var height := GRID_WALL_HEIGHT if standard else WALL_HEIGHT
 	match shape:
 		"wall":
-			_wall_part(d, -half, half, 0.0, WALL_HEIGHT)
-		"doorway":
-			_wall_part(d, -half, -hole, 0.0, WALL_HEIGHT)
-			_wall_part(d, hole, half, 0.0, WALL_HEIGHT)
-			_wall_part(d, -hole, hole, DOOR_HEIGHT, WALL_HEIGHT)
-			_socket(d, Vector3(0, 1.0, 0), 0.0, "door_slot")
-		"window":
+			_wall_part(d, -half, half, 0.0, height)
+		"doorway", "doorway_2m":
+			var door := GRID_DOOR_HEIGHT if standard else DOOR_HEIGHT
+			_wall_part(d, -half, -hole, 0.0, height)
+			_wall_part(d, hole, half, 0.0, height)
+			_wall_part(d, -hole, hole, door, height)
+			_socket(d, Vector3(0, 1.0, 0), 0.0, "door_slot_2m" if standard else "door_slot")
+		"window", "window_2m":
 			hole = WINDOW_WIDTH / 2.0
-			_wall_part(d, -half, -hole, 0.0, WALL_HEIGHT)
-			_wall_part(d, hole, half, 0.0, WALL_HEIGHT)
-			_wall_part(d, -hole, hole, 0.0, WINDOW_BOTTOM)
-			_wall_part(d, -hole, hole, WINDOW_TOP, WALL_HEIGHT)
+			_wall_part(d, -half, -hole, 0.0, height)
+			_wall_part(d, hole, half, 0.0, height)
+			_wall_part(d, -hole, hole, 0.0, GRID_WINDOW_BOTTOM if standard else WINDOW_BOTTOM)
+			_wall_part(d, -hole, hole, GRID_WINDOW_TOP if standard else WINDOW_TOP, height)
 	_socket(d, Vector3.ZERO, 0.0, "wall_base")
-	_socket(d, Vector3(0, WALL_HEIGHT, 0), 0.0, "wall_top")
+	_socket(d, Vector3(0, height, 0), 0.0, "wall_top")
 	_socket(d, Vector3(half, 0, 0), PI / 2.0, "wall_end")
 	_socket(d, Vector3(-half, 0, 0), -PI / 2.0, "wall_end")
-	_wall_top_spots(d, GRID, WALL_HEIGHT)
+	_wall_top_spots(d, GRID, height)
 
 
 # A split-window wall, `width` wide and a full wall high, with a window opening cut into its +X
@@ -536,19 +589,22 @@ static func _wall(d: Dictionary, shape: String) -> void:
 # sill height) up SPLIT_WINDOW_HEIGHT. Two of them joined at their open edges (one turned round,
 # which is what R does) make one window twice as wide. It snaps as a wall of its width does; its
 # open end gets no corner post where it meets another open end (see JointDetails).
-static func _split_window_wall(d: Dictionary, width: float) -> void:
+static func _split_window_wall(d: Dictionary, width: float, standard := false) -> void:
 	var half := width / 2.0
 	var opening: float = SPLIT_WINDOWS[width]
-	var top := WINDOW_BOTTOM + SPLIT_WINDOW_HEIGHT
-	_wall_part(d, -half, half - opening, 0.0, WALL_HEIGHT)
-	_wall_part(d, half - opening, half, 0.0, WINDOW_BOTTOM)
-	_wall_part(d, half - opening, half, top, WALL_HEIGHT)
+	# (the Standard one on the 2 m wall, its window as the Standard window's; the Tall one on 2.5 m)
+	var height := GRID_WALL_HEIGHT if standard else WALL_HEIGHT
+	var sill := GRID_WINDOW_BOTTOM if standard else WINDOW_BOTTOM
+	var top := sill + (GRID_SPLIT_WINDOW_HEIGHT if standard else SPLIT_WINDOW_HEIGHT)
+	_wall_part(d, -half, half - opening, 0.0, height)
+	_wall_part(d, half - opening, half, 0.0, sill)
+	_wall_part(d, half - opening, half, top, height)
 	var small := width < 1.5
 	_socket(d, Vector3.ZERO, 0.0, "small_wall_base" if small else "wall_base")
-	_socket(d, Vector3(0, WALL_HEIGHT, 0), 0.0, "half_top" if small else "wall_top")
+	_socket(d, Vector3(0, height, 0), 0.0, "half_top" if small else "wall_top")
 	_socket(d, Vector3(half, 0, 0), PI / 2.0, "wall_end")
 	_socket(d, Vector3(-half, 0, 0), -PI / 2.0, "wall_end")
-	_wall_top_spots(d, width, WALL_HEIGHT)
+	_wall_top_spots(d, width, height)
 	# Which of its ends (-X, +X) is open, for the corner posts
 	d["open_ends"] = [false, true]
 
@@ -594,9 +650,9 @@ static func _wall_part(d: Dictionary, x0: float, x1: float, y0: float, y1: float
 
 # A door panel that fits the doorway, hinged on its left edge. Its parts are marked "door" so the
 # piece can swing them.
-static func _door(d: Dictionary) -> void:
+static func _door(d: Dictionary, height := DOOR_HEIGHT) -> void:
 	d["door_surface"] = _new_surface()
-	var size := Vector3(DOOR_WIDTH - 0.04, DOOR_HEIGHT - 0.02, 0.08)
+	var size := Vector3(DOOR_WIDTH - 0.04, height - 0.02, 0.08)
 	var center := Vector3(0, size.y / 2.0, 0)
 	_planked_box(d, size, center, Basis.IDENTITY, DOOR_COLOR, 0, -size.x / 2.0, true)
 	# A crossbar on each side, so it reads as a door
@@ -952,7 +1008,7 @@ static func _square_post_spots(d: Dictionary) -> void:
 
 
 # A plain wall of any width and height (the triangles' long and short edges, 1 m walls,
-# half-height and quarter walls), with its own types of bottom and top snap points so it only
+# grid standard 2 m wall, half walls and strips), with its own types of bottom and top snap points so it only
 # goes where its width fits
 static func _plain_wall(d: Dictionary, width: float, height: float, base_type: String, top_type: String) -> void:
 	var half := width / 2.0
@@ -1679,15 +1735,17 @@ static func _beam(d: Dictionary, length: float) -> void:
 	_socket(d, Vector3(0, -BEAM / 2.0, 0), 0.0, "beam_mid")
 
 
-# A diagonal beam climbing `rise` over 2 m along X (the slope of the 26° or 45° roof). Its box is a
-# few millimetres off-centre front to back (z from -0.098 to 0.096), so a second one crossing it
-# the other way (turned half round) has its faces just in front on one side and just behind on the
-# other: never in the same plane, so they don't flicker. (A straight beam crossing it keeps ±0.1.)
-# (Like a straight beam, its top lies on the line between its ends, its depth below.)
-static func _diagonal_beam(d: Dictionary, rise: float) -> void:
-	var low := Vector3(-GRID / 2.0, 0, 0)
-	var high := Vector3(GRID / 2.0, rise, 0)
-	var basis := Basis(Vector3.BACK, atan2(rise, GRID))
+# A diagonal beam climbing `rise` over `run` along X (the slope of the 26.6° or 45° triangle walls
+# and roofs: see DIAGONALS), its ends exactly the sloped edge's ends, so it's exactly as long as
+# that edge. Its box is a few millimetres off-centre front to back (z from -0.098 to 0.096), so a
+# second one crossing it the other way (turned half round) has its faces just in front on one side
+# and just behind on the other: never in the same plane, so they don't flicker. (A straight beam
+# crossing it keeps ±0.1.) (Like a straight beam, its top lies on the line between its ends, its
+# depth below.)
+static func _diagonal_beam(d: Dictionary, rise: float, run := GRID) -> void:
+	var low := Vector3(-run / 2.0, 0, 0)
+	var high := Vector3(run / 2.0, rise, 0)
+	var basis := Basis(Vector3.BACK, atan2(rise, run))
 	var under := -basis.y * BEAM / 2.0
 	_solid_box(d, Vector3(low.distance_to(high), BEAM, BEAM - 0.006), Transform3D(basis, (low + high) / 2.0 + under + Vector3(0, 0, -0.001)), LOG_COLOR)
 	_socket(d, low, -PI / 2.0, "beam_end")
@@ -1696,8 +1754,8 @@ static func _diagonal_beam(d: Dictionary, rise: float) -> void:
 	_socket(d, (low + high) / 2.0 + under, 0.0, "beam_mid_diag")
 
 
-# A square pole standing on its bottom middle, 1.25, 2.5 or 5 m tall (half, full, double a wall's
-# height), thinner than a pillar
+# A square pole standing on its bottom middle, 1, 2 or 4 m tall (one unit, a grid wall's height and
+# twice that), thinner than a pillar
 static func _pole(d: Dictionary, length: float) -> void:
 	_box_mesh(d["surface"], Vector3(POLE, length, POLE), Transform3D(Basis.IDENTITY, Vector3(0, length / 2.0, 0)), LOG_COLOR.lightened(0.05))
 	var solid := BoxShape3D.new()
@@ -1707,22 +1765,23 @@ static func _pole(d: Dictionary, length: float) -> void:
 	_socket(d, Vector3(0, length, 0), 0.0, "pole_top")
 
 
-# A ladder one storey (2.5 m) tall and 0.6 m wide, standing on its bottom middle with its face toward +Z: on a
+# A ladder one storey (2 m) tall and 0.6 m wide, standing on its bottom middle with its face toward +Z: on a
 # floor edge, hanging from an upper floor's edge, or on top of another ladder. Climb it with W.
-static func _ladder(d: Dictionary) -> void:
+static func _ladder(d: Dictionary, height := LADDER_HEIGHT) -> void:
 	var st: SurfaceTool = d["surface"]
 	var width := 0.6
 	for side in [-1.0, 1.0]:
-		_box_mesh(st, Vector3(0.07, LADDER_HEIGHT, 0.07), Transform3D(Basis.IDENTITY, Vector3(side * (width / 2.0 - 0.035), LADDER_HEIGHT / 2.0, 0)), LOG_COLOR)
+		_box_mesh(st, Vector3(0.07, height, 0.07), Transform3D(Basis.IDENTITY, Vector3(side * (width / 2.0 - 0.035), height / 2.0, 0)), LOG_COLOR)
 	var rung := 0.15
-	while rung < LADDER_HEIGHT - 0.05:
+	while rung < height - 0.05:
 		_box_mesh(st, Vector3(width - 0.07, 0.04, 0.05), Transform3D(Basis.IDENTITY, Vector3(0, rung, 0)), WALL_COLOR)
 		rung += 0.3
 	var solid := BoxShape3D.new()
-	solid.size = Vector3(width, LADDER_HEIGHT, 0.08)
-	_collision(d, solid, Transform3D(Basis.IDENTITY, Vector3(0, LADDER_HEIGHT / 2.0, 0)))
+	solid.size = Vector3(width, height, 0.08)
+	_collision(d, solid, Transform3D(Basis.IDENTITY, Vector3(0, height / 2.0, 0)))
 	_socket(d, Vector3.ZERO, 0.0, "ladder_base")
-	_socket(d, Vector3(0, LADDER_HEIGHT, 0), 0.0, "ladder_top")
+	_socket(d, Vector3(0, height, 0), 0.0, "ladder_top")
+	d["ladder_height"] = height
 
 
 # A railing, 1 m high and 2 m or 1 m long: a post at each end with a top rail and a middle rail.
@@ -1745,7 +1804,7 @@ static func _railing(d: Dictionary, length: float) -> void:
 	_socket(d, Vector3(-half, 0, 0), -PI / 2.0, "wall_end")
 
 
-# A 2 m picket fence, one vertical unit (1.25 m) high: two rails with pointed pickets, lashed with
+# A 2 m picket fence, one vertical unit (1 m) high: two rails with pointed pickets, lashed with
 # rope. Centred on its line (FENCE_DEPTH deep: the rails behind, the pickets in front). It stands
 # on the ground or along floor edges, and chains end to end.
 static func _fence(d: Dictionary) -> void:
@@ -1837,26 +1896,29 @@ const MODEL_TURNS := {
 	"bed": PI / 2.0,
 }
 ## The fireplace's size against its model's first fitting (1.4 × 1.19 × 0.91 m, its chimney stack
-## topping out at 1.187 m): scaled evenly so the stack tops out exactly one vertical unit up
+## topping out at 1.187 m): scaled evenly so the stack tops out exactly one vertical unit (1 m) up,
+## where the chimney sections stack on the unit
 const FIREPLACE_SCALE := HALF_HEIGHT / 1.187
 ## Where the fireplace's flames burn, in its own space (inside the model's hearth)
 const HEARTH_FIRE := Vector3(0, 0.2, 0.05) * FIREPLACE_SCALE
 ## The middle of the top of the fireplace model's chimney stack, in the fireplace piece's space
-## (measured from the fitted model), and the stack's width: chimney pieces are this square
+## (measured from the fitted model), and the stack's width (0.41 m at the model's first fitting,
+## scaled with the fireplace): chimney pieces are this square
 const FIREPLACE_CHIMNEY := Vector3(-0.147, 1.187, -0.19) * FIREPLACE_SCALE
-const CHIMNEY_WIDTH := 0.41
+const CHIMNEY_WIDTH := 0.41 * FIREPLACE_SCALE
 ## A chimney section's height (one vertical unit, so two make a storey), and the top's (the Stone
 ## Basin model scaled evenly to the width)
 const CHIMNEY_SECTION_HEIGHT := HALF_HEIGHT
-const CHIMNEY_TOP_HEIGHT := 0.402
+const CHIMNEY_TOP_HEIGHT := 0.402 * FIREPLACE_SCALE
 ## How each chimney model is fitted (see BuildPiece.fitted_model): its stone body's middle (x, z)
 ## and the range of heights kept (anything past them is flattened onto them, so the corner posts
 ## end flush with the stones and pieces stack without gaps), in the model's own units, and the
 ## scale that makes the body CHIMNEY_WIDTH square and a section CHIMNEY_SECTION_HEIGHT tall
 const CHIMNEY_FITS := {
-	# (stretched upright to the section's height: 1.1099 made it 1 m)
-	"chimney_section": {"centre": Vector2(0.0, -0.003), "keep": Vector2(-0.476, 0.425), "scale": Vector3(0.6766, 1.1099 * CHIMNEY_SECTION_HEIGHT, 0.7009)},
-	"chimney_top": {"centre": Vector2(-0.006, -0.037), "keep": Vector2(-0.369, 0.358), "scale": Vector3(0.5578, 0.554, 0.5503)},
+	# (stretched upright to the section's height: 1.1099 made it 1 m; 0.6766 and 0.7009 made it
+	# 0.41 m square)
+	"chimney_section": {"centre": Vector2(0.0, -0.003), "keep": Vector2(-0.476, 0.425), "scale": Vector3(0.6766 * FIREPLACE_SCALE, 1.1099 * CHIMNEY_SECTION_HEIGHT, 0.7009 * FIREPLACE_SCALE)},
+	"chimney_top": {"centre": Vector2(-0.006, -0.037), "keep": Vector2(-0.369, 0.358), "scale": Vector3(0.5578, 0.554, 0.5503) * FIREPLACE_SCALE},
 }
 
 
@@ -2019,8 +2081,9 @@ static func _upright(st: SurfaceTool, corners: PackedVector2Array, z: float, nor
 		_triangle(st, Vector3(corners[0].x, corners[0].y, z), Vector3(corners[i].x, corners[i].y, z), Vector3(corners[i + 1].x, corners[i + 1].y, z), normal, color)
 
 
-# A square pillar standing on its bottom middle, `height` tall (a wall's, or a half wall's for a
-# half pillar): a wooden post, or stacked stone blocks
+# A square pillar standing on its bottom middle, `height` tall (see PILLAR_HEIGHTS: 2.5 m beside
+# the irregular tall walls, 2 m on the grid standard, 1 m for a half pillar): a wooden post, or
+# stacked stone blocks
 static func _pillar(d: Dictionary, stone: bool, height := PILLAR_HEIGHT) -> void:
 	var st: SurfaceTool = d["surface"]
 	var w := STONE_PILLAR if stone else WOOD_PILLAR

@@ -1354,9 +1354,12 @@ static func _eave_corner(d: Dictionary, rise: float, pitch: String) -> void:
 # A valley eave corner: where two eaves meet inside a corner (an L-shaped house's inner corner,
 # under a valley corner), both reach into the same OVERHANG square, crossing. This fills that
 # square cleanly: its top is the higher of the two eaves' slopes, so it folds along a valley down
-# the diagonal like the roofs above, and a flat board underneath hides where the two eaves'
-# fascia boards cross. In the valley corner's frame, moved to its low corner: x from 0 to
-# OVERHANG (out past the first roof's low edge), z from -OVERHANG to 0 (out past the other's).
+# the diagonal like the roofs above, and its underside follows both eaves' slopes, meeting along
+# that diagonal. (No flat board under it: hung level with the fascia boards' bottom, it stuck out
+# flat under the corner, 0.25 m (26°) to 0.5 m (45°) below the eaves at the corner post; the eaves'
+# own fascia boards run along both outer edges and meet at the outer corner.) In the valley
+# corner's frame, moved to its low corner: x from 0 to OVERHANG (out past the first roof's low
+# edge), z from -OVERHANG to 0 (out past the other's).
 static func _valley_eave_corner(d: Dictionary, rise: float, pitch: String) -> void:
 	var st: SurfaceTool = d["surface"]
 	var k := rise / GRID
@@ -1392,9 +1395,6 @@ static func _valley_eave_corner(d: Dictionary, rise: float, pitch: String) -> vo
 		var solid := ConvexPolygonShape3D.new()
 		solid.points = PackedVector3Array(low + high)
 		_collision(d, solid, Transform3D.IDENTITY)
-	# The board underneath, level with the bottom of the fascia boards, hiding where they cross
-	var soffit_y := -o * k - FASCIA_DROP - 0.01
-	_box_mesh(st, Vector3(o, 0.02, o), _at(o / 2.0, soffit_y, -o / 2.0), FASCIA_COLOR)
 	_socket(d, Vector3.ZERO, 0.0, "valley_eave_base" + pitch)
 	d["overhang"] = true
 

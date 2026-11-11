@@ -8,8 +8,8 @@ extends Node3D
 ##
 ## Each look is drawn the way the game draws it (the same meshes, so the same vertex layout; the same
 ## shaders and settings): plain, close-up and simplified looks with their shadows, a look fading
-## between distances, the template preview's glow overlay, the grey ghost (and the brighter
-## targeted one), the see-through placing preview and the red take-down glow.
+## between distances, the template preview's glow overlay, the placement preview's and the ghosts'
+## tints and outlines (PreviewLook) and the red take-down glow.
 
 ## Shapes covering every kind of piece surface (wood, roof, beam, post, stone) and a door
 const SHAPES := ["wall", "floor", "roof", "beam_2", "pillar_wood", "foundation_stone", "door"]
@@ -74,11 +74,10 @@ func _looks(registry: PieceRegistry) -> Array:
 	var looks: Array = []
 	var template_glow := ShaderMaterial.new()
 	template_glow.shader = BuildPiece.GHOST_SHADER
-	var placing := StandardMaterial3D.new()
-	placing.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	placing.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	placing.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var take_down := placing.duplicate()
+	var take_down := StandardMaterial3D.new()
+	take_down.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	take_down.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	take_down.cull_mode = BaseMaterial3D.CULL_DISABLED
 	for shape in SHAPES:
 		var meshes: Array = [registry.shape_of(shape).get("mesh")]
 		var detail := registry.detail_mesh(shape, 0)
@@ -98,8 +97,11 @@ func _looks(registry: PieceRegistry) -> Array:
 			# Its own look, and with the template preview's glow over it
 			looks.append_array(_with_fades(mesh, own, null))
 			looks.append_array(_with_fades(mesh, own, template_glow))
-			for ghost in [BuildPiece.ghost_material(false), BuildPiece.ghost_material(true), placing, take_down]:
-				looks.append_array(_with_fades(mesh, ghost, null))
+			# The placement preview's and the ghosts' tint and outline over its own look (see
+			# PreviewLook), and the red take-down glow
+			for state in PreviewLook.State.values():
+				looks.append_array(_with_fades(mesh, own, PreviewLook.overlay(state)))
+			looks.append_array(_with_fades(mesh, take_down, null))
 		# Furniture and anything else drawn with the plain painted colours
 		looks.append(_look(meshes[0], registry.wood_material(), GeometryInstance3D.SHADOW_CASTING_SETTING_ON))
 	looks.append_array(_template_extras(template_glow))
@@ -161,7 +163,7 @@ static func _template_extras(template_glow: Material) -> Array:
 					if way == 1:
 						(found as GeometryInstance3D).material_overlay = template_glow
 					elif way == 2:
-						(found as GeometryInstance3D).material_override = BuildPiece.ghost_material()
+						(found as GeometryInstance3D).material_overlay = PreviewLook.overlay(PreviewLook.State.GHOST_FADE)
 				looks.append(building)
 	return looks
 

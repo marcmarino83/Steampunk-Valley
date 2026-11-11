@@ -1,7 +1,8 @@
 class_name BuildPlacer
 extends Node
-## Puts a chosen buildable down in the world: a see-through preview follows the crosshair along
-## the ground, green where it can go and red where it can't. Nothing is spent until it's placed.
+## Puts a chosen buildable down in the world: a preview (its real look, solid) follows the
+## crosshair along the ground, with a light tint and thin outline over it (see PreviewLook): warm
+## where it can go, yellow with a warning, red where it can't. Nothing is spent until it's placed.
 ## Building pieces (floors, walls, roofs...) snap together, so they're handed to the ValheimPlacer;
 ## the PieceRegistry keeps track of every piece placed.
 
@@ -9,10 +10,6 @@ extends Node
 ## preview sits on the ground beneath that point instead.
 const REACH := 8.0
 const DROP_DISTANCE := 300.0
-const GOOD_COLOR := Color(0.25, 1.0, 0.35, 0.45)
-const BAD_COLOR := Color(1.0, 0.2, 0.15, 0.45)
-## Placeable, with a warning (steep ground, water)
-const WARN_COLOR := Color(1.0, 0.85, 0.2, 0.45)
 ## Every building keeps the grass and ferns out of its footprint, plus this much around it (m)
 const CLEAR_MARGIN := 0.5
 const CLEAR_ZONE_SCENE := preload("res://building/clear_zone.tscn")
@@ -36,7 +33,8 @@ var _paths: PathPainter
 var _ghost_removed := false
 var _buildable: Buildable
 var _preview: Node3D
-var _material: StandardMaterial3D
+# The placement state its preview shows (see PreviewLook), -1 before the first
+var _shown_state := -1
 # (it's turned by the same turn as pieces, about where it stands, from a floor's facing or facing
 # out of a wall: see ValheimPlacer.turn)
 # The preview's box (from its meshes), for standing it flush and checking it on a floor
@@ -159,9 +157,7 @@ func begin(buildable: Buildable, keep := false) -> void:
 		return
 	_buildable = buildable
 	_problem = "Point at the ground"
-	_material = StandardMaterial3D.new()
-	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_shown_state = -1
 	_preview = _make_preview(buildable.scene)
 	_preview.visible = false
 	_bounds = _mesh_bounds(_preview)
@@ -369,7 +365,10 @@ func _physics_process(_delta: float) -> void:
 	_preview.global_transform = ValheimPlacer.turned(start, start.origin, _pieces.turn)
 	_on_floor = spot["on_floor"]
 	_problem = _check_spot(spot)
-	_material.albedo_color = BAD_COLOR if not _problem.is_empty() else (WARN_COLOR if not _warning.is_empty() else GOOD_COLOR)
+	var state: int = PreviewLook.State.INVALID if not _problem.is_empty() else (PreviewLook.State.WARN if not _warning.is_empty() else PreviewLook.State.VALID)
+	if state != _shown_state:
+		_shown_state = state
+		PreviewLook.apply(_preview, state)
 
 
 func _cast_ray(from: Vector3, to: Vector3) -> Dictionary:
@@ -569,8 +568,9 @@ func _clear_plants_under(built: Node3D, radius: float) -> void:
 		valley.add_clear_zone(zone)
 
 
-# Copies just the visible meshes of a scene. The scene itself is never added to the world, so
-# its scripts don't run: a preview campfire mustn't count as a real one, or block itself.
+# Copies just the visible meshes of a scene, wearing their own materials (solid, casting their
+# shadows), for the preview. The scene itself is never added to the world, so its scripts don't
+# run: a preview campfire mustn't count as a real one, or block itself.
 func _make_preview(scene: PackedScene) -> Node3D:
 	var original: Node3D = scene.instantiate()
 	var preview := Node3D.new()
@@ -585,10 +585,14 @@ func _copy_meshes(node: Node, parent_transform: Transform3D, preview: Node3D) ->
 			continue
 		var child_transform: Transform3D = parent_transform * child.transform
 		if child is MeshInstance3D:
+			var source := child as MeshInstance3D
 			var ghost := MeshInstance3D.new()
-			ghost.mesh = child.mesh
+			ghost.mesh = source.mesh
 			ghost.transform = child_transform
-			ghost.material_override = _material
-			ghost.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			ghost.material_override = source.material_override
+			if source.mesh:
+				for s in source.mesh.get_surface_count():
+					ghost.set_surface_override_material(s, source.get_surface_override_material(s))
+			ghost.cast_shadow = source.cast_shadow
 			preview.add_child(ghost)
 		_copy_meshes(child, child_transform, preview)

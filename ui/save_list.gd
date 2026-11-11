@@ -182,7 +182,7 @@ func _row(save: Dictionary) -> PanelContainer:
 	var kind := Label.new()
 	kind.text = "Manual save" if save["kind"] == "manual" else "Autosave"
 	kind.add_theme_font_size_override("font_size", 14)
-	kind.add_theme_color_override("font_color", Color(0.98, 0.78, 0.32) if save["kind"] == "manual" else Color(0.6, 0.75, 0.85))
+	kind.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0) if save["kind"] == "manual" else Color(0.6, 0.75, 0.85))
 	words.add_child(kind)
 	var details := Label.new()
 	details.text = "Day %d  ·  Played %s  ·  Saved %s" % [save["day"], SaveGame.play_time_text(save["play_seconds"]), save["saved_text"]]

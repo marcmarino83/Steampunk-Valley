@@ -1,7 +1,8 @@
 class_name GhostBuilding
 extends Node3D
-## A ghost of a workbench, storage chest or campfire in a placed template: the building's look in
-## see-through blue outlines, nothing solid and nothing running (a ghost chest holds nothing, a
+## A ghost of a workbench, storage chest or campfire in a placed template: the building's real look,
+## faded toward a pale cool grey (PreviewLook's ghost fade, like a ghost piece), outlined while
+## it's under the crosshair; nothing solid and nothing running (a ghost chest holds nothing, a
 ## ghost campfire doesn't burn). Filling it puts the real building there (see GhostBuilder).
 ## It keeps the buildable it stands for and its plot as metadata, like a real building, and saves
 ## with the buildings (see BuildPlacer).
@@ -32,7 +33,10 @@ static func create(of: Buildable) -> GhostBuilding:
 		var copy := MeshInstance3D.new()
 		copy.mesh = look.mesh
 		copy.transform = xform
-		copy.material_override = BuildPiece.ghost_material()
+		copy.material_override = look.material_override
+		for s in look.mesh.get_surface_count():
+			copy.set_surface_override_material(s, look.get_surface_override_material(s))
+		copy.material_overlay = PreviewLook.overlay(PreviewLook.State.GHOST_FADE)
 		copy.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		ghost.add_child(copy)
 		var part: AABB = xform * look.mesh.get_aabb()
@@ -50,8 +54,8 @@ func display_name() -> String:
 	return buildable.display_name if buildable else "Building"
 
 
-## The ghost under the crosshair shows brighter
+## The ghost under the crosshair shows its real colours, with a light outline
 func set_ghost_targeted(targeted: bool) -> void:
 	for look in get_children():
 		if look is MeshInstance3D:
-			(look as MeshInstance3D).material_override = BuildPiece.ghost_material(targeted)
+			PreviewLook.wear(look, PreviewLook.State.GHOST_TARGET if targeted else PreviewLook.State.GHOST_FADE)

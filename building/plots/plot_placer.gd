@@ -38,8 +38,8 @@ const LABEL_GOOD := Color(0.8, 1.0, 0.75)
 const LABEL_BAD := Color(1.0, 0.55, 0.45)
 const GHOST_GOOD := Color(0.25, 1.0, 0.35, 0.4)
 const GHOST_BAD := Color(1.0, 0.2, 0.15, 0.4)
-const GHOST_WARN := Color(1.0, 0.85, 0.2, 0.4)
-const WARN_COLOR := Color(1.0, 0.85, 0.25)
+const GHOST_WARN := Color(1.0, 0.95, 0.25, 0.4)
+const WARN_COLOR := Color(1.0, 0.95, 0.3)
 const OUTSIDE_GLOW := Color(1.0, 0.15, 0.1, 0.5)
 const FINE_TURN := PI / 12.0
 ## Turning a plot being moved: a wheel notch, and with Alt

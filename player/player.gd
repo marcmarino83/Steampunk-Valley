@@ -230,7 +230,7 @@ func _ready() -> void:
 	_blueprint_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_blueprint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_blueprint_label.add_theme_font_size_override("font_size", 26)
-	_blueprint_label.add_theme_color_override("font_color", Color(0.98, 0.78, 0.32))
+	_blueprint_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
 	_blueprint_label.add_theme_color_override("font_outline_color", Color.BLACK)
 	_blueprint_label.add_theme_constant_override("outline_size", 7)
 	_blueprint_label.modulate.a = 0.0

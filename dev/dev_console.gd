@@ -87,7 +87,7 @@ func _ready() -> void:
 	_tag = Label.new()
 	_tag.add_theme_font_override("font", mono)
 	_tag.add_theme_font_size_override("font_size", 15)
-	_tag.add_theme_color_override("font_color", Color(1.0, 0.55, 0.3))
+	_tag.add_theme_color_override("font_color", Color(1.0, 0.95, 0.3))
 	_tag.add_theme_color_override("font_outline_color", Color.BLACK)
 	_tag.add_theme_constant_override("outline_size", 4)
 	_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT

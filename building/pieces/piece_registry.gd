@@ -222,6 +222,11 @@ func wood_material() -> StandardMaterial3D:
 
 
 ## Puts a piece in the world. A new piece gets the next id; a loaded one keeps its own.
+## The id the next piece put down will get (so the placement preview can wear its look and colour)
+func next_id() -> int:
+	return _next_id
+
+
 func spawn(piece: PieceBuildable, where: Transform3D, paid: Dictionary, id := 0, owner_plot := "", state := {}) -> BuildPiece:
 	var timing := SpikeLog.begin()
 	var built: BuildPiece = _spawn(piece, where, paid, id, owner_plot, state)

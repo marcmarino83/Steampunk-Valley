@@ -33,21 +33,16 @@ static var _fitted_meshes := {}
 ## The glowing outline look a template's placement preview wears in green or red over its real
 ## look (see outline_glow.gdshader)
 const GHOST_SHADER := preload("res://building/templates/outline_glow.gdshader")
-## Ghost pieces: their full detailed look in a soft see-through grey (#9a9a9a), with slightly
-## lighter grey edges (ghost_look.gdshader); the ghost under the crosshair brightens. Each surface
-## is fainter than the look as a whole: a wall's planks lie over its core, so the layers together
-## come to about 30% opaque.
-const GHOST_LOOK_SHADER := preload("res://building/templates/ghost_look.gdshader")
-const GHOST_COLOR := Color(0.604, 0.604, 0.604, 0.15)
-const GHOST_EDGE_COLOR := Color(0.72, 0.72, 0.72, 0.45)
-const GHOST_TARGET_COLOR := Color(0.7, 0.7, 0.7, 0.2)
-const GHOST_TARGET_EDGE_COLOR := Color(0.82, 0.82, 0.82, 0.55)
-static var _ghost_look: ShaderMaterial
-static var _ghost_target_look: ShaderMaterial
+## Ghost pieces wear their real look, solid, faded toward a pale cool grey and drained of colour
+## (the pieces' shaders' ghost_fade); the ghost under the crosshair is less faded and outlined (see
+## set_ghost_targeted). A model (furniture) fades through an overlay instead (PreviewLook).
+const GHOST_FADE := 1.0
+const GHOST_TARGET_FADE := 0.5
 
-# A ghost (a template's piece still to be built): what each look wore before, and the collision
-# layer it had
+# A ghost (a template's piece still to be built): whether each look cast a shadow before, and the
+# collision layer it had
 var _ghost := false
+var _ghost_targeted := false
 var _ghost_saved := {}
 var _solid_layer := 1
 
@@ -277,15 +272,21 @@ func show_simple_look(on: bool) -> void:
 		look.visibility_range_begin_margin = 0.0 if on else LEVEL_FADE
 
 
+## The slight colour and brightness of its own a piece with this id wears (see weather): the same
+## every time, so the placement preview can wear the one the piece will have
+static func weather_tint(id: int) -> Color:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(id * 7919 + 17)
+	var bright := rng.randf_range(0.92, 1.05)
+	var warm := rng.randf_range(-0.035, 0.035)
+	return Color(bright * (1.0 + warm), bright, bright * (1.0 - warm * 1.4))
+
+
 ## Gives its textured surface (see piece_surface.gdshader) this piece's own slight colour and
 ## brightness, picked from its id so it stays the same every time, and its box, for the grime
 ## toward its edges. Called once it has its id.
 func weather() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(piece_id * 7919 + 17)
-	var bright := rng.randf_range(0.92, 1.05)
-	var warm := rng.randf_range(-0.035, 0.035)
-	var tint := Color(bright * (1.0 + warm), bright, bright * (1.0 - warm * 1.4))
+	var tint := weather_tint(piece_id)
 	var box := PieceShapes.bounds_of(_def)
 	for child in get_children():
 		if child is MeshInstance3D and (child as MeshInstance3D).material_override is ShaderMaterial:
@@ -402,34 +403,38 @@ static func _flattened_model(piece: PieceBuildable, fit: Dictionary) -> Node3D:
 ## Lets go of the shared fitted chimney meshes (when the world closes, so nothing is reported leaked)
 static func clear_fitted_cache() -> void:
 	_fitted_meshes.clear()
-	_ghost_look = null
-	_ghost_target_look = null
+	PreviewLook.clear_cache()
 
 
 # ---- Ghosts ----
 #
-# A ghost is a piece of a placed template that hasn't been built yet: its full detailed look in a
-# soft see-through grey with slightly lighter edges, nothing solid (the player, settlers and every
-# physics check pass through it), and it doesn't count as built for requirements, shelter or
-# settlers. The hammer finds ghosts by their boxes (see GhostBuilder); filling one with materials
-# turns it into the real piece.
-
-## The grey ghost look (or the brighter one for the ghost under the crosshair)
-static func ghost_material(targeted := false) -> ShaderMaterial:
-	if _ghost_look == null:
-		_ghost_look = ShaderMaterial.new()
-		_ghost_look.shader = GHOST_LOOK_SHADER
-		_ghost_look.set_shader_parameter("fill_color", GHOST_COLOR)
-		_ghost_look.set_shader_parameter("edge_color", GHOST_EDGE_COLOR)
-		_ghost_target_look = ShaderMaterial.new()
-		_ghost_target_look.shader = GHOST_LOOK_SHADER
-		_ghost_target_look.set_shader_parameter("fill_color", GHOST_TARGET_COLOR)
-		_ghost_target_look.set_shader_parameter("edge_color", GHOST_TARGET_EDGE_COLOR)
-	return _ghost_target_look if targeted else _ghost_look
+# A ghost is a piece of a placed template that hasn't been built yet: its real look, solid, but
+# faded toward a pale cool grey and drained of colour (GHOST_FADE), so it reads clearly as not built
+# yet beside built pieces; nothing solid (the player, settlers and every physics check pass through
+# it), and it doesn't count as built for requirements, shelter or settlers. The hammer finds ghosts
+# by their boxes (see GhostBuilder); filling one with materials turns it into the real piece.
 
 
 func is_ghost() -> bool:
 	return _ghost
+
+
+# How faded each look shows (the pieces' shaders' ghost_fade; a model's meshes through an overlay
+# instead, PreviewLook), and the outline round the one under the crosshair
+func _fade_looks(fade: float, targeted: bool) -> void:
+	for shown in _ghost_saved:
+		if not is_instance_valid(shown):
+			continue
+		var g := shown as GeometryInstance3D
+		var own_fade := g.material_override is ShaderMaterial and (g.material_override as ShaderMaterial).shader in [PieceRegistry.DETAIL_SHADER, PieceRegistry.SURFACE_SHADER]
+		if own_fade:
+			g.set_instance_shader_parameter("ghost_fade", fade)
+		if targeted:
+			PreviewLook.wear(g, PreviewLook.State.GHOST_TARGET)
+		elif fade > 0.0 and not own_fade:
+			g.material_overlay = PreviewLook.overlay(PreviewLook.State.GHOST_FADE)
+		else:
+			g.material_overlay = null
 
 
 ## Turns it into a ghost, or back into the real piece
@@ -444,19 +449,20 @@ func set_ghost(on: bool) -> void:
 			if look is GPUParticles3D or _shadow_looks.has(look):
 				continue
 			var shown := look as GeometryInstance3D
-			_ghost_saved[shown] = [shown.material_override, shown.cast_shadow]
-			shown.material_override = ghost_material()
+			_ghost_saved[shown] = shown.cast_shadow
 			shown.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_fade_looks(GHOST_FADE, false)
 		# No shadow, and the simplified look until it's under the crosshair
 		for shadow in _shadow_looks:
 			shadow.visible = false
 		show_simple_look(true)
 	else:
 		collision_layer = _solid_layer
+		_ghost_targeted = false
+		_fade_looks(0.0, false)
 		for shown in _ghost_saved:
 			if is_instance_valid(shown):
-				shown.material_override = _ghost_saved[shown][0]
-				shown.cast_shadow = _ghost_saved[shown][1]
+				shown.cast_shadow = _ghost_saved[shown]
 		_ghost_saved.clear()
 		for shadow in _shadow_looks:
 			shadow.visible = true
@@ -472,13 +478,12 @@ func set_ghost(on: bool) -> void:
 			add_to_group("campfires")
 
 
-## The ghost under the crosshair shows brighter
+## The ghost under the crosshair shows less faded, with a light outline
 func set_ghost_targeted(targeted: bool) -> void:
 	if not _ghost:
 		return
-	for shown in _ghost_saved:
-		if is_instance_valid(shown):
-			shown.material_override = ghost_material(targeted)
+	_ghost_targeted = targeted
+	_fade_looks(GHOST_TARGET_FADE if targeted else GHOST_FADE, targeted)
 	# Only the ghost under the crosshair shows its full close-up look
 	show_simple_look(not targeted)
 
@@ -709,6 +714,9 @@ func shape_def() -> Dictionary:
 func set_highlight(glow: Material) -> void:
 	for look in find_children("*", "GeometryInstance3D", true, false):
 		(look as GeometryInstance3D).material_overlay = glow
+	# (a ghost without a glow goes back to its own fade and outline)
+	if glow == null and _ghost:
+		_fade_looks(GHOST_TARGET_FADE if _ghost_targeted else GHOST_FADE, _ghost_targeted)
 
 
 ## Slender: a pillar, pole, beam or ladder (these only bump into each other)

@@ -23,7 +23,7 @@ const EDGE_PLAIN := 0.6
 const LABEL_HEIGHT := 2.2
 ## Outline colours in plot view: working, and missing requirements
 const WORKING_COLOR := Color(0.35, 0.95, 0.4)
-const MISSING_COLOR := Color(1.0, 0.68, 0.22)
+const MISSING_COLOR := Color(1.0, 0.95, 0.3)
 ## Edges, as bits (for `highlight_edges`): +X, -X, +Z, -Z
 const RIGHT := 1
 const LEFT := 2

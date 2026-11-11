@@ -127,6 +127,11 @@ func _run() -> void:
 	await _case_turning("a half wall on top of a half wall", "structure/wall_half_2", "structure/wall_half_2", Vector3(0.6, half + 1.4, 3.2), Vector3(0.3, half, 0.0), Vector3(0, half, 0))
 	await _case_turning("a wall beside a wall", "structure/wall_2m", "structure/wall_2m", Vector3(3.6, 1.7, 3.2), Vector3(1.9, -0.03, 0.12), Vector3(2, 0, 0))
 	await _case_turning("a floor beside a floor", "structure/floor", "structure/floor", Vector3(0.3, 1.7, 5.0), Vector3(0.1, -0.03, 2.2), Vector3(0, 0, 2))
+	await _case_roof_along_slope()
+	await _case_inner_corner_valley()
+	await _case_overhang_on_slope()
+	await _case_walls_on_triangles()
+	await _case_point_pieces()
 	await _case_every_buildable()
 	await _audit()
 	# (last: it loads the user's own game in place of the fresh world)
@@ -190,49 +195,65 @@ func _case_wall_edge() -> void:
 	_check("wall on a foundation edge: on the edge, corner to corner", pp._target == foundation and off < EXACT and along < EXACT_TURN, "target %s, bottom middle %.4f m from the edge's middle, %.1f° off along it" % [_name(pp._target), off, along])
 	var shown := pp.shown_markers()
 	var corners := SnapCorners.in_world(foundation)
-	var bar_on: bool = shown["bar"] != Vector3.INF and corners.any(func(c): return (c as Vector3).distance_to(shown["bar"]) < EXACT)
-	_check("wall: the foundation's corners show as dots (only them), the bar on the pair in use", (shown["dots"] as Array).size() == corners.size() and bar_on and foundation.get_child(0) != null, "%d dots for %d corners, bar %s" % [(shown["dots"] as Array).size(), corners.size(), "on a corner" if bar_on else str(shown["bar"])])
-	_check("wall: the ghost is its real look, %d%% opaque" % roundi(ValheimPlacer.GHOST_OPACITY * 100.0), not pp._looks.is_empty() and pp._looks.all(func(l): return is_equal_approx(l.transparency, 1.0 - ValheimPlacer.GHOST_OPACITY)) and not pp._red, "%d looks, red %s" % [pp._looks.size(), pp._red])
+	# (a whole-edge piece: the bar on the middle of the edge it fits)
+	var bar_on: bool = shown["bar"] != Vector3.INF and _local(shown["bar"]).distance_to(Vector3(0, 1.0, 1.0)) < EXACT
+	_check("wall: the foundation's corners show as dots (only them), the bar on the middle of the edge it fits", (shown["dots"] as Array).size() == corners.size() and bar_on and foundation.get_child(0) != null, "%d dots for %d corners, bar %s" % [(shown["dots"] as Array).size(), corners.size(), "on the edge's middle" if bar_on else str(_local(shown["bar"]))])
+	var valid_overlay := PreviewLook.overlay(PreviewLook.State.VALID)
+	_check("wall: the preview is its real look, solid, with the warm placeable tint and outline over it", not pp._looks.is_empty() and pp._looks.all(func(l): return is_zero_approx(l.transparency) and l.material_overlay == valid_overlay and l.material_override == registry.detail_material()) and not pp._red, "%d looks, red %s" % [pp._looks.size(), pp._red])
 	var twin := _spawn("structure/wall", Vector3(0, 1.0, 1.0))
 	await _aim(Vector3(0.3, 2.8, 4.0), Vector3(0.12, 1.0, 0.88))
-	_check("wall: where an identical one stands, it snaps elsewhere instead of into it", not pp._pair.is_empty() and not pp._problem.begins_with("Already placed") and not PieceOverlap.overlaps("wall", pp._shape, pp._where, twin), "snapped %s, \"%s\", bottom middle at %s" % [not pp._pair.is_empty(), pp._problem, _local(pp._where.origin).snapped(Vector3.ONE * 0.001)])
+	# (that spot's taken: free with "No fit here", or another fit next to the crosshair, never into it)
+	var free_no_fit := pp._pair.is_empty() and pp._note == ValheimPlacer.NO_FIT_TEXT
+	var elsewhere := not pp._pair.is_empty() and not pp._problem.begins_with("Already placed") and not PieceOverlap.overlaps("wall", pp._shape, pp._where, twin)
+	_check("wall: where an identical one stands, it never snaps into it (free with \"No fit here\", or another fit)", free_no_fit or elsewhere, "snapped %s, note \"%s\", \"%s\", bottom middle at %s" % [not pp._pair.is_empty(), pp._note, pp._problem, _local(pp._where.origin).snapped(Vector3.ONE * 0.001)])
 	await _clear()
 
 
-# A floor aimed at the middle of an existing floor lands beside it (on the side the crosshair is
-# nearest), not on it
+# A floor aimed at the middle of an existing floor never goes on it (it's free with "No fit here",
+# or beside it next to the crosshair, edge to edge); aimed near its +X edge, it goes beside it on +X
 func _case_floor_on_floor() -> void:
 	var first := _spawn("structure/floor", Vector3.ZERO)
 	await _frames(2)
 	await _begin("structure/floor")
 	await _turn_to(0)
 	await _aim(Vector3(0.3, 2.2, 3.4), Vector3(0.3, 0.0, 0.1))
+	var on_it := not pp._pair.is_empty() and PieceOverlap.overlaps("floor", pp._shape, pp._where, first)
+	var beside: bool = not pp._pair.is_empty() and SnapEdges.matched("floor", pp._shape, pp._where, SnapEdges.in_world(first)) >= 1
+	_check("floor aimed at a floor's middle: never on it (free with \"No fit here\", or beside it edge to edge)", not on_it and (beside or pp._note == ValheimPlacer.NO_FIT_TEXT), "snapped %s, at %s, note \"%s\"" % [not pp._pair.is_empty(), _local(pp._where.origin).snapped(Vector3.ONE * 0.001), pp._note])
+	await _aim(Vector3(3.2, 2.0, 0.4), Vector3(0.75, 0.0, 0.1))
 	var off := _local(pp._where.origin).distance_to(Vector3(2, 0, 0))
-	_check("floor aimed at a floor's middle: beside it on the nearest side (+X), not on it", pp._target == first and off < EXACT and not PieceOverlap.overlaps("floor", pp._shape, pp._where, first), "target %s, %.4f m from the square beside it on +X, at %s, \"%s\"" % [_name(pp._target), off, _local(pp._where.origin).snapped(Vector3.ONE * 0.001), pp._problem])
+	_check("floor aimed near a floor's +X edge: beside it on +X, edge to edge", pp._target == first and off < EXACT and not PieceOverlap.overlaps("floor", pp._shape, pp._where, first), "target %s, %.4f m from the square beside it on +X, at %s" % [_name(pp._target), off, _local(pp._where.origin).snapped(Vector3.ONE * 0.001)])
 	await _clear()
 
 
-# Turned a full 360° by wheel, one notch at a time: it stays on the same corner of the target, never
-# sinks into it, and at 0° sits where it started, flush
+# Turned by wheel, one notch at a time, 16 notches (a whole-edge piece: see DESIGN.md): it steps only
+# through the turns that fit at that spot, stays on that spot, never sinks into the target, and
+# after the 16 notches is back where it started, flush, at its starting turn
 func _case_turning(name: String, target_path: String, piece_path: String, eye: Vector3, at: Vector3, home: Vector3) -> void:
 	var target := _spawn(target_path, Vector3.ZERO)
 	await _frames(2)
 	await _begin(piece_path)
 	await _turn_to(0)
 	await _aim(eye, at)
-	var corner := pp._sticky_point
 	var start_ok := pp._target == target and _local(pp._where.origin).distance_to(home) < EXACT and absf(wrapf(_turned_against(target), -90.0, 90.0)) < EXACT_TURN
+	var middle := pp._where * pp._bounds.get_center()
+	var start_yaw := _yaw(pp._where.basis)
+	var fits := pp._fit_yaws.size()
 	var moved := []
 	var sank := []
+	var seen := {}
 	for step in 16:
 		await _wheel(1)
-		if pp._target != target or pp._sticky_point.distance_to(corner) > EXACT or pp._pair.is_empty():
-			moved.append("%d: %s on %s" % [step + 1, _local(pp._sticky_point).snapped(Vector3.ONE * 0.01) if pp._sticky_point != Vector3.INF else "none", _name(pp._target)])
+		var now := pp._where * pp._bounds.get_center()
+		if pp._pair.is_empty() or now.distance_to(middle) > EXACT:
+			moved.append("%d: %s" % [step + 1, "free" if pp._pair.is_empty() else str(_local(now).snapped(Vector3.ONE * 0.01))])
 		if PieceOverlap.overlaps(pp._buildable.shape, pp._shape, pp._where, target):
 			sank.append(str(step + 1))
+		seen[roundi(fposmod(_yaw(pp._where.basis), 360.0)) % 360] = true
 	var back := _local(pp._where.origin).distance_to(home)
+	var back_turn := absf(wrapf(_yaw(pp._where.basis) - start_yaw, -180.0, 180.0))
 	_check("turning: %s at 0° sits flush where it should" % name, start_ok, "at %s, %.1f° against the target" % [_local(pp._where.origin).snapped(Vector3.ONE * 0.001), _turned_against(target)])
-	_check("turning: %s through 360°, notch by notch, stays on the same corner and never sinks in, flush again at 0°" % name, corner != Vector3.INF and moved.is_empty() and sank.is_empty() and back < EXACT, "left the corner at notches [%s], sank in at [%s], back at 0° %.4f m off" % [", ".join(moved), ", ".join(sank), back])
+	_check("turning: %s, 16 notches: only the turns that fit there (%d), on that spot, never sinking in, back flush at its starting turn" % [name, fits], fits >= 1 and seen.size() == fits and moved.is_empty() and sank.is_empty() and back < EXACT and back_turn < EXACT_TURN, "turns seen %s, left the spot at notches [%s], sank in at [%s], back %.4f m and %.1f° off" % [seen.keys(), ", ".join(moved), ", ".join(sank), back, back_turn])
 	await _clear()
 
 
@@ -264,7 +285,10 @@ func _case_roof() -> void:
 	var wall := _spawn("structure/wall", Vector3(0, 1.0, 1.0))
 	await _frames(2)
 	var top := 1.0 + PieceShapes.WALL_HEIGHT
-	await _begin("structure/roof")
+	# (turned while free, then aimed: a roof on a wall top fits rising either side, and the turn
+	# picks the side)
+	bp.cancel()
+	bp.begin(load("res://buildables/structure/roof.tres"))
 	await _turn_to(8)
 	await _aim(Vector3(0.3, top + 1.1, 4.0), Vector3(0.15, top, 1.0))
 	var low := 0
@@ -1414,8 +1438,9 @@ func _case_stair_pairing() -> void:
 	var wall_detail := "target %s, met %s" % [_name(pp._target), _local(pp._pair[1]) if wall_met else "nothing"]
 	await _begin("structure/floor")
 	await _aim(Vector3(0.3, 4.2, 3.5), Vector3(0.1, storey, 1.85))
-	var floor_met: bool = not pp._pair.is_empty() and SnapCorners.in_world(lone_flight).any(func(p): return (p as Vector3).distance_to(pp._pair[1]) < 0.001)
-	_check("a wall never pairs with a flight's corners; a floor may", not wall_met and floor_met, "wall: %s; floor: target %s, met %s" % [wall_detail, _name(pp._target), _local(pp._pair[1]) if not pp._pair.is_empty() else "nothing"])
+	# (a floor fits a flight's top edge whole: the bar on that edge)
+	var floor_met: bool = not pp._pair.is_empty() and SnapEdges.in_world(lone_flight).any(func(e): return e["type"] == "stairs_top" and SnapEdges.point_segment(pp._pair[1], e["a"], e["b"]) < 0.001)
+	_check("a wall never fits a flight; a floor fits its top edge", not wall_met and floor_met, "wall: %s; floor: target %s, met %s" % [wall_detail, _name(pp._target), _local(pp._pair[1]) if not pp._pair.is_empty() else "nothing"])
 	await _clear()
 
 
@@ -1671,20 +1696,23 @@ func _case_foundation_height() -> void:
 
 # A floor aimed at a pillar's top, at 0°, 22.5°, 45° and 67.5°: a corner on the pillar top each time,
 # turned that much against the pillar
+# A floor aimed at a lone pillar's top (phase 3a: a floor's corner fits a post top, for porches and
+# stilt buildings), turned 0°, 22.5°, 45° and 67.5° while free: a corner of it on the pillar top, at
+# that turn against the pillar
 func _case_pillar_fan() -> void:
 	var pillar := _spawn("structure/pillar_wood", Vector3.ZERO)
 	await _frames(2)
 	var top := Vector3(0, PieceShapes.PILLAR_HEIGHT, 0)
-	await _begin("structure/floor")
 	for notches in [0, 1, 2, 3]:
-		await _turn_to(notches)
+		await _begin_turned("structure/floor", notches)
 		await _aim(top + Vector3(1.8, 1.4, 1.6), top + Vector3(0.03, 0, 0.03))
 		var touch := INF
 		for c in SnapCorners.of("floor", pp._shape):
 			touch = minf(touch, _local(pp._where * (c as Vector3)).distance_to(top))
 		var against := _turned_against(pillar)
-		_check("pillar-top fan: a floor turned %s° has a corner on the pillar top" % str(notches * 22.5), pp._target == pillar and touch < EXACT and absf(against - notches * 22.5) < EXACT_TURN, "corner %.4f m from the pillar top, turned %.1f° against the pillar" % [touch, against])
-	await _turn_to(0)
+		var turned_ok := absf(wrapf(against - notches * 22.5, -45.0, 45.0)) < EXACT_TURN
+		_check("pillar-top fan: a floor turned %s° has a corner on the pillar top" % str(notches * 22.5), not pp._pair.is_empty() and touch < EXACT and turned_ok, "snapped %s, corner %.4f m from the pillar top, turned %.1f° against the pillar" % [not pp._pair.is_empty(), touch, against])
+	await _begin_turned("structure/floor", 0)
 	await _clear()
 
 
@@ -1715,8 +1743,223 @@ func _case_snap_toggle() -> void:
 	var turned := _turn()
 	await _wheel(-1, true)
 	await _shift(false)
-	_check("Shift (sprint) doesn't touch snapping: held, it stays snapped and the wheel turns 22.5° a notch", still and is_equal_approx(turned, 22.5), "snapped %s, a notch with Shift: %s°" % [still, turned])
+	# (a wall on an edge fits facing either way: a notch steps to the other, 180°, as without Shift)
+	_check("Shift (sprint) doesn't touch snapping: held, it stays snapped and a notch steps to the next turn that fits (180°)", still and is_equal_approx(turned, 180.0), "snapped %s, a notch with Shift: %s°" % [still, turned])
 	await _clear()
+
+
+# ---- Phase 2: triangle walls and roofs (whole edges) ----
+
+# Starts placing `path` afresh and turns it `notches` while it's free (before the placer follows the
+# crosshair), as a player turning before aiming
+func _begin_turned(path: String, notches: int) -> void:
+	bp.cancel()
+	bp.begin(load("res://buildables/%s.tres" % path))
+	await _turn_to(notches)
+
+
+# True if one of the ghost's edges of type `mine` lies along one of `piece`'s edges of type `theirs`
+func _ghost_along(piece: BuildPiece, mine: String, theirs: String) -> bool:
+	for g in SnapEdges.of(pp._shape_name, pp._shape):
+		if g["type"] != mine:
+			continue
+		var a: Vector3 = pp._where * (g["a"] as Vector3)
+		var b: Vector3 = pp._where * (g["b"] as Vector3)
+		for t in SnapEdges.in_world(piece):
+			if t["type"] == theirs and SnapEdges.along(a, b, t["a"], t["b"]):
+				return true
+	return false
+
+
+# Screenshot snap_1_roof_triangle: a roof panel aimed at a triangle wall's face just under its slope
+# is snapped (never hanging) whatever turn it started at, at the fitting turn nearest it; lying
+# along the slope (its side edge on the slope edge) is one of the turns that fit there, so it lies
+# along it at once or within a few wheel notches (on that square a roof rising off the wall top under
+# the gable fits too, turned the other way), at both pitches
+func _case_roof_along_slope() -> void:
+	for pitch in [["gable_26", "roof", 1.0], ["gable_45", "roof_45", 2.0]]:
+		_spawn("structure/foundation_wood", Vector3(0, 1.0, 0))
+		_spawn("structure/wall_2m", Vector3(0, 1.0, 1.0))
+		var gable := _spawn("structure/" + pitch[0], Vector3(0, 3.0, 1.0))
+		await _frames(2)
+		var slope_mid := 3.0 + float(pitch[2]) / 2.0
+		var wrong := []
+		var reached := []
+		for notches in [0, 4, 8, 12]:
+			await _begin_turned("structure/" + pitch[1], notches)
+			await _aim(Vector3(0.4, slope_mid - 0.6, 4.0), Vector3(0.0, slope_mid - 0.15, 1.1))
+			var along := -1
+			for k in 4:
+				if pp._pair.is_empty():
+					break
+				if _ghost_along(gable, "roof_side", "slope"):
+					along = k
+					break
+				await _wheel(1)
+			if along < 0:
+				wrong.append("started at %d°: %s" % [notches * 22.5, "free, \"%s\"" % pp._note if pp._pair.is_empty() else "never along the slope (fitting turns %s)" % [pp._fit_yaws.map(func(y): return roundi(rad_to_deg(y)))]])
+			else:
+				reached.append("from %d°: %d notch%s" % [notches * 22.5, along, "" if along == 1 else "es"])
+		_check("snap_1: a %s aimed at a %s's face under its slope is snapped from any turn and lies along the slope at once or within the turns that fit there" % [_name_of(pitch[1]), _name_of(pitch[0])], wrong.is_empty(), "; ".join(wrong) if not wrong.is_empty() else ", ".join(reached))
+		await _clear()
+
+
+# Screenshot snap_2_inner_corner: an inner corner aimed at the middle of the valley between two roof
+# runs (a roof rising +Z beside it on +X, one rising -X beside it on -Z) goes into it exactly, its
+# two sloped sides on the two roofs' side edges, at both pitches
+func _case_inner_corner_valley() -> void:
+	for pitch in [["roof", "roof_inner_26", 1.0], ["roof_45", "roof_inner_45", 2.0]]:
+		_spawn("structure/" + pitch[0], Vector3(2, 3.0, 0))
+		_spawn("structure/" + pitch[0], Vector3(1, 3.0, -1), -90.0)
+		await _frames(2)
+		var eye := Vector3(0.3, 3.0, 4.5)
+		var at := Vector3(0.0, 3.0 + float(pitch[2]) / 2.0, 1.0)
+		var aimed := pp._cast_ray(O + eye, O + eye + (at - eye).normalized() * ValheimPlacer.REACH)
+		var base := _yaw((aimed["collider"] as Node3D).global_basis) if not aimed.is_empty() and aimed["collider"] is BuildPiece else 0.0
+		await _begin_turned("structure/" + pitch[1], roundi(fposmod(-base, 360.0) / 22.5) % 16)
+		await _aim(eye, at)
+		var off := _local(pp._where.origin).distance_to(Vector3(0, 3.0, 0))
+		var turned := absf(wrapf(_yaw(pp._where.basis), -180.0, 180.0))
+		_check("snap_2: a %s aimed into the valley between two roof runs goes into it exactly" % _name_of(pitch[1]), not pp._pair.is_empty() and off < 0.001 and turned < 0.1, "snapped %s, %.4f m and %.1f° off" % [not pp._pair.is_empty(), off, turned])
+		await _clear()
+
+
+# Screenshots snap_5_overhang_stuck, snap_6_overhang_turn_a and snap_overhang_turn_be: a gable
+# overhang aimed at a gable's face just under its slope fits along the slope, from any starting turn
+# (snap_5), at both pitches; turned 16 notches there, it steps only between the turns that fit at
+# that join, always along the same slope (snap_6 a); aimed at the wall below the gable, every notch
+# it's either free with "No fit here" or snapped next to the crosshair, never hanging, and it never
+# jumps from one join to another as it turns (snap_6 b)
+func _case_overhang_on_slope() -> void:
+	for pitch in [["gable_26", "gable_overhang_26", 1.0], ["gable_45", "gable_overhang_45", 2.0]]:
+		_spawn("structure/foundation_wood", Vector3(0, 1.0, 0))
+		var wall := _spawn("structure/wall_2m", Vector3(0, 1.0, 1.0))
+		var gable := _spawn("structure/" + pitch[0], Vector3(0, 3.0, 1.0))
+		await _frames(2)
+		var slope_mid := 3.0 + float(pitch[2]) / 2.0
+		var eye := Vector3(0.4, slope_mid - 0.6, 4.0)
+		var at := Vector3(0.0, slope_mid - 0.15, 1.1)
+		var wrong := []
+		for notches in [0, 4, 8, 12]:
+			await _begin_turned("structure/" + pitch[1], notches)
+			await _aim(eye, at)
+			if pp._pair.is_empty() or not _ghost_along(gable, "roof_side", "slope"):
+				wrong.append("started at %d°: %s" % [notches * 22.5, "free, \"%s\"" % pp._note if pp._pair.is_empty() else "snapped, not along the slope"])
+		_check("snap_5: a %s aimed at a %s's face under its slope fits along the slope, from any starting turn" % [_name_of(pitch[1]), _name_of(pitch[0])], wrong.is_empty(), "; ".join(wrong) if not wrong.is_empty() else "along it from 0°, 90°, 180° and 270°")
+		# snap_6 a: turned there, notch by notch
+		var joint: Vector3 = pp._pair[1] if not pp._pair.is_empty() else Vector3.INF
+		var fits := pp._fit_yaws.duplicate()
+		var strayed := []
+		for step in 16:
+			await _wheel(1)
+			var yaw := _yaw(pp._where.basis)
+			var fitting: bool = fits.any(func(f): return absf(wrapf(rad_to_deg(float(f)) - yaw, -180.0, 180.0)) < 0.1)
+			if pp._pair.is_empty() or (pp._pair[1] as Vector3).distance_to(joint) > 0.001 or not _ghost_along(gable, "roof_side", "slope") or not fitting:
+				strayed.append(str(step + 1))
+		_check("snap_6 a: a %s turned 16 notches on a gable's slope steps only between the turns that fit there (%d), always along that slope" % [_name_of(pitch[1]), fits.size()], joint != Vector3.INF and fits.size() >= 1 and strayed.is_empty(), "strayed at notches [%s]" % ", ".join(strayed))
+		# snap_6 b: aimed at the wall below the gable
+		await _begin_turned("structure/" + pitch[1], 0)
+		await _aim(Vector3(0.6, 2.0, 4.2), Vector3(0.3, 2.3, 1.1))
+		var first: Vector3 = pp._pair[1] if not pp._pair.is_empty() else Vector3.INF
+		var bad := []
+		for step in 16:
+			var from: Vector3 = player.camera.global_position
+			var dir: Vector3 = -player.camera.global_basis.z
+			var hit := pp._cast_ray(from, from + dir * ValheimPlacer.REACH)
+			var end: Vector3 = (hit["position"] as Vector3) + dir * 0.1 if not hit.is_empty() else from + dir * ValheimPlacer.REACH
+			if pp._pair.is_empty():
+				if pp._note != ValheimPlacer.NO_FIT_TEXT:
+					bad.append("%d: free without \"No fit here\"" % step)
+			else:
+				var body := SnapEdges.box_distance(pp._where, pp._bounds, from, end)
+				var touching := SnapEdges.matched(pp._shape_name, pp._shape, pp._where, SnapEdges.in_world(gable) + SnapEdges.in_world(wall)) >= 1
+				if body > 0.501 or not touching or (first != Vector3.INF and (pp._pair[1] as Vector3).distance_to(first) > 0.001):
+					bad.append("%d: body %.2f m, on an edge %s, joint %s" % [step, body, touching, _local(pp._pair[1]).snapped(Vector3.ONE * 0.01)])
+			await _wheel(1)
+		_check("snap_6 b: a %s aimed at the wall under a gable, 16 notches: free with \"No fit here\" or on an edge next to the crosshair, never jumping between joins" % _name_of(pitch[1]), bad.is_empty(), "; ".join(bad) if not bad.is_empty() else "%s" % ("snapped at one join" if first != Vector3.INF else "free with \"No fit here\""))
+		await _clear()
+
+
+# Walls on converted pieces: a Wall 2 m aimed at an inverse triangle's flat top stands on it; aimed
+# beside a gable's upright edge, it carries on from it, end to end
+func _case_walls_on_triangles() -> void:
+	var inverse := _spawn("structure/inverse_2_45", Vector3(0, 1.0, 0))
+	await _frames(2)
+	await _begin_turned("structure/wall_2m", 0)
+	await _aim(Vector3(0.3, 4.4, 3.2), Vector3(0.1, 3.05, 0.0))
+	_check("a wall aimed at an inverse triangle's flat top stands on it", not pp._pair.is_empty() and _ghost_along(inverse, "wall_base", "flat_top"), "snapped %s, note \"%s\"" % [not pp._pair.is_empty(), pp._note])
+	await _clear()
+	var gable := _spawn("structure/gable_45", Vector3(0, 1.0, 0))
+	await _frames(2)
+	await _begin_turned("structure/wall_2m", 0)
+	await _aim(Vector3(1.6, 2.2, 3.2), Vector3(1.15, 2.0, 0.0))
+	_check("a wall aimed beside a gable's upright edge carries on from it, end to end", not pp._pair.is_empty() and _ghost_along(gable, "wall_end", "wall_end"), "snapped %s, note \"%s\"" % [not pp._pair.is_empty(), pp._note])
+	await _clear()
+
+
+# ---- Phase 3a: pillars, poles and beams (typed points) ----
+
+# Beams lying along a wall top and a floor edge by their whole length; a floor's edge on a beam; a
+# diagonal in a post-and-beam frame corner to corner; and a second one, turned the other way, crossing
+# it in an X by their middles
+func _case_point_pieces() -> void:
+	# A beam aimed at a wall top's middle, turned along it: along it, its ends on the top's ends
+	_spawn("structure/wall_2m", Vector3.ZERO)
+	await _frames(2)
+	await _begin_turned("structure/beam_2", 0)
+	await _aim(Vector3(0.6, 3.4, 2.5), Vector3(0.05, 2.0, 0.02))
+	var ends := _ghost_ends()
+	_check("a beam aimed at a wall top's middle lies along it, its whole length", not pp._pair.is_empty() and _has_points(ends, [Vector3(-1, 2, 0), Vector3(1, 2, 0)]), "snapped %s, ends at %s" % [not pp._pair.is_empty(), ends])
+	await _clear()
+	# ...and along a floor's edge
+	_spawn("structure/floor", Vector3.ZERO)
+	await _frames(2)
+	await _begin_turned("structure/beam_2", 0)
+	await _aim(Vector3(0.5, 1.7, 3.0), Vector3(0.05, -0.05, 0.98))
+	ends = _ghost_ends()
+	_check("a beam aimed at a floor's edge lies along it, its whole length", not pp._pair.is_empty() and _has_points(ends, [Vector3(-1, 0, 1), Vector3(1, 0, 1)]), "snapped %s, ends at %s" % [not pp._pair.is_empty(), ends])
+	await _clear()
+	# A floor aimed beside a beam's top: its edge along the beam's top
+	var beam := _spawn("structure/beam_2", Vector3(0, 2.0, 0))
+	await _frames(2)
+	await _begin_turned("structure/floor", 0)
+	await _aim(Vector3(0.4, 3.6, 3.0), Vector3(0.05, 1.98, 0.4))
+	_check("a floor aimed beside a beam's top lies with its edge on it", not pp._pair.is_empty() and _ghost_along(beam, "floor_edge", "beam_top"), "snapped %s, note \"%s\"" % [not pp._pair.is_empty(), pp._note])
+	await _clear()
+	# A post-and-beam frame: a diagonal aimed at its middle goes corner to corner (a post's foot to
+	# the other post's top), then a second, turned the other way, crosses it in an X
+	_spawn("structure/pole_2", Vector3(-1, 0, 0))
+	_spawn("structure/pole_2", Vector3(1, 0, 0))
+	_spawn("structure/beam_2", Vector3(0, 2.0, 0))
+	await _frames(2)
+	await _begin_turned("structure/beam_diag_45", 0)
+	await _aim(Vector3(0.3, 1.4, 3.0), Vector3(0.0, 1.0, 0.0))
+	ends = _ghost_ends()
+	var corner_to_corner := not pp._pair.is_empty() and _has_points(ends, [Vector3(-1, 0, 0), Vector3(1, 2, 0)])
+	_check("a diagonal beam aimed at a post-and-beam frame's middle goes corner to corner", corner_to_corner, "snapped %s, ends at %s" % [not pp._pair.is_empty(), ends])
+	if corner_to_corner:
+		pp._place()
+		await _frames(2)
+		await _begin_turned("structure/beam_diag_45", 8)
+		await _aim(Vector3(0.3, 1.4, 3.0), Vector3(0.0, 1.0, 0.06))
+		ends = _ghost_ends()
+		_check("a second diagonal, turned the other way, crosses the first in an X (the frame's other two corners)", not pp._pair.is_empty() and _has_points(ends, [Vector3(1, 0, 0), Vector3(-1, 2, 0)]), "snapped %s, ends at %s" % [not pp._pair.is_empty(), ends])
+	await _clear()
+
+
+# The ghost's corners (a beam's two ends), round O
+func _ghost_ends() -> Array:
+	return SnapCorners.of(pp._shape_name, pp._shape).map(func(c): return _local(pp._where * (c as Vector3)).snapped(Vector3.ONE * 0.001))
+
+
+# True if every one of `wanted` is among `points`
+func _has_points(points: Array, wanted: Array) -> bool:
+	return wanted.all(func(w): return points.any(func(p): return (p as Vector3).distance_to(w) < EXACT))
+
+
+func _name_of(shape: String) -> String:
+	var b = load("res://buildables/structure/%s.tres" % shape)
+	return (b as Buildable).display_name if b else shape
 
 
 ## Pillars and beams turned through a full circle while snapped (DESIGN.md: they snap where the
@@ -1724,7 +1967,7 @@ func _case_snap_toggle() -> void:
 ## ([path, position, turn]), the eye, the aim, the snap point (all round O)]
 const SLENDER_CIRCLES := [
 	["a beam on a pillar top", "structure/beam_2", [["structure/pillar_wood_2m", Vector3.ZERO, 0.0]], Vector3(-2.5, 3.2, 0.3), Vector3(0.03, 2.0, -0.02), Vector3(0, 2.0, 0)],
-	["a beam on a wall top", "structure/beam_2", [["structure/wall_2m", Vector3.ZERO, 0.0]], Vector3(0.4, 3.4, 2.5), Vector3(0.03, 2.0, 0.02), Vector3(1.0, 2.0, 0)],
+	["a beam on a wall top's end", "structure/beam_2", [["structure/wall_2m", Vector3.ZERO, 0.0]], Vector3(1.3, 3.4, 2.5), Vector3(0.9, 2.0, 0.02), Vector3(1.0, 2.0, 0)],
 	["a beam on another beam's end", "structure/beam_2", [["structure/beam_2", Vector3(0, 2.0, 0), 0.0]], Vector3(1.5, 3.4, 2.5), Vector3(0.95, 2.0, 0.02), Vector3(1.0, 2.0, 0)],
 	["a pillar on a floor corner", "structure/pillar_wood_2m", [["structure/floor", Vector3.ZERO, 0.0]], Vector3(0.4, 1.7, 3.5), Vector3(0.95, -0.03, 0.95), Vector3(1.0, 0, 1.0)],
 	["a pillar on a floor edge's middle", "structure/pillar_wood_2m", [["structure/floor", Vector3.ZERO, 0.0]], Vector3(0.4, 1.7, 3.5), Vector3(0.04, -0.03, 0.95), Vector3(0, 0, 1.0)],
@@ -1734,10 +1977,11 @@ const SLENDER_CIRCLES := [
 
 
 # Each of SLENDER_CIRCLES: its target put down, the piece picked and aimed at the snap point through
-# the real crosshair; it must snap there (a corner of its own on the snap point), then stay snapped
-# on that same point, with a corner on it, through a full circle of 16 wheel notches (and at 0°
-# again). The diagonal beam must also lie along the triangle's slope at 0°: its two ends on the
-# slope's two corners.
+# the real crosshair; it must snap there (a corner of its own on the snap point: at 0° a beam on a
+# wall top lies along it, its ends on the top's ends), then stay snapped on that same point, with a
+# corner on it, through a full circle of 16 wheel notches (and at 0° again). The diagonal beam fits
+# a triangle only lying along its slope (phase 3a): at 0° (and 360°) its two ends on the slope's two
+# corners; turned away from it, it's never left hanging from the triangle's corner.
 func _case_slender_full_circle() -> void:
 	for c in SLENDER_CIRCLES:
 		var shape_path: String = c[1]
@@ -1761,20 +2005,30 @@ func _case_slender_full_circle() -> void:
 			var along: bool = ends.any(func(p): return (p as Vector3).distance_to(Vector3(-1, 0, 0)) < EXACT) and ends.any(func(p): return (p as Vector3).distance_to(Vector3(1, 2, 0)) < EXACT)
 			extra = ", at 0° its ends at %s (the slope's corners: (-1, 0, 0) and (1, 2, 0))%s" % [ends, "" if along else " NOT along the slope"]
 			first_ok = first_ok and along
+		var diagonal := shape.begins_with("beam_diag")
 		for notch in 17:
 			if notch > 0:
 				await _wheel(1)
-			if not _on_point(corners, point):
+			if diagonal and notch % 16 != 0:
+				# (turned away from the slope: free, or anything but hanging from the slope's corner)
+				if not pp._pair.is_empty() and _on_point(corners, point):
+					lost.append("%s° (hanging from the corner)" % str(fposmod(notch * 22.5, 360.0)))
+			elif not _on_point(corners, point):
 				lost.append("%s°" % str(fposmod(notch * 22.5, 360.0)))
 		var ok := first_ok and lost.is_empty()
-		_check("full circle: %s, snapped where pointed and staying snapped on it through 16 notches" % c[0], ok, "snapped at 0°: %s (origin at %s, the snap point %s)%s; %s" % [first_ok, start, point, extra, "on it at every notch" if lost.is_empty() else "off it at %s" % ", ".join(lost)])
+		var title := "full circle: %s, snapped where pointed and staying snapped on it through 16 notches" % c[0]
+		if diagonal:
+			title = "full circle: %s, along it at 0° and 360°, never hanging from its corner between" % c[0]
+		_check(title, ok, "snapped at 0°: %s (origin at %s, the snap point %s)%s; %s" % [first_ok, start, point, extra, "right at every notch" if lost.is_empty() else "wrong at %s" % ", ".join(lost)])
+		bp.cancel()
+		bp.begin(load("res://buildables/%s.tres" % shape_path))
 		await _turn_to(0)
 		await _clear()
 
 
 # True if the ghost is snapped with a corner of its own (of `corners`) on `point` (round O)
 func _on_point(corners: Array, point: Vector3) -> bool:
-	if pp._pair.is_empty() or _local(pp._pair[1]).distance_to(point) > EXACT:
+	if pp._pair.is_empty():
 		return false
 	return corners.any(func(p): return _local(pp._where * (p as Vector3)).distance_to(point) < EXACT)
 
@@ -2138,8 +2392,12 @@ func _audit_piece(buildable: PieceBuildable, spec: Array) -> Array:
 	var notches := roundi(_turn_of(e, target) / 22.5)
 	if absf(_turn_of(e, target) - notches * 22.5) > EXACT_TURN:
 		return [false, "", false, "it fits at %.1f°, which the wheel can't reach" % _turn_of(e, target)]
+	# (a triangle wall or roof piece, converted in phase 2: turned while free, before the placer
+	# follows the crosshair, and aimed at the middle of where it should go, as whole-edge pieces are)
+	var phase_2: bool = SnapEdges.converted(shape) and not shape in SnapEdges.WALLS and not shape in SnapEdges.FLOORS
 	bp.begin(buildable)
-	await _frames(2)
+	if not phase_2:
+		await _frames(2)
 	await _turn_to(notches)
 	# Aimed where it should go (its origin), from outside the target; if the crosshair wouldn't
 	# land there (it's in the air), aimed at the target just inside the corners it should meet
@@ -2152,7 +2410,10 @@ func _audit_piece(buildable: PieceBuildable, spec: Array) -> Array:
 	var aim := e * (ValheimPlacer.hold_point(def) + Vector3(0.06, 0, 0.05))
 	var eye := aim + out * 2.8 + Vector3.UP * 1.6
 	var hit := pp._cast_ray(eye, eye + (aim - eye) * 1.5)
-	if hit.is_empty() or (hit["position"] as Vector3).distance_to(aim) > 0.3:
+	if phase_2:
+		aim = e * PieceShapes.bounds_of(def).get_center()
+		eye = aim + out * 2.8 + Vector3.UP * 1.6
+	elif hit.is_empty() or (hit["position"] as Vector3).distance_to(aim) > 0.3:
 		# (its hold point is in the air: aimed at the target by the corners it should meet, from
 		# across the target, as a player reaching over it would)
 		aim = middle + (target.center() - middle).normalized() * 0.08
@@ -2210,7 +2471,13 @@ func _audit_beam(buildable: PieceBuildable) -> Array:
 	# (aimed at the low end's spot from behind it: a pole top, or on the floors a little way along the
 	# beam's span from their shared corner; held by its middle, a beam aimed right at the corner
 	# would have its low end as near the first floor's far corner as this one)
-	await _aim(low + Vector3(-2.5, 1.2, 0.3), low + (Vector3(length / 2.0 - 0.4, 0, -0.03) if low.y < 0.5 else Vector3(-0.03, 0, 0.02)))
+	# (phase 3a: a beam snaps by aim first, so aimed at the middle of where it goes, from the side
+	# and a little above)
+	if SnapEdges.point_shape(shape):
+		var middle := _local((expected[0] as Transform3D) * PieceShapes.bounds_of(def).get_center())
+		await _aim(middle + Vector3(-0.6, 1.0, 2.6), middle)
+	else:
+		await _aim(low + Vector3(-2.5, 1.2, 0.3), low + (Vector3(length / 2.0 - 0.4, 0, -0.03) if low.y < 0.5 else Vector3(-0.03, 0, 0.02)))
 	return _judge(def, shape, target, expected, 2)
 
 

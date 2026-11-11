@@ -8,7 +8,7 @@ signal tool_dropped(item: String)
 
 ## The selected slot: the plain slot tinted gold, with a soft golden glow round it
 const GOLD := Color(1.45, 1.18, 0.62)
-const GLOW := Color(1.0, 0.78, 0.3, 0.55)
+const GLOW := Color(1.0, 1.0, 1.0, 0.55)
 
 @onready var swatch: ColorRect = $Swatch
 @onready var icon: TextureRect = $Icon

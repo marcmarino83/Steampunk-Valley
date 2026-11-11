@@ -26,6 +26,10 @@ instance uniform vec4 tint : source_color = vec4(1.0);
 instance uniform vec3 box_min = vec3(-1.0);
 instance uniform vec3 box_max = vec3(1.0);
 instance uniform float frame_offset = 0.0;
+// A template's ghost (not built yet: see BuildPiece.set_ghost): its real look faded toward a pale
+// cool grey and drained of colour (1: fully, 0: the built piece)
+instance uniform float ghost_fade = 0.0;
+const vec3 GHOST_COLOR = vec3(0.6, 0.64, 0.7);
 
 varying flat float kind;
 
@@ -67,9 +71,19 @@ void fragment() {
 		col = vec3(0.06, 0.055, 0.05);
 		rough = 1.0;
 	}
-	ALBEDO = col * COLOR.rgb * tint.rgb;
+	vec3 shown = col * COLOR.rgb * tint.rgb;
+	if (ghost_fade > 0.0) {
+		shown = mix(shown, vec3(dot(shown, vec3(0.3, 0.59, 0.11))), 0.8 * ghost_fade);
+		shown = mix(shown, GHOST_COLOR, 0.45 * ghost_fade);
+	}
+	ALBEDO = shown;
 	ROUGHNESS = rough;
 	METALLIC = metal;
+	// Faces turned down (eaves, overhang and porch-roof undersides, floors and beams seen from
+	// below) pick up no sky reflection: at a glancing angle they'd mirror the pale horizon, which
+	// the building itself hides from them
+	float down = smoothstep(0.1, 0.5, -(INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).y);
+	SPECULAR = 0.5 * (1.0 - down);
 	NORMAL_MAP = nm;
 	NORMAL_MAP_DEPTH = 0.8;
 }

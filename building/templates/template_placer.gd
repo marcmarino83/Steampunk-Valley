@@ -27,7 +27,7 @@ const FINE_HEIGHT_STEP := 0.05
 const FINE_TURN := PI / 12.0
 const GOOD_GLOW := Color(0.3, 1.0, 0.4, 0.75)
 const BAD_GLOW := Color(1.0, 0.25, 0.2, 0.85)
-const WARN_GLOW := Color(1.0, 0.85, 0.25, 0.8)
+const WARN_GLOW := Color(1.0, 0.95, 0.3, 0.8)
 ## How many physics frames at most between checks of where it is (also checked whenever it moves)
 const CHECK_FRAMES := 6
 ## About how many nodes of the preview's look are made per frame (see _process)

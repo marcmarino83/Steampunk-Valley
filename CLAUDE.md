@@ -6,6 +6,7 @@
 - After any change to building, snapping or placement code, run tests/snap_regression.gd (headless: `godot --headless --path . res://tests/snap_regression.tscn --quit-after 40000`, under a hard time limit of 180 seconds) and fix any failure before reporting.
 - Don't commit; I'll commit myself after testing.
 - Edit files only with the editor tools, never with shell commands (sed, echo, PowerShell redirects). If a file gets corrupted, stop and tell me instead of repairing it line by line.
+- Never use orange for highlights, indicators, warnings or status colours (previews, outlines, glows, selection, alerts). Exceptions: brass and gold interface materials, fire and light, sunlight, and object icons and markers.
 
 ## Building pieces
 

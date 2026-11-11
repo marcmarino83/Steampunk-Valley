@@ -16,6 +16,8 @@ var owner_plot := ""
 ## What it is, and what was paid for it (all of which comes back when it's taken down)
 var buildable: PieceBuildable
 var paid := {}
+## The shape it's built as: its buildable's shape (every piece has fixed dimensions)
+var shape_name := ""
 
 var _def: Dictionary
 var _door_open := false
@@ -63,6 +65,7 @@ var _shadow_looks: Array[MeshInstance3D] = []
 ## Builds it from its shape. Called before it's added to the world.
 func setup(piece: PieceBuildable, def: Dictionary, material: Material) -> void:
 	buildable = piece
+	shape_name = piece.shape
 	_def = def
 	name = "Piece"
 	add_to_group("build_pieces")
@@ -115,15 +118,66 @@ const NUDGE := 0.0025
 # Every piece's look (not its collision) sits a hair off its true place, in a direction of its own
 # picked from its id: overlapping pieces whose faces coincide then draw cleanly, one just in front
 func _nudge_looks() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(piece_id * 104729 + 31)
-	var nudge := Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)).normalized() * NUDGE * rng.randf_range(0.4, 1.0)
+	var nudge := _nudge()
 	for child in get_children():
 		if child is MeshInstance3D or (child is Node3D and child.name == "Model"):
 			(child as Node3D).position += nudge
 	for part in _door_parts:
 		if part["node"] is MeshInstance3D:
 			part["rest"] = (part["rest"] as Transform3D).translated(nudge)
+
+
+# How far its looks sit off its true place (see _nudge_looks): the same every time for its id.
+# Flights of stairs, floors and foundations aren't nudged at all: a flight's header board meets the
+# edge face it hangs from, and its footing board the top it stands on, exactly, never a hair off or
+# into it. Roofs aren't either, so they sit exactly on the wall tops they rest on. (Two floors
+# free-placed overlapping at the same height can flicker where their tops meet.) Every other piece's
+# nudge is level, never up or down, so pieces stacked on the grid (a wall on a wall, a beam on a
+# post) meet plank to plank.
+func _nudge() -> Vector3:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(piece_id * 104729 + 31)
+	var nudge := Vector3(rng.randf_range(-1, 1), 0.0, rng.randf_range(-1, 1)).normalized() * NUDGE * rng.randf_range(0.4, 1.0)
+	var def := shape_def()
+	if def.get("stairs", false) or def.get("floor", false) or def.get("roof", false):
+		return Vector3.ZERO
+	return nudge
+
+
+## Its close-up and middle looks made again from these: the old ones (and their shadow copies)
+## taken away and the new ones put in their place, nudged and weathered as before. For when the look
+## code has changed while the game runs (see PieceRegistry), so nothing keeps a look made by older
+## code.
+func redress(detail: Dictionary, material: Material, mid: Dictionary = {}) -> void:
+	var old: Array = _detail_looks + _mid_looks + _shadow_looks
+	var logs := get_node_or_null("HearthLogs")
+	if logs:
+		old.append(logs)
+	_door_parts = _door_parts.filter(func(p): return not old.has(p["node"]))
+	for node in old:
+		remove_child(node)
+		(node as Node).queue_free()
+	_detail_looks.clear()
+	_mid_looks.clear()
+	_shadow_looks.clear()
+	for plain in _plain_looks:
+		plain.visibility_range_begin = 0.0
+		plain.visibility_range_begin_margin = 0.0
+	var before := get_children()
+	var parts_before := _door_parts.size()
+	_dress_looks(detail, material, mid)
+	var nudge := _nudge()
+	for child in get_children():
+		if child is MeshInstance3D and not before.has(child):
+			(child as MeshInstance3D).position += nudge
+	# (a door's new looks swing from their nudged rest; a shadow copy's rest is the plain look's,
+	# which is nudged already)
+	for i in range(parts_before, _door_parts.size()):
+		if not _shadow_looks.has(_door_parts[i]["node"]):
+			_door_parts[i]["rest"] = (_door_parts[i]["rest"] as Transform3D).translated(nudge)
+	weather()
+	if not is_zero_approx(_door_angle):
+		_set_door_angle(_door_angle)
 
 
 func _dress_looks(detail: Dictionary, material: Material, mid: Dictionary) -> void:

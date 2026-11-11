@@ -30,7 +30,7 @@ static func overlaps(shape: String, def: Dictionary, where: Transform3D, other: 
 	if not mine_box.grow(-MARGIN).intersects(other_box.grow(-MARGIN)):
 		return false
 	var mine := _info(shape, def)
-	var theirs := _info(other.buildable.shape, other_def)
+	var theirs := _info(other.shape_name, other_def)
 	return _any_inside(mine["samples"], where, theirs["parts"], other.global_transform) \
 		or _any_inside(theirs["samples"], other.global_transform, mine["parts"], where)
 

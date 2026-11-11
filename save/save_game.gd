@@ -37,6 +37,10 @@ const MONTHS := ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", 
 
 # The save to load once the world is ready (empty for a new game)
 var _load_path := ""
+## The save file this world was loaded from (empty for a new game), and the last one written this
+## session (empty if none yet): for bug snapshots (see BugSnapshot)
+var loaded_path := ""
+var last_written_path := ""
 # Set when the title screen (or the pause menu's Load) opens the world. If a world turns up
 # without it, the world scene was run directly from the editor.
 var _opened_from_menu := false
@@ -104,6 +108,7 @@ func _process(delta: float) -> void:
 func new_game() -> void:
 	_world_id = "world_%d" % int(Time.get_unix_time_from_system() * 1000.0)
 	_play_seconds = 0.0
+	loaded_path = ""
 	_open_world("")
 
 
@@ -123,6 +128,7 @@ func load_save(path: String) -> void:
 	_world_id = str(meta.get("world_id", path.get_base_dir().get_file()))
 	_play_seconds = float(meta.get("play_seconds", 0.0))
 	_open_world(path)
+	loaded_path = path
 
 
 func _open_world(load_path: String) -> void:
@@ -225,12 +231,25 @@ func _write_now(path: String, kind: String, save_name: String, custom: bool) -> 
 	DirAccess.make_dir_recursive_absolute(_world_dir())
 	if not FileAccess.file_exists(_world_dir().path_join("world.json")):
 		_write_json(_world_dir().path_join("world.json"), {"name": _next_world_name(), "started_unix": Time.get_unix_time_from_system()})
+	var data := state_now(kind, save_name, custom)
+	last_written_path = path
+	# Gathered here; turned into text and written, with its picture, on a worker thread (a deep
+	# copy, so nothing the game changes meanwhile can reach it)
+	var image := _snapshot if _snapshot else _screen_image()
+	_writing = WorkerThreadPool.add_task(_write_files.bind(path, data.duplicate(true), image, _world_id if kind == "auto" else ""))
+	_show_sign()
+
+
+## Everything a save holds, as it stands right now, laid out as a save file: what every saveable
+## system keeps, and the save's details. Saving writes this; a bug snapshot keeps a copy (even in a
+## test run, which never saves), so it can be loaded again just as it was.
+func state_now(kind := "manual", save_name := "", custom := false) -> Dictionary:
 	var systems := {}
 	for node in get_tree().get_nodes_in_group("saveable"):
 		systems[node.save_key()] = node.save_data()
 	var day := _day_now()
 	var when := Time.get_datetime_dict_from_system()
-	var data := {
+	return {
 		"version": SAVE_VERSION,
 		"meta": {
 			"name": save_name if custom else "Day %d – %s" % [day, _date_text(when)],
@@ -244,11 +263,6 @@ func _write_now(path: String, kind: String, save_name: String, custom: bool) -> 
 		},
 		"systems": systems,
 	}
-	# Gathered here; turned into text and written, with its picture, on a worker thread (a deep
-	# copy, so nothing the game changes meanwhile can reach it)
-	var image := _snapshot if _snapshot else _screen_image()
-	_writing = WorkerThreadPool.add_task(_write_files.bind(path, data.duplicate(true), image, _world_id if kind == "auto" else ""))
-	_show_sign()
 
 
 # On a worker thread: the save's file and its picture; after an autosave, the oldest autosaves

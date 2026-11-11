@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dly1023dgrlwk"
-path="res://.godot/imported/1794342011628_image.png-db550a75b6b482c2d0b4e9d2cd3dd0b1.ctex"
+uid="uid://p07g61cijwe4"
+path="res://.godot/imported/half_stairs.png-7b1e9cc42b61dd1ba6cc2574d3d5bbbb.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://docs/reference/1794342011628_image.png"
-dest_files=["res://.godot/imported/1794342011628_image.png-db550a75b6b482c2d0b4e9d2cd3dd0b1.ctex"]
+source_file="res://assets/icons/build/half_stairs.png"
+dest_files=["res://.godot/imported/half_stairs.png-7b1e9cc42b61dd1ba6cc2574d3d5bbbb.ctex"]
 
 [params]
 

@@ -157,6 +157,45 @@ func hide_plants_in(middle: Vector2, reach: float) -> void:
 	SpikeLog.end("grass and ferns hidden under a new floor", timing)
 
 
+## Takes away the grass and ferns already growing on painted path within this area (x, z) at once
+## (a path is being painted there), without working the patches out again. A patch still being
+## worked out is worked out again, with the path.
+func hide_plants_on_paths(area: Rect2) -> void:
+	var timing := SpikeLog.begin()
+	for chunk in _patches.keys():
+		if not valley.chunk_rect(chunk).intersects(area):
+			continue
+		var patch: Node3D = _patches[chunk]
+		var buffers: Dictionary = _patch_buffers.get(chunk, {})
+		for i in 2:
+			var key := "grass" if i == 0 else "fern"
+			var limit := PaintedPaths.PLANTS_GONE_AT if i == 0 else PaintedPaths.FERNS_GONE_AT
+			var buffer: PackedFloat32Array = buffers.get(key, PackedFloat32Array())
+			# (taken out while it changes, so writing to it doesn't copy it each time)
+			buffers.erase(key)
+			var changed := false
+			var x0 := area.position.x
+			var x1 := area.end.x
+			var z0 := area.position.y
+			var z1 := area.end.y
+			for j in range(0, buffer.size(), 16):
+				var x := buffer[j + 3]
+				var z := buffer[j + 11]
+				if x < x0 or x > x1 or z < z0 or z > z1 or buffer[j + 5] == 0.0:
+					continue
+				if valley.painted_path_amount(x, z) > limit:
+					for k in [0, 1, 2, 4, 5, 6, 8, 9, 10]:
+						buffer[j + k] = 0.0
+					changed = true
+			buffers[key] = buffer
+			if changed and patch.get_child_count() > i:
+				((patch.get_child(i) as MultiMeshInstance3D).multimesh as MultiMesh).buffer = buffer
+	for chunk in _pending.keys():
+		if valley.chunk_rect(chunk).intersects(area):
+			_stale[chunk] = true
+	SpikeLog.end("grass and ferns hidden on a painted path", timing)
+
+
 func _distance_to_chunk(chunk: Vector2i, here: Vector2) -> float:
 	var rect: Rect2 = valley.chunk_rect(chunk)
 	var nearest := Vector2(clampf(here.x, rect.position.x, rect.end.x), clampf(here.y, rect.position.y, rect.end.y))
@@ -171,6 +210,7 @@ func _start_patch(chunk: Vector2i) -> void:
 		"chunk": chunk, "rect": rect, "dry_above": valley.water_height() + 0.15,
 		"clear": valley.plant_clear_circles(rect), "placed": valley.placed_clears_in(rect),
 		"taken": valley.taken_spots_in(rect, 1.5),
+		"paths": valley.painted_path_snapshot(rect),
 	}
 	_pending[chunk] = WorkerThreadPool.add_task(_work_out_patch.bind(snapshot))
 
@@ -246,6 +286,9 @@ func _work_out_patch(snapshot: Dictionary) -> void:
 	var clear: PackedVector3Array = snapshot["clear"]
 	var placed: PackedVector3Array = snapshot["placed"]
 	var taken: Dictionary = snapshot["taken"]
+	# Painted dirt paths: no grass or ferns on them
+	var paths: Dictionary = snapshot["paths"]
+	var any_paths := not (paths["tiles"] as Dictionary).is_empty()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(chunk)
 	var dry_above: float = snapshot["dry_above"]
@@ -260,6 +303,8 @@ func _work_out_patch(snapshot: Dictionary) -> void:
 			continue
 		# Leave a little clear ground around trees and resources, so things you can gather stand out
 		if valley.distance_in_record(Vector2(x, z), taken, 1.2) < 1.2 or _in_circles(x, z, clear) or _in_circles(x, z, placed):
+			continue
+		if any_paths and PaintedPaths.sample_snapshot(paths, x, z) > PaintedPaths.PLANTS_GONE_AT:
 			continue
 		var patchiness: float = _patch_noise.get_noise_2d(x, z)
 		# Off trails, except where a trail has Edge Grass: tufts along its frayed edges, and
@@ -294,6 +339,8 @@ func _work_out_patch(snapshot: Dictionary) -> void:
 		var z := rect.position.y + rng.randf() * rect.size.y
 		var h: float = valley.get_height(x, z)
 		if h < dry_above or valley.get_normal(x, z).y < 0.7 or valley.is_near_crash_site(x, z, 0.5) or valley.distance_in_record(Vector2(x, z), taken, 1.2) < 1.2 or valley.trail_amount(x, z) > 0.2 or valley.is_on_trail(x, z, 0.0) or _in_circles(x, z, clear) or _in_circles(x, z, placed):
+			continue
+		if any_paths and PaintedPaths.sample_snapshot(paths, x, z) > PaintedPaths.FERNS_GONE_AT:
 			continue
 		var size := rng.randf_range(0.7, 1.4)
 		var spot := Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * size), Vector3(x, h - 0.05, z))

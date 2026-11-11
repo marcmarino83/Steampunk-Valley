@@ -7,6 +7,23 @@
 - Don't commit; I'll commit myself after testing.
 - Edit files only with the editor tools, never with shell commands (sed, echo, PowerShell redirects). If a file gets corrupted, stop and tell me instead of repairing it line by line.
 
+## Building pieces
+
+- Every building piece has fixed dimensions. Never build pieces that stretch, resize or regenerate to fit where they're placed. When a new size is needed, add a new fixed piece. (Raising or lowering a free piece with PgUp/PgDn is fine: that moves it, it doesn't reshape it.)
+- Every piece follows the building grid standard (details in DESIGN.md, Building system):
+  - Horizontal unit 1 m, in 2 m cells: widths and lengths of 1, 2 or 4 m, on the 1 m grid.
+  - Vertical unit 1.25 m: heights are whole units (the 0.625 m Wall Strip is the one half unit), with bottoms and tops on unit heights. Foundations' tops are 1.25 m above the ground.
+  - Walls are 0.2 m thick, centred on their line. Floors are 0.2 m thick, top on the level. Foundations fill their cell and go 2 m into the ground. Beams are 0.2 m square with their top on the level.
+  - Posts are 1.25, 2.5 or 5 m. Beams are 1, 2 or 4 m (plus the diagonals).
+  - Exempt:
+    - roof pitches, 26.6° and 45° (only their bottoms on unit heights);
+    - the octagon and circle families;
+    - the 0.5 m roof overhang trim;
+    - window and door frames sticking out as trim;
+    - railings (1.0 m tall).
+  - Collision stays within 2 cm of the drawn look, and common joins meet at 0 mm. The snap regression checks both.
+  - When a piece is resized, old saves and templates must still load: add the change to building/grid_upgrade.gd (bumping GRID_VERSION) so placed pieces keep their snap position.
+
 ## Running the game for checks or screenshots:
 
 - Every scripted run must end itself: the capture script calls get_tree().quit() once it has taken its screenshots, and also passes --quit-after <frames> on the command line as a backup (for example --quit-after 3000).

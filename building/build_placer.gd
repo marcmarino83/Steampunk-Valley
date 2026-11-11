@@ -30,6 +30,8 @@ var _plot_placer: PlotPlacer
 # Placing a template, and building a placed template's ghosts
 var _templates: TemplatePlacer
 var _ghosts: GhostBuilder
+# Painting dirt paths (the Paths tab's Dirt Path tool)
+var _paths: PathPainter
 # A ghost was taken away on the middle button's press: its release does nothing more
 var _ghost_removed := false
 var _buildable: Buildable
@@ -83,12 +85,15 @@ func _ready() -> void:
 	_ghosts.pieces = _pieces
 	_ghosts.builder = self
 	add_child(_ghosts)
+	_paths = PathPainter.new()
+	_paths.player = _player
+	add_child(_paths)
 
 
 ## True while placing something (or a template, or marking out, moving or resizing a plot): the
 ## clicks, R and Esc are ours then
 func is_placing() -> bool:
-	return _buildable != null or _pieces.is_placing() or _plot_placer.is_active() or _templates.is_active()
+	return _buildable != null or _pieces.is_placing() or _plot_placer.is_active() or _templates.is_active() or _paths.is_active()
 
 
 # ---- Ghosts (a placed template's pieces still to be built; see GhostBuilder) ----
@@ -140,6 +145,9 @@ func is_plot_mode() -> bool:
 ## (`keep`, from switching in the build menu while placing, changes nothing now.)
 func begin(buildable: Buildable, keep := false) -> void:
 	cancel()
+	if buildable is PathTool:
+		_paths.begin(buildable)
+		return
 	if buildable is TemplateBuildable:
 		_templates.begin(buildable)
 		return
@@ -170,6 +178,8 @@ func current_buildable() -> Buildable:
 		return _pieces.current()
 	if _templates.is_active():
 		return _templates.current()
+	if _paths.is_active():
+		return _paths.current()
 	return _plot_placer.placing_type()
 
 
@@ -183,6 +193,7 @@ func cancel() -> void:
 	_pieces.cancel()
 	_plot_placer.cancel()
 	_templates.cancel()
+	_paths.cancel()
 
 
 ## Lifts a plot and everything it owns, to put down somewhere else (see PlotPlacer)
@@ -213,6 +224,10 @@ func try_grab_plot() -> bool:
 ## Middle button pressed: on a ghost, takes it away at once (free); otherwise picks the piece under
 ## the crosshair
 func press_demolish() -> void:
+	# (painting paths: the middle button rubs path out instead)
+	if _paths.is_active():
+		_paths.set_erase_button(true)
+		return
 	_ghost_removed = not is_placing() and _ghosts.remove_targeted()
 	if not _ghost_removed:
 		_demolisher.press()
@@ -221,6 +236,9 @@ func press_demolish() -> void:
 ## Middle button released: takes the picked piece down, if still aimed at (`active` is false if
 ## the hammer was put away or a menu opened meanwhile)
 func release_demolish(active: bool) -> void:
+	if _paths.is_active():
+		_paths.set_erase_button(false)
+		return
 	if _ghost_removed:
 		_ghost_removed = false
 		return
@@ -229,11 +247,18 @@ func release_demolish(active: bool) -> void:
 
 ## Called every frame: the red glow on the piece that would come down, and X's hold
 func update_demolish(delta: float, active: bool, holding_x: bool) -> void:
+	# (painting paths: X rubs path out instead, and nothing is picked to come down)
+	if _paths.is_active():
+		_paths.update(active, holding_x)
+		_demolisher.update(delta, false, false)
+		return
 	_demolisher.update(delta, active, holding_x)
 
 
 ## Takes the keys and clicks that mean something while placing. Returns true if it used this one.
 func handle_input(event: InputEvent) -> bool:
+	if _paths.is_active():
+		return _paths.handle_input(event)
 	if _templates.is_active():
 		return _templates.handle_input(event)
 	if _plot_placer.is_active():
@@ -265,6 +290,8 @@ func handle_input(event: InputEvent) -> bool:
 ## [[label, key], ...], "info": the piece panel, or empty}. Placing, or just holding the hammer;
 ## holding X shows the piece it would demolish.
 func hud_state() -> Dictionary:
+	if _paths.is_active():
+		return _paths.hud_state()
 	if _templates.is_active():
 		return _templates.hud_state()
 	if _plot_placer.is_active():
@@ -282,7 +309,7 @@ func hud_state() -> Dictionary:
 		elif not _warning.is_empty():
 			details.append(_warning)
 		state = {
-			"controls": ValheimPlacer.CONTROLS,
+			"controls": ValheimPlacer.FURNITURE_CONTROLS,
 			"info": {
 				"icon": _buildable.icon,
 				"title": _buildable.display_name,

@@ -6,12 +6,14 @@ class_name SnapCorners
 ##     middle of the circle and both ends of the arc)
 ##   - roofs, roof corners, ridges, eaves, toppers and overhangs: the corners of their underside,
 ##     seen from above (a roof's two low corners on the wall top it sits on, its two high corners)
-##   - walls, doorways, windows and other upright panels (railings, fences, ladders, doors): their
+##   - walls, doorways, windows and other upright panels (railings, fences, doors): their
 ##     four corners on their centre plane; gables, half gables and inverse triangles: their three
 ##   - curved walls: both ends of the arc, at the bottom and the top
 ##   - ridge caps: both ends of the middle line they sit on the ridge by
 ##   - beams, poles and pillars: both ends
-##   - stairs: their four corners (the bottom edge's ends and the top edge's ends)
+##   - stairs and Foundation Steps: the two top corners at the top step's outer edge (level with a
+##     floor's top) and the two bottom corners at the bottom step's front (on the ground)
+##   - ladders: the four corners of their back face, at the foot and the top
 ##   - anything else solid (chimney sections): the eight corners of its box
 ##   - furniture: none
 ## A doorway also has the door's two bottom corners where the door goes, and a fireplace or chimney
@@ -43,7 +45,7 @@ static func in_world(piece: BuildPiece) -> Array:
 	var found := []
 	if piece.buildable == null:
 		return found
-	for p in of(piece.buildable.shape, piece.shape_def()):
+	for p in of(piece.shape_name, piece.shape_def()):
 		found.append(piece.global_transform * (p as Vector3))
 	return found
 
@@ -79,13 +81,23 @@ static func _own_corners(shape: String, def: Dictionary) -> Array:
 	var points := []
 	if def.get("furniture", false):
 		pass
-	elif def.get("slender", false) and not def.get("ladder", false):
+	elif def.get("ladder", false):
+		# A ladder: the corners of its back (-Z) face, at its foot and its top, so hung from a floor
+		# edge its top is level with the floor's top and its back flush against the edge
+		var half_width := box.size.x / 2.0
+		for y in [0.0, PieceShapes.LADDER_HEIGHT]:
+			for x in [-half_width, half_width]:
+				points.append(Vector3(x, y, box.position.z))
+	elif def.get("slender", false):
 		points = _socket_spots(sockets, ["beam_end", "pole_bottom", "pole_top", "pillar_base", "pillar_top"])
 	elif def.get("stairs", false):
-		var half := Vector3(box.size.x / 2.0, 0, 0)
-		for at in _socket_spots(sockets, ["stairs_bottom", "stairs_top"]):
-			points.append((at as Vector3) - half)
-			points.append((at as Vector3) + half)
+		# Stairs and Foundation Steps, exactly: the two top corners at the top step's outer edge, level
+		# with a floor's top, and the two bottom corners at the bottom step's front, on the ground
+		var half := PieceShapes.GRID / 2.0
+		var length: float = def["stairs_length"]
+		for x in [-half, half]:
+			points.append(Vector3(x, float(def["stairs_height"]), length / 2.0))
+			points.append(Vector3(x, 0.0, -length / 2.0))
 	elif shape.begins_with("ridge_"):
 		# A ridge cap sits on the ridge by its middle line (where the roofs' high corners are): the
 		# two ends of that line

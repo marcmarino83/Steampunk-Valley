@@ -5,7 +5,9 @@ class_name PieceShapes
 ## edges line up perfectly. A piece can show a real model instead (PieceBuildable.model_scene);
 ## its collision and snap points still come from here.
 ##
-## Square pieces sit on a 2 m grid. Round pieces share one circle of radius RING_RADIUS, so a 45°
+## Every piece follows the building grid standard (DESIGN.md, Building system): a 1 m horizontal
+## unit (2 m cells), a 1.25 m vertical unit (a half wall), standard thicknesses and positions.
+## Square pieces sit on the 2 m grid. Round pieces share one circle of radius RING_RADIUS, so a 45°
 ## arc spans exactly 2 m and eight of them close into a circle about 5.2 m across.
 ##
 ## Typed points ("sockets") have a position, a facing (yaw, in radians, 0 = +Z) and a type. They
@@ -31,20 +33,33 @@ const WINDOW_TOP := 1.9
 ## the opening's height (from WINDOW_BOTTOM)
 const SPLIT_WINDOWS := {2.0: 1.0, 1.0: 0.6}
 const SPLIT_WINDOW_HEIGHT := 1.1
-const STAIRS_RUN := 4.0
-const STAIRS_STEPS := 10
-## Foundation Steps: a short flight up to a foundation's top (it stands FOUNDATION_LIFT out of the
-## ground), at the stairs' slope
-const FOUNDATION_STEPS_HEIGHT := FOUNDATION_LIFT
-const FOUNDATION_STEPS := 4
+## One storey: from a ground floor's top to the top of a floor laid on walls standing on it (the
+## walls' height; measured through the placer by the snap regression test)
+const STOREY := WALL_HEIGHT
+## The flights of stairs: fixed pieces, like every building piece (never stretched or fitted to
+## where they go; a new size is a new piece), all GRID wide (a floor's width): shape -> [height,
+## run]. Stairs: one storey over two cells (4 m). Half Stairs: half a storey (a half wall's height,
+## and a foundation's height above the ground) over one cell (2 m). (Foundation Steps, 1 m over 2 m,
+## are gone: with foundations 1.25 m up they'd be Half Stairs; old ones load as Half Stairs.)
+const FLIGHTS := {"stairs": [STOREY, 4.0], "half_stairs": [STOREY / 2.0, 2.0]}
+## How deep a flight's walking ramp is, under the line of its steps' fronts (see _stairs)
+const RAMP_DEPTH := 0.2
+const STAIRS_HEIGHT := STOREY
+## Steps are as near this tall as divides a flight's height evenly
+const STEP_RISE := 0.25
+
+
+## How many evenly spaced steps a flight this tall has
+static func step_count(height: float) -> int:
+	return maxi(1, roundi(height / STEP_RISE))
 ## 1 / sin(22.5°): a 45° arc's ends are exactly 2 m apart
 const RING_RADIUS := 2.6131259
 const CONE_HEIGHT := 2.0
-## Foundations: how tall the block is (its top is flush like a floor's), and how far a freely
-## placed one stands above the spot it's put on, so most of it goes into the ground and covers
-## uneven slopes without gaps
-const FOUNDATION_DEPTH := 3.0
-const FOUNDATION_LIFT := 1.0
+## Foundations: how far a freely placed one stands above the spot it's put on (one vertical unit,
+## a half wall), and how tall the block is (its top is flush like a floor's), so 2 m of it goes
+## into the ground and covers uneven slopes without gaps
+const FOUNDATION_LIFT := HALF_HEIGHT
+const FOUNDATION_DEPTH := FOUNDATION_LIFT + 2.0
 ## Logs (wood foundations) and stone courses are this tall
 const COURSE := 0.25
 ## Width of one board, for the light/dark stripes that make the wood read as planks
@@ -55,10 +70,17 @@ const ARC_STEP_DEGREES := 7.5
 ## side (the gap between two 2 m sides 45° apart): walls come in these widths too
 const LONG_EDGE := 2.8284271
 const SHORT_EDGE := 1.5307337
-## Pillars: how thick (wood, stone) and how tall
+## Pillars: how thick (wood, stone) and how tall (full: a wall's height; half: a half wall's).
+## A wood pillar's solid is a little wider than its post, taking in the rope lashings round its top.
 const WOOD_PILLAR := 0.3
+const WOOD_PILLAR_SOLID := 0.34
 const STONE_PILLAR := 0.4
 const PILLAR_HEIGHT := 2.5
+const HALF_PILLAR_HEIGHT := 1.25
+## Poles' heights, by shape: half, full and double a wall's height
+const POLE_HEIGHTS := {"pole_1": 1.25, "pole_2": 2.5, "pole_5": 5.0}
+## Beams' lengths, by shape: half, full and double a cell
+const BEAM_LENGTHS := {"beam_1": 1.0, "beam_2": 2.0, "beam_4": 4.0}
 ## Every way a square thing can turn and still line up with the grid
 const QUARTER_TURNS := [0.0, PI / 2.0, PI, -PI / 2.0]
 ## Beams (square, lying down), poles (square, standing, thinner than pillars), and how high a
@@ -66,20 +88,28 @@ const QUARTER_TURNS := [0.0, PI / 2.0, PI, -PI / 2.0]
 const BEAM := 0.2
 const POLE := 0.15
 const HALF_HEIGHT := 1.25
-## The top-up strip walls: what a 45° gable (2 m) lacks of a full wall's height
-const STRIP_HEIGHT := 0.5
+## The top-up strip walls: half a vertical unit
+const STRIP_HEIGHT := HALF_HEIGHT / 2.0
 ## The ridge gap a roof topper bridges: on a building an odd number of foundation tiles across (3
 ## tiles, 6 m), one 2 m roof up each side leaves this much at the ridge
 const TOPPER_GAP := 2.0
+## How thick a roof's solid is over its underside: as thick as its drawn deck (PieceDetail.DECK)
+## and shakes, so nothing solid sticks out past what's drawn (the plain slab, seen far off, keeps
+## ROOF_THICKNESS); a cone roof's, measured upright, is its thinner deck and shakes
+const ROOF_SOLID := 0.12
+const CONE_SOLID := 0.09
 ## How far below a roof's plain slab top its drawn shakes lie along the side edge (where inverse
 ## triangles stand on it)
 const ROOF_EDGE_SINK := 0.025
 ## How far the plank infill of the small triangle walls (half gables, inverse triangles) reaches
-## past their edges into their neighbours, so no hairline of light shows at a joint
-const INFILL_OVERLAP := 0.02
-const LADDER_HEIGHT := 2.0
+## past their edges (none: drawn to their outlines, as the grid standard has every piece)
+const INFILL_OVERLAP := 0.0
+## A ladder reaches one storey; a railing is 1 m (exempt from the vertical unit); a fence one unit
+const LADDER_HEIGHT := WALL_HEIGHT
 const RAILING_HEIGHT := 1.0
-const FENCE_HEIGHT := 1.4
+const FENCE_HEIGHT := HALF_HEIGHT
+## A fence's depth, centred on its line: the rails behind, the pickets in front
+const FENCE_DEPTH := 0.1
 ## The 45° roof rises a full 2 m over its 2 m (the 26° roof, ROOF_RISE, rises 1 m)
 const ROOF_RISE_45 := 2.0
 
@@ -296,9 +326,7 @@ static func build(shape: String) -> Dictionary:
 			_plain_wall(d, GRID, HALF_HEIGHT, "wall_base", "wall_top")
 		"wall_half_1":
 			_plain_wall(d, 1.0, HALF_HEIGHT, "small_wall_base", "half_top")
-		"wall_quarter":
-			_plain_wall(d, 1.0, 1.0, "small_wall_base", "half_top")
-		# Top-up strips, 0.5 m tall: under a 45° gable it makes a full wall's 2.5 m
+		# Top-up strips, half a vertical unit (0.625 m) tall
 		"wall_strip_2":
 			_plain_wall(d, GRID, STRIP_HEIGHT, "wall_base", "wall_top")
 		"wall_strip_1":
@@ -353,22 +381,22 @@ static func build(shape: String) -> Dictionary:
 		# make one wide window across the joint
 		"window_split_2", "window_split_1":
 			_split_window_wall(d, GRID if shape == "window_split_2" else 1.0)
-		"beam_1", "beam_2":
-			_beam(d, 1.0 if shape == "beam_1" else GRID)
+		"beam_1", "beam_2", "beam_4":
+			_beam(d, BEAM_LENGTHS[shape])
 		"beam_diag_26":
 			_diagonal_beam(d, ROOF_RISE)
 		"beam_diag_45":
 			_diagonal_beam(d, ROOF_RISE_45)
-		"pole_1", "pole_2":
-			_pole(d, 1.0 if shape == "pole_1" else GRID)
+		"pole_1", "pole_2", "pole_5":
+			_pole(d, POLE_HEIGHTS[shape])
 		"ladder":
 			_ladder(d)
 		"railing_2", "railing_1":
 			_railing(d, GRID if shape == "railing_2" else 1.0)
 		"fence":
 			_fence(d)
-		"pillar_wood", "pillar_stone":
-			_pillar(d, shape == "pillar_stone")
+		"pillar_wood", "pillar_stone", "pillar_wood_half", "pillar_stone_half":
+			_pillar(d, shape.begins_with("pillar_stone"), HALF_PILLAR_HEIGHT if shape.ends_with("_half") else PILLAR_HEIGHT)
 		"floor_rtri", "foundation_wood_rtri", "foundation_stone_rtri":
 			_triangle_piece(d, _right_triangle(), ["floor_edge", "floor_edge_long", "floor_edge"], _kind_of(shape), "rtri")
 		"floor_tri45", "foundation_wood_tri45", "foundation_stone_tri45":
@@ -381,10 +409,8 @@ static func build(shape: String) -> Dictionary:
 			_door(d)
 		"roof":
 			_roof(d, ROOF_RISE, "_26")
-		"stairs":
-			_stairs(d)
-		"foundation_steps":
-			_stairs(d, FOUNDATION_STEPS_HEIGHT, FOUNDATION_STEPS)
+		"stairs", "half_stairs":
+			_stairs(d, FLIGHTS[shape][0], FLIGHTS[shape][1])
 		"curved_wall_45":
 			_curved_wall(d, 22.5, "curve_base", "curve_top")
 		"curved_wall_22":
@@ -407,11 +433,12 @@ static func build(shape: String) -> Dictionary:
 	# Turning a symmetric piece by this much looks the same, so those turns aren't offered twice
 	d["symmetry"] = {
 		"floor": PI / 2.0, "floor_1": PI / 2.0, "wall": PI, "doorway": PI, "window": PI,
-		"wall_long": PI, "wall_short": PI, "wall_1": PI, "wall_half_2": PI, "wall_half_1": PI, "wall_quarter": PI,
+		"wall_long": PI, "wall_short": PI, "wall_1": PI, "wall_half_2": PI, "wall_half_1": PI,
 		"wall_strip_2": PI, "wall_strip_1": PI,
 		"foundation_wood": PI / 2.0, "foundation_stone": PI / 2.0,
-		"pillar_wood": PI / 2.0, "pillar_stone": PI / 2.0, "pole_1": PI / 2.0, "pole_2": PI / 2.0,
-		"beam_1": PI, "beam_2": PI, "ridge_26": PI, "ridge_45": PI, "topper_26": PI, "topper_45": PI, "topper_gable_26": PI, "topper_gable_45": PI, "topper_overhang_26": PI, "topper_overhang_45": PI,
+		"pillar_wood": PI / 2.0, "pillar_stone": PI / 2.0, "pillar_wood_half": PI / 2.0, "pillar_stone_half": PI / 2.0,
+		"pole_1": PI / 2.0, "pole_2": PI / 2.0, "pole_5": PI / 2.0,
+		"beam_1": PI, "beam_2": PI, "beam_4": PI, "ridge_26": PI, "ridge_45": PI, "topper_26": PI, "topper_45": PI, "topper_gable_26": PI, "topper_gable_45": PI, "topper_overhang_26": PI, "topper_overhang_45": PI,
 		"railing_2": PI, "railing_1": PI, "fence": PI,
 	}.get(shape, 0.0)
 	# Pillars, poles, beams and ladders are slender: they only bump into each other, so floors,
@@ -611,37 +638,47 @@ static func _roof(d: Dictionary, rise: float, pitch: String) -> void:
 	d["roof"] = true
 
 
-# Stairs 2 m wide and 4 m long, climbing a wall's height toward +Z (a gentle enough slope to walk
-# up). They stand on the middle of their footprint; you walk on a hidden ramp along the step edges.
-# Foundation Steps are the same at a foundation's height (FOUNDATION_STEPS_HEIGHT, in
-# FOUNDATION_STEPS steps of the same rise and run, so 1.6 m long).
-static func _stairs(d: Dictionary, height := WALL_HEIGHT, steps := STAIRS_STEPS) -> void:
+# A flight `height` tall, GRID wide and `length` long (see FLIGHTS), climbing toward +Z in evenly
+# spaced steps (see step_count). It stands on the middle of its footprint; you walk on a hidden ramp
+# along the step edges.
+static func _stairs(d: Dictionary, height: float, length: float) -> void:
+	var steps := step_count(height)
 	var rise := height / steps
-	var run := STAIRS_RUN / STAIRS_STEPS
-	var length := run * steps
+	var run := length / steps
 	var start := -length / 2.0
 	for i in steps:
 		var top := rise * (i + 1)
 		var color := _board_color(STAIRS_COLOR, i)
 		_box_mesh(d["surface"], Vector3(GRID, top, run), Transform3D(Basis.IDENTITY, Vector3(0, top / 2.0, start + run * (i + 0.5))), color)
-	# The ramp runs along the front edges of the steps, from the ground to the top step
-	var low := Vector3(0, 0, start - run)
-	var high := Vector3(0, height, length / 2.0 - run)
-	var slope := atan2(high.y - low.y, high.z - low.z)
-	var basis := Basis(Vector3.RIGHT, -slope)
-	var ramp := BoxShape3D.new()
-	ramp.size = Vector3(GRID, 0.2, low.distance_to(high))
-	_collision(d, ramp, Transform3D(basis, (low + high) / 2.0 - basis.y * 0.1))
+	# The ramp you walk on: from the bottom step's front on the floor or ground up to the top step's
+	# front, a slab RAMP_DEPTH deep under that line. Every bit of it is inside the flight's own
+	# footprint, between its bottom and top corners and above its bottom, so snapped to a floor by
+	# either end it never pokes into that floor (or past its edge, where it would catch the crosshair)
+	var top_front := length / 2.0 - run
+	var ramp_slope := height / (top_front - start)
+	var ramp := ConvexPolygonShape3D.new()
+	var outline := PackedVector3Array()
+	for x in [-GRID / 2.0, GRID / 2.0]:
+		outline.append(Vector3(x, 0.0, start))
+		outline.append(Vector3(x, height, top_front))
+		outline.append(Vector3(x, height - RAMP_DEPTH, top_front))
+		outline.append(Vector3(x, 0.0, start + RAMP_DEPTH / ramp_slope))
+	ramp.points = outline
+	_collision(d, ramp, Transform3D.IDENTITY)
 	var landing := BoxShape3D.new()
 	landing.size = Vector3(GRID, 0.2, run)
 	_collision(d, landing, Transform3D(Basis.IDENTITY, Vector3(0, height - 0.1, length / 2.0 - run / 2.0)))
 	# (the full flight stands on a floor's middle by this point; the short one has no room to)
-	if steps == STAIRS_STEPS:
+	if height >= STOREY - 0.01:
 		_socket(d, Vector3(0, 0, -GRID / 2.0), PI, "stairs_foot")
 	_socket(d, Vector3(0, 0, start), PI, "stairs_bottom")
 	_socket(d, Vector3(0, height, length / 2.0), 0.0, "stairs_top")
 	d["clear_radius"] = length / 2.0 + 0.3
 	d["stairs"] = true
+	# Where the flight starts and ends, for its snap corners (see SnapCorners): the top step's outer
+	# edge at `height` (level with a floor's top), the bottom step's front on the ground
+	d["stairs_height"] = height
+	d["stairs_length"] = length
 
 
 # A curved wall along the ring, centered on +Z, `half_angle` degrees each side. Its origin is the
@@ -746,8 +783,15 @@ static func _cone_roof(d: Dictionary) -> void:
 		var out: Vector3 = _tangent(a) * side
 		_quad(st, apex, p, p + down, apex + down, out, ROOF_COLOR)
 		_socket(d, (apex + p) / 2.0, _yaw(out), "cone_side_right" if side > 0.0 else "cone_side_left")
+	# Solid as the drawn cone: its underside from the ring (on the walls' tops) up to ROOF_THICKNESS
+	# under the point, its deck and shakes CONE_SOLID over that
+	var solid_points := PackedVector3Array()
+	var under_apex := apex + down
+	for p in [under_apex] + Array(points).filter(func(q): return absf((q as Vector3).y) < 0.001 and (q as Vector3).length() > 0.1):
+		solid_points.append(p)
+		solid_points.append((p as Vector3) + Vector3.UP * CONE_SOLID)
 	var solid := ConvexPolygonShape3D.new()
-	solid.points = points
+	solid.points = solid_points
 	_collision(d, solid, Transform3D.IDENTITY)
 	_socket(d, Vector3(0, 0, RING_RADIUS), 0.0, "cone_base")
 	d["roof"] = true
@@ -1075,8 +1119,13 @@ static func _roof_corner(d: Dictionary, rise: float, pitch: String, inner: bool)
 			if out.dot((a + b) / 2.0 - Vector3(0, 0, half)) < 0.0:
 				out = -out
 			_quad(st, a, b, high[e[1]], high[e[0]], out, ROOF_COLOR)
+		# Solid no thicker than the drawn deck and shakes: ROOF_SOLID across the slope, raised
+		# upright from the underside (never standing past the square-cut boards at its edges)
+		var solid_top := []
+		for p in low:
+			solid_top.append((p as Vector3) + Vector3.UP * ROOF_SOLID * cos(slope))
 		var solid := ConvexPolygonShape3D.new()
-		solid.points = PackedVector3Array(low + high)
+		solid.points = PackedVector3Array(low + solid_top)
 		_collision(d, solid, Transform3D.IDENTITY)
 	if inner:
 		# Its low corner, where the two roofs' eaves meet inside the corner: a valley eave corner goes
@@ -1131,8 +1180,16 @@ static func _roof_slab(d: Dictionary, x0: float, x1: float, z0: float, z1: float
 		_prism_x(st, section, x, next, _board_color(color, k))
 		x = next
 	if solid:
+		# Solid as the drawn deck and shakes: ROOF_SOLID thick across the slope over the underside;
+		# its low end cut plumb and its high end square to the slope, as the drawn boards' top is
+		# (seen from above it covers exactly the slab, so its corners stay on the grid for snapping)
+		var slope := atan2(rise, GRID)
+		var k := rise / GRID
+		var plumb := Vector2(0.0, ROOF_SOLID / cos(slope))
+		var square := Vector2(-sin(slope), cos(slope)) * ROOF_SOLID
+		var solid_section := PackedVector2Array([Vector2(z0, z0 * k), Vector2(z1, z1 * k), Vector2(z1, z1 * k) + square, Vector2(z0, z0 * k) + plumb])
 		var points := PackedVector3Array()
-		for p in section:
+		for p in solid_section:
 			points.append(Vector3(x0, p.y, p.x))
 			points.append(Vector3(x1, p.y, p.x))
 		var shape := ConvexPolygonShape3D.new()
@@ -1593,43 +1650,54 @@ static func _ridge_cap(d: Dictionary, rise: float, pitch: String) -> void:
 	var reach := 0.4
 	var thick := 0.06
 	for side in [-1.0, 1.0]:
-		# Each half lies on one roof's top, sloping down away from the ridge
+		# Each half lies on one roof's top, sloping down away from the ridge (the plain look; the
+		# close-up look is a log along the ridge)
 		var basis := Basis(Vector3.RIGHT, slope * side)
 		var center := Vector3(0, lift - reach / 2.0 * tan(slope), side * reach / 2.0) + basis.y * thick / 2.0
-		_planked_box(d, Vector3(GRID, thick, reach / cos(slope) + 0.04), center, basis, ROOF_COLOR.darkened(0.15), 0, -GRID / 2.0)
+		_planked_box(d, Vector3(GRID, thick, reach / cos(slope) + 0.04), center, basis, ROOF_COLOR.darkened(0.15), 0, -GRID / 2.0, false, false)
+	# Solid as its drawn ridge log (see PieceDetail._ridge_cap)
+	var log := BoxShape3D.new()
+	log.size = Vector3(GRID, PieceDetail.RIDGE_RADIUS * 2.0, PieceDetail.RIDGE_RADIUS * 2.0)
+	_collision(d, log, Transform3D(Basis.IDENTITY, Vector3(0, lift + PieceDetail.RIDGE_RADIUS * 0.4, 0)))
 	_socket(d, Vector3.ZERO, 0.0, "ridge_cap" + pitch)
 	d["roof"] = true
 
 
-# A square beam lying along X, 1 m or 2 m long, centred on its origin: snaps end to end, at its
-# ends onto corners, edge middles and pole and pillar tops, and lying along a wall's top
+# A square beam lying along X, 1, 2 or 4 m long (half, full, double a cell), its TOP on the level
+# (the grid standard: like a floor, its top on the line, its depth below, so a post's top, a beam's
+# top and a floor's top are one level): its origin is the middle of its top. Snaps end to end, at
+# its ends (the ends of its top's middle line) onto corners, edge middles and pole and pillar tops,
+# and lying along a wall's top.
 static func _beam(d: Dictionary, length: float) -> void:
-	_solid_box(d, Vector3(length, BEAM, BEAM), Transform3D.IDENTITY, LOG_COLOR)
+	_solid_box(d, Vector3(length, BEAM, BEAM), Transform3D(Basis.IDENTITY, Vector3(0, -BEAM / 2.0, 0)), LOG_COLOR)
 	for side in [-1.0, 1.0]:
 		_socket(d, Vector3(side * length / 2.0, 0, 0), side * PI / 2.0, "beam_end")
-	_socket(d, Vector3(0, -BEAM / 2.0, 0), 0.0, "beam_under" if length > 1.5 else "beam_under_small")
+	_socket(d, Vector3(0, -BEAM, 0), 0.0, "beam_under" if length > 1.5 else "beam_under_small")
 	# Its top, to go under a roof's low edge or an eave's outer edge
-	_socket(d, Vector3(0, BEAM / 2.0, 0), 0.0, "beam_top")
+	_socket(d, Vector3.ZERO, 0.0, "beam_top")
 	# Its middle, for another beam crossing through it
-	_socket(d, Vector3.ZERO, 0.0, "beam_mid")
+	_socket(d, Vector3(0, -BEAM / 2.0, 0), 0.0, "beam_mid")
 
 
 # A diagonal beam climbing `rise` over 2 m along X (the slope of the 26° or 45° roof). Its box is a
 # few millimetres off-centre front to back (z from -0.098 to 0.096), so a second one crossing it
 # the other way (turned half round) has its faces just in front on one side and just behind on the
 # other: never in the same plane, so they don't flicker. (A straight beam crossing it keeps ±0.1.)
+# (Like a straight beam, its top lies on the line between its ends, its depth below.)
 static func _diagonal_beam(d: Dictionary, rise: float) -> void:
 	var low := Vector3(-GRID / 2.0, 0, 0)
 	var high := Vector3(GRID / 2.0, rise, 0)
 	var basis := Basis(Vector3.BACK, atan2(rise, GRID))
-	_solid_box(d, Vector3(low.distance_to(high), BEAM, BEAM - 0.006), Transform3D(basis, (low + high) / 2.0 + Vector3(0, 0, -0.001)), LOG_COLOR)
+	var under := -basis.y * BEAM / 2.0
+	_solid_box(d, Vector3(low.distance_to(high), BEAM, BEAM - 0.006), Transform3D(basis, (low + high) / 2.0 + under + Vector3(0, 0, -0.001)), LOG_COLOR)
 	_socket(d, low, -PI / 2.0, "beam_end")
 	_socket(d, high, PI / 2.0, "beam_end")
 	# Its middle, for another beam crossing through it (a second diagonal there makes an X)
-	_socket(d, (low + high) / 2.0, 0.0, "beam_mid_diag")
+	_socket(d, (low + high) / 2.0 + under, 0.0, "beam_mid_diag")
 
 
-# A square pole standing on its bottom middle, 1 m or 2 m tall, thinner than a pillar
+# A square pole standing on its bottom middle, 1.25, 2.5 or 5 m tall (half, full, double a wall's
+# height), thinner than a pillar
 static func _pole(d: Dictionary, length: float) -> void:
 	_box_mesh(d["surface"], Vector3(POLE, length, POLE), Transform3D(Basis.IDENTITY, Vector3(0, length / 2.0, 0)), LOG_COLOR.lightened(0.05))
 	var solid := BoxShape3D.new()
@@ -1639,7 +1707,7 @@ static func _pole(d: Dictionary, length: float) -> void:
 	_socket(d, Vector3(0, length, 0), 0.0, "pole_top")
 
 
-# A ladder 2 m tall and 0.6 m wide, standing on its bottom middle with its face toward +Z: on a
+# A ladder one storey (2.5 m) tall and 0.6 m wide, standing on its bottom middle with its face toward +Z: on a
 # floor edge, hanging from an upper floor's edge, or on top of another ladder. Climb it with W.
 static func _ladder(d: Dictionary) -> void:
 	var st: SurfaceTool = d["surface"]
@@ -1668,34 +1736,38 @@ static func _railing(d: Dictionary, length: float) -> void:
 		_box_mesh(st, Vector3(0.08, RAILING_HEIGHT - 0.1, 0.08), Transform3D(Basis.IDENTITY, Vector3(0, (RAILING_HEIGHT - 0.1) / 2.0, 0)), LOG_COLOR)
 	for y in [RAILING_HEIGHT - 0.06, RAILING_HEIGHT * 0.5]:
 		_box_mesh(st, Vector3(length, 0.08, 0.06), Transform3D(Basis.IDENTITY, Vector3(0, y, 0)), WALL_COLOR)
+	# (solid as deep as its posts with their rope lashings)
 	var solid := BoxShape3D.new()
-	solid.size = Vector3(length, RAILING_HEIGHT, 0.1)
+	solid.size = Vector3(length, RAILING_HEIGHT, 0.15)
 	_collision(d, solid, Transform3D(Basis.IDENTITY, Vector3(0, RAILING_HEIGHT / 2.0, 0)))
 	_socket(d, Vector3.ZERO, 0.0, "railing_base" if length > 1.5 else "small_railing_base")
 	_socket(d, Vector3(half, 0, 0), PI / 2.0, "wall_end")
 	_socket(d, Vector3(-half, 0, 0), -PI / 2.0, "wall_end")
 
 
-# A 2 m picket fence, 1.4 m high: two rails with pointed pickets, lashed with rope. It stands on
-# the ground or along floor edges, and chains end to end.
+# A 2 m picket fence, one vertical unit (1.25 m) high: two rails with pointed pickets, lashed with
+# rope. Centred on its line (FENCE_DEPTH deep: the rails behind, the pickets in front). It stands
+# on the ground or along floor edges, and chains end to end.
 static func _fence(d: Dictionary) -> void:
 	var st: SurfaceTool = d["surface"]
 	var half := GRID / 2.0
-	for y in [0.35, FENCE_HEIGHT - 0.35]:
-		_box_mesh(st, Vector3(GRID, 0.08, 0.06), Transform3D(Basis.IDENTITY, Vector3(0, y, -0.06)), LOG_COLOR)
+	var rail_z := -FENCE_DEPTH / 2.0 + 0.03
+	var picket_z := FENCE_DEPTH / 2.0 - 0.02
+	for y in [0.3, FENCE_HEIGHT - 0.3]:
+		_box_mesh(st, Vector3(GRID, 0.08, 0.06), Transform3D(Basis.IDENTITY, Vector3(0, y, rail_z)), LOG_COLOR)
 	var x := -half + 0.1
 	var k := 0
 	while x < half:
 		var color := _board_color(WALL_COLOR, k)
-		_box_mesh(st, Vector3(0.12, FENCE_HEIGHT - 0.1, 0.04), Transform3D(Basis.IDENTITY, Vector3(x, (FENCE_HEIGHT - 0.1) / 2.0, 0)), color)
-		var tip := Vector3(x, FENCE_HEIGHT - 0.1, 0)
+		_box_mesh(st, Vector3(0.12, FENCE_HEIGHT - 0.1, 0.04), Transform3D(Basis.IDENTITY, Vector3(x, (FENCE_HEIGHT - 0.1) / 2.0, picket_z)), color)
+		var tip := Vector3(x, FENCE_HEIGHT - 0.1, picket_z)
 		_triangle(st, tip + Vector3(-0.06, 0, 0.02), tip + Vector3(0.06, 0, 0.02), tip + Vector3(0, 0.1, 0.02), Vector3.BACK, color)
 		_triangle(st, tip + Vector3(-0.06, 0, -0.02), tip + Vector3(0.06, 0, -0.02), tip + Vector3(0, 0.1, -0.02), Vector3.FORWARD, color)
 		x += 0.2
 		k += 1
 	var solid := BoxShape3D.new()
-	solid.size = Vector3(GRID, FENCE_HEIGHT, 0.12)
-	_collision(d, solid, Transform3D(Basis.IDENTITY, Vector3(0, FENCE_HEIGHT / 2.0, -0.02)))
+	solid.size = Vector3(GRID, FENCE_HEIGHT, FENCE_DEPTH)
+	_collision(d, solid, Transform3D(Basis.IDENTITY, Vector3(0, FENCE_HEIGHT / 2.0, 0)))
 	_socket(d, Vector3.ZERO, 0.0, "railing_base")
 	_socket(d, Vector3(half, 0, 0), PI / 2.0, "wall_end")
 	_socket(d, Vector3(-half, 0, 0), -PI / 2.0, "wall_end")
@@ -1722,7 +1794,9 @@ const MODEL_BOXES := {
 	"chopping_block": Vector3(0.65, 0.33, 0.65),
 	"tool_rack": Vector3(1.3, 0.86, 0.31),
 	"storage_shelf": Vector3(1.25, 1.17, 0.44),
-	"fireplace": Vector3(1.4, 1.19, 0.91),
+	# (scaled evenly so the top of its chimney stack, where chimney sections stand, is one vertical
+	# unit up: see FIREPLACE_SCALE)
+	"fireplace": Vector3(1.4, 1.19, 0.91) * FIREPLACE_SCALE,
 	# The Rustic Bed at a full 2 m long (its own proportions make it 1.34 m wide), headboard at -Z
 	"bed": Vector3(1.34, 0.645, 2.0),
 	# The Foraging Basket filling the 0.62 m footprint across its rope handle
@@ -1762,21 +1836,26 @@ const WALL_MOUNTS := {"tool_rack": 1.0}
 const MODEL_TURNS := {
 	"bed": PI / 2.0,
 }
+## The fireplace's size against its model's first fitting (1.4 × 1.19 × 0.91 m, its chimney stack
+## topping out at 1.187 m): scaled evenly so the stack tops out exactly one vertical unit up
+const FIREPLACE_SCALE := HALF_HEIGHT / 1.187
 ## Where the fireplace's flames burn, in its own space (inside the model's hearth)
-const HEARTH_FIRE := Vector3(0, 0.2, 0.05)
+const HEARTH_FIRE := Vector3(0, 0.2, 0.05) * FIREPLACE_SCALE
 ## The middle of the top of the fireplace model's chimney stack, in the fireplace piece's space
 ## (measured from the fitted model), and the stack's width: chimney pieces are this square
-const FIREPLACE_CHIMNEY := Vector3(-0.147, 1.187, -0.19)
+const FIREPLACE_CHIMNEY := Vector3(-0.147, 1.187, -0.19) * FIREPLACE_SCALE
 const CHIMNEY_WIDTH := 0.41
-## A chimney section's height, and the top's (the Stone Basin model scaled evenly to the width)
-const CHIMNEY_SECTION_HEIGHT := 1.0
+## A chimney section's height (one vertical unit, so two make a storey), and the top's (the Stone
+## Basin model scaled evenly to the width)
+const CHIMNEY_SECTION_HEIGHT := HALF_HEIGHT
 const CHIMNEY_TOP_HEIGHT := 0.402
 ## How each chimney model is fitted (see BuildPiece.fitted_model): its stone body's middle (x, z)
 ## and the range of heights kept (anything past them is flattened onto them, so the corner posts
 ## end flush with the stones and pieces stack without gaps), in the model's own units, and the
 ## scale that makes the body CHIMNEY_WIDTH square and a section CHIMNEY_SECTION_HEIGHT tall
 const CHIMNEY_FITS := {
-	"chimney_section": {"centre": Vector2(0.0, -0.003), "keep": Vector2(-0.476, 0.425), "scale": Vector3(0.6766, 1.1099, 0.7009)},
+	# (stretched upright to the section's height: 1.1099 made it 1 m)
+	"chimney_section": {"centre": Vector2(0.0, -0.003), "keep": Vector2(-0.476, 0.425), "scale": Vector3(0.6766, 1.1099 * CHIMNEY_SECTION_HEIGHT, 0.7009)},
 	"chimney_top": {"centre": Vector2(-0.006, -0.037), "keep": Vector2(-0.369, 0.358), "scale": Vector3(0.5578, 0.554, 0.5503)},
 }
 
@@ -1940,27 +2019,29 @@ static func _upright(st: SurfaceTool, corners: PackedVector2Array, z: float, nor
 		_triangle(st, Vector3(corners[0].x, corners[0].y, z), Vector3(corners[i].x, corners[i].y, z), Vector3(corners[i + 1].x, corners[i + 1].y, z), normal, color)
 
 
-# A square pillar 2.5 m tall standing on its bottom middle: a wooden post, or stacked stone blocks
-static func _pillar(d: Dictionary, stone: bool) -> void:
+# A square pillar standing on its bottom middle, `height` tall (a wall's, or a half wall's for a
+# half pillar): a wooden post, or stacked stone blocks
+static func _pillar(d: Dictionary, stone: bool, height := PILLAR_HEIGHT) -> void:
 	var st: SurfaceTool = d["surface"]
 	var w := STONE_PILLAR if stone else WOOD_PILLAR
+	var solid_w := STONE_PILLAR if stone else WOOD_PILLAR_SOLID
 	var solid := BoxShape3D.new()
-	solid.size = Vector3(w, PILLAR_HEIGHT, w)
-	_collision(d, solid, Transform3D(Basis.IDENTITY, Vector3(0, PILLAR_HEIGHT / 2.0, 0)))
+	solid.size = Vector3(solid_w, height, solid_w)
+	_collision(d, solid, Transform3D(Basis.IDENTITY, Vector3(0, height / 2.0, 0)))
 	if stone:
-		_box_mesh(st, Vector3(w - 0.04, PILLAR_HEIGHT, w - 0.04), Transform3D(Basis.IDENTITY, Vector3(0, PILLAR_HEIGHT / 2.0, 0)), MORTAR_COLOR)
-		var blocks := roundi(PILLAR_HEIGHT / COURSE)
+		_box_mesh(st, Vector3(w - 0.04, height, w - 0.04), Transform3D(Basis.IDENTITY, Vector3(0, height / 2.0, 0)), MORTAR_COLOR)
+		var blocks := roundi(height / COURSE)
 		for k in blocks:
 			var turn := Basis(Vector3.UP, (k % 2) * PI / 2.0)
 			_box_mesh(st, Vector3(w, COURSE - 0.03, w), Transform3D(turn, Vector3(0, COURSE * (k + 0.5), 0)), _board_color(STONE_COLOR, k * 17 + 3))
 	else:
 		# A post of two boards side by side, with a slightly darker cap and foot
 		for side in [-1.0, 1.0]:
-			_box_mesh(st, Vector3(w / 2.0, PILLAR_HEIGHT - 0.2, w), Transform3D(Basis.IDENTITY, Vector3(side * w / 4.0, PILLAR_HEIGHT / 2.0, 0)), _board_color(WALL_COLOR, 3 if side > 0.0 else 4))
-		for y in [0.05, PILLAR_HEIGHT - 0.05]:
+			_box_mesh(st, Vector3(w / 2.0, height - 0.2, w), Transform3D(Basis.IDENTITY, Vector3(side * w / 4.0, height / 2.0, 0)), _board_color(WALL_COLOR, 3 if side > 0.0 else 4))
+		for y in [0.05, height - 0.05]:
 			_box_mesh(st, Vector3(w + 0.04, 0.1, w + 0.04), Transform3D(Basis.IDENTITY, Vector3(0, y, 0)), LOG_COLOR.darkened(0.15))
 	_socket(d, Vector3.ZERO, 0.0, "pillar_base")
-	_socket(d, Vector3(0, PILLAR_HEIGHT, 0), 0.0, "pillar_top")
+	_socket(d, Vector3(0, height, 0), 0.0, "pillar_top")
 	d["clear_radius"] = 0.6
 
 

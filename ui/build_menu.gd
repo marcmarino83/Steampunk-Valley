@@ -15,7 +15,7 @@ signal template_deleted(template: BuildingTemplate)
 const SLOT_SCENE = preload("res://ui/build_slot.tscn")
 const BUILDABLES_FOLDER := "res://buildables"
 ## The tabs in order. A buildable with no section (or one not listed) goes under "Other".
-const TABS := ["Foundations", "Floors", "Walls", "Roofs", "Beams & Pillars", "Stairs & Doors", "Round", "Furniture", "Other", "Buildings"]
+const TABS := ["Foundations", "Floors", "Walls", "Roofs", "Beams & Pillars", "Stairs & Doors", "Round", "Furniture", "Paths", "Other", "Buildings"]
 const FALLBACK_TAB := "Other"
 const BUILDINGS_TAB := "Buildings"
 const COLUMNS := 6
@@ -293,6 +293,8 @@ func _update_detail() -> void:
 		var plot_type := _hovered as PlotType
 		var housing := "  ·  One settler per bed" if not plot_type.houses_per.is_empty() else ""
 		detail_label.text = "Click to mark out an empty %s plot (free)  ·  Needs %s%s" % [plot_type.display_name, plot_type.requirements_text(), housing]
+	elif _hovered is PathTool:
+		detail_label.text = (_hovered as PathTool).menu_hint if not (_hovered as PathTool).menu_hint.is_empty() else "Click to paint %s (free)" % _hovered.display_name
 	elif _hovered.can_afford(_inventory):
 		detail_label.text = "Click to place a %s" % _hovered.display_name
 	else:

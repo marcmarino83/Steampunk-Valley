@@ -63,12 +63,17 @@ static func read(file_path: String) -> BuildingTemplate:
 	var saved_size: Array = data.get("size", [type.min_size.x, type.min_size.y])
 	template.size = Vector2(float(saved_size[0]), float(saved_size[1]))
 	template.built_in = file_path.begins_with("res://")
+	# Its pieces as saved, then (made before the building grid standard) brought up to it
+	var pieces := []
 	for entry in data.get("items", []):
-		var buildable := load(str(entry.get("buildable", ""))) as Buildable
+		pieces.append({"buildable": str(entry.get("buildable", "")), "where": Transform3D(SaveGame.to_rotation(entry), SaveGame.to_vector(entry.get("position")))})
+	if int(data.get("grid", 1)) < GridUpgrade.GRID_VERSION:
+		GridUpgrade.upgrade(pieces)
+	for p in pieces:
+		var buildable := load(str(p["buildable"])) as Buildable if ResourceLoader.exists(str(p["buildable"])) else null
 		if buildable == null:
 			continue
-		var at := SaveGame.to_vector(entry.get("position"))
-		template.items.append({"buildable": buildable, "relative": Transform3D(SaveGame.to_rotation(entry), at)})
+		template.items.append({"buildable": buildable, "relative": p["where"]})
 	return template
 
 
@@ -118,6 +123,8 @@ func write(as_built_in: bool, picture: Image) -> String:
 		"size": [size.x, size.y],
 		"built_in": as_built_in,
 		"items": list,
+		# (made on the building grid standard: see GridUpgrade)
+		"grid": GridUpgrade.GRID_VERSION,
 	}
 	var target := ProjectSettings.globalize_path(file_path) if as_built_in else file_path
 	var file := FileAccess.open(target, FileAccess.WRITE)

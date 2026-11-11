@@ -1,0 +1,7946 @@
+{
+	"meta": {
+		"custom_name": false,
+		"day": 7,
+		"kind": "snapshot",
+		"name": "Day 7 – 10 Nov 2026, 20:22",
+		"play_seconds": 14610.0423554596,
+		"saved_text": "10 Nov 2026, 20:22",
+		"saved_unix": 1794360164.5,
+		"world_id": "world_1794096639000"
+	},
+	"systems": {
+		"action_bar": {
+			"items": [
+				"Spear",
+				"Axe",
+				"Pickaxe",
+				"Hammer",
+				"Knife",
+				"",
+				"",
+				"",
+				""
+			],
+			"selected": 3
+		},
+		"buildings": {
+			"ghosts": [],
+			"list": [
+				{
+					"buildable": "res://buildables/campfire.tres",
+					"position": [
+						-14.7615947723389,
+						28.2041988372803,
+						133.537231445313
+					],
+					"state": {
+						"coal_left": 0.0,
+						"fuel": 0.0,
+						"lit": false
+					},
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/lean_to.tres",
+					"position": [
+						-17.9448890686035,
+						28.1622753143311,
+						132.874389648438
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/workbench.tres",
+					"position": [
+						-15.4929828643799,
+						28.1872158050537,
+						136.472610473633
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/storage_chest.tres",
+					"position": [
+						-13.6723766326904,
+						28.2269191741943,
+						137.259307861328
+					],
+					"state": {
+						"contents": {}
+					},
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/storage_chest.tres",
+					"plot": "plot_6",
+					"position": [
+						433.538970947266,
+						36.957275390625,
+						10.5045013427734
+					],
+					"state": {
+						"contents": {}
+					},
+					"turn": -0.785398244857788
+				},
+				{
+					"buildable": "res://buildables/storage_chest.tres",
+					"plot": "plot_7",
+					"position": [
+						370.385223388672,
+						34.0090866088867,
+						10.5993623733521
+					],
+					"state": {
+						"contents": {}
+					},
+					"turn": 2.96706008911133
+				},
+				{
+					"buildable": "res://buildables/storage_chest.tres",
+					"plot": "plot_8",
+					"position": [
+						403.524322509766,
+						36.8595848083496,
+						5.38679885864258
+					],
+					"state": {
+						"contents": {}
+					},
+					"turn": 1.74532926082611
+				}
+			]
+		},
+		"clock": {
+			"day": 6,
+			"time_of_day": 0.463748137990788
+		},
+		"painted_paths": {
+			"texel": 0.25,
+			"tile": 128,
+			"tiles": {}
+		},
+		"pieces": {
+			"list": [
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 12,
+					"paid": {
+						"Stone": 6
+					},
+					"plot": "plot_4",
+					"position": [
+						418.960144042969,
+						36.6291122436523,
+						-13.6962280273438
+					],
+					"turn": 1.6580628156662
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 13,
+					"paid": {
+						"Stone": 6
+					},
+					"plot": "plot_4",
+					"position": [
+						418.785858154297,
+						36.6291122436523,
+						-15.6886234283447
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 14,
+					"paid": {
+						"Stone": 6
+					},
+					"plot": "plot_4",
+					"position": [
+						416.793395996094,
+						36.6291122436523,
+						-15.5143070220947
+					],
+					"turn": 1.6580628156662
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 15,
+					"paid": {
+						"Stone": 6
+					},
+					"plot": "plot_4",
+					"position": [
+						416.967712402344,
+						36.6291122436523,
+						-13.5219135284424
+					],
+					"turn": -3.05432629585266
+				},
+				{
+					"buildable": "res://buildables/structure/doorway.tres",
+					"id": 22,
+					"paid": {
+						"Planks": 3
+					},
+					"plot": "plot_4",
+					"position": [
+						417.054870605469,
+						36.6291122436523,
+						-12.5257205963135
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 23,
+					"paid": {
+						"Planks": 4
+					},
+					"plot": "plot_4",
+					"position": [
+						419.047302246094,
+						36.6291122436523,
+						-12.7000331878662
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 24,
+					"paid": {
+						"Planks": 4
+					},
+					"plot": "plot_4",
+					"position": [
+						419.956329345703,
+						36.6291122436523,
+						-13.7833852767944
+					],
+					"turn": 1.6580628156662
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 30,
+					"paid": {
+						"Planks": 3,
+						"Plant Fiber": 2
+					},
+					"plot": "plot_4",
+					"position": [
+						419.781951904297,
+						39.1291122436523,
+						-15.775767326355
+					],
+					"turn": -1.48352944850922
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 31,
+					"paid": {
+						"Planks": 3,
+						"Plant Fiber": 2
+					},
+					"plot": "plot_4",
+					"position": [
+						419.956329345703,
+						39.1291122436523,
+						-13.7833852767944
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/structure/stairs.tres",
+					"id": 36,
+					"paid": {
+						"Planks": 4
+					},
+					"plot": "plot_4",
+					"position": [
+						417.229217529297,
+						34.1291122436523,
+						-10.5333299636841
+					],
+					"turn": -3.05432605743408
+				},
+				{
+					"buildable": "res://buildables/structure/door.tres",
+					"id": 38,
+					"paid": {
+						"Planks": 3,
+						"Rope": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						417.054870605469,
+						36.6291122436523,
+						-12.5257205963135
+					],
+					"state": {
+						"open": true
+					},
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/gable_26.tres",
+					"id": 41,
+					"paid": {
+						"Planks": 2
+					},
+					"plot": "plot_4",
+					"position": [
+						419.047302246094,
+						39.1291122436523,
+						-12.7000331878662
+					],
+					"turn": -3.05432629585266
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 44,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						419.956329345703,
+						39.1291122436523,
+						-13.7833852767944
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 45,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						419.781951904297,
+						39.1291122436523,
+						-15.775767326355
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 50,
+					"paid": {
+						"Planks": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						420.065246582031,
+						39.1291122436523,
+						-12.5381355285645
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 51,
+					"paid": {
+						"Planks": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						419.673034667969,
+						39.1291122436523,
+						-17.0210189819336
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 57,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						420.065246582031,
+						39.1291122436523,
+						-12.5381355285645
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/furniture/storage_shelf.tres",
+					"id": 58,
+					"paid": {
+						"Planks": 4
+					},
+					"plot": "plot_4",
+					"position": [
+						419.018951416016,
+						36.6291122436523,
+						-13.0237941741943
+					],
+					"turn": -3.05432605743408
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 67,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						414.975402832031,
+						36.6291122436523,
+						-13.3476028442383
+					],
+					"turn": 1.65806293487549
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 68,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						414.801025390625,
+						36.6291122436523,
+						-15.3399877548218
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 69,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						418.611480712891,
+						36.6291122436523,
+						-17.6810035705566
+					],
+					"turn": 0.0872666835784912
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 70,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						416.619079589844,
+						36.6291122436523,
+						-17.5066928863525
+					],
+					"turn": 1.65806293487549
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 71,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						414.626708984375,
+						36.6291122436523,
+						-17.3323802947998
+					],
+					"turn": 1.65806293487549
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 72,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						412.808624267578,
+						36.6291122436523,
+						-15.165678024292
+					],
+					"turn": 1.6580628156662
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 73,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						412.982940673828,
+						36.6291122436523,
+						-13.1732883453369
+					],
+					"turn": -3.05432629585266
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 74,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						412.634307861328,
+						36.6291122436523,
+						-17.1580715179443
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 75,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						412.4599609375,
+						36.6291122436523,
+						-19.1504592895508
+					],
+					"turn": 0.0872666835784912
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 76,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						414.452392578125,
+						36.6291122436523,
+						-19.3247661590576
+					],
+					"turn": -1.4835296869278
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 77,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						416.444793701172,
+						36.6291122436523,
+						-19.4990768432617
+					],
+					"turn": -1.4835296869278
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 78,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						418.437164306641,
+						36.6291122436523,
+						-19.673397064209
+					],
+					"turn": -1.4835296869278
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 79,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						410.816192626953,
+						36.6291122436523,
+						-14.9913673400879
+					],
+					"turn": 1.6580628156662
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 80,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						410.641967773438,
+						36.6291122436523,
+						-16.983757019043
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/window.tres",
+					"id": 82,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						419.781951904297,
+						36.6291122436523,
+						-15.775767326355
+					],
+					"turn": 1.6580628156662
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 83,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						419.607666015625,
+						36.6291122436523,
+						-17.768159866333
+					],
+					"turn": 1.65806293487549
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 84,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						419.433441162109,
+						36.6291122436523,
+						-19.760555267334
+					],
+					"turn": 1.65806305408478
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 85,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						418.350006103516,
+						36.6291122436523,
+						-20.6695899963379
+					],
+					"turn": -3.05432605743408
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 86,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						416.357635498047,
+						36.6291122436523,
+						-20.4952774047852
+					],
+					"turn": -3.05432605743408
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 87,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						414.365234375,
+						36.6291122436523,
+						-20.3209686279297
+					],
+					"turn": -3.05432605743408
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 88,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						412.372863769531,
+						36.6291122436523,
+						-20.1466522216797
+					],
+					"turn": -3.05432605743408
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 89,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						411.463806152344,
+						36.6291122436523,
+						-19.0633029937744
+					],
+					"turn": -1.4835296869278
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 90,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						409.820037841797,
+						36.6291122436523,
+						-14.9042148590088
+					],
+					"turn": -1.4835296869278
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 91,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						410.9033203125,
+						36.6291122436523,
+						-13.9951725006104
+					],
+					"turn": 0.0872666835784912
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 92,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						409.645690917969,
+						36.6291122436523,
+						-16.8966007232666
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 93,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						410.554809570313,
+						36.6291122436523,
+						-17.9799556732178
+					],
+					"turn": -3.05432605743408
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 94,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						411.986755371094,
+						36.6291122436523,
+						-13.0861339569092
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 95,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						413.070098876953,
+						36.6291122436523,
+						-12.1770915985107
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 97,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						419.433441162109,
+						39.1291122436523,
+						-19.760555267334
+					],
+					"turn": -1.48352944850922
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 98,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						419.607666015625,
+						39.1291122436523,
+						-17.768159866333
+					],
+					"turn": -1.48352944850922
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 99,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						417.963897705078,
+						40.1291084289551,
+						-13.6090726852417
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 100,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						417.789672851563,
+						40.1291084289551,
+						-15.6014642715454
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 101,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						417.615325927734,
+						40.1291084289551,
+						-17.5938491821289
+					],
+					"turn": -1.48352944850922
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 102,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						417.440979003906,
+						40.1291084289551,
+						-19.5862369537354
+					],
+					"turn": -1.48352944850922
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 103,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						411.986755371094,
+						39.1291122436523,
+						-13.0861339569092
+					],
+					"turn": 1.65806269645691
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 104,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						413.979125976563,
+						40.1291084289551,
+						-13.2604427337646
+					],
+					"turn": 1.65806269645691
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 105,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						411.463806152344,
+						39.1291122436523,
+						-19.0633029937744
+					],
+					"turn": 1.65806305408478
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 106,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						413.456207275391,
+						40.1291084289551,
+						-19.2376174926758
+					],
+					"turn": 1.65806305408478
+				},
+				{
+					"buildable": "res://buildables/structure/roof_inner_26.tres",
+					"id": 110,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						412.895782470703,
+						39.1291122436523,
+						-14.1694850921631
+					],
+					"turn": -3.05432629585266
+				},
+				{
+					"buildable": "res://buildables/structure/roof_inner_26.tres",
+					"id": 111,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						411.638153076172,
+						39.1291122436523,
+						-17.070915222168
+					],
+					"turn": 1.65806305408478
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 112,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						410.9033203125,
+						39.1291122436523,
+						-13.9951725006104
+					],
+					"turn": -3.05432629585266
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 113,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						410.554809570313,
+						39.1291122436523,
+						-17.9799556732178
+					],
+					"turn": 0.0872666835784912
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 114,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						413.804809570313,
+						40.1291084289551,
+						-15.2528352737427
+					],
+					"turn": 1.65806257724762
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 115,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						413.630523681641,
+						40.1291084289551,
+						-17.2452239990234
+					],
+					"turn": 1.65806305408478
+				},
+				{
+					"buildable": "res://buildables/structure/gable_26.tres",
+					"id": 116,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						412.372863769531,
+						39.1291122436523,
+						-20.1466522216797
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/gable_26.tres",
+					"id": 117,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						418.350006103516,
+						39.1291122436523,
+						-20.6695899963379
+					],
+					"turn": -3.05432605743408
+				},
+				{
+					"buildable": "res://buildables/structure/gable_26.tres",
+					"id": 118,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						409.820037841797,
+						39.1291122436523,
+						-14.9042148590088
+					],
+					"turn": 1.65806293487549
+				},
+				{
+					"buildable": "res://buildables/structure/gable_26.tres",
+					"id": 119,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						409.645690917969,
+						39.1291122436523,
+						-16.8966007232666
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/structure/gable_26.tres",
+					"id": 120,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						413.070098876953,
+						39.1291122436523,
+						-12.1770915985107
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 121,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						417.552978515625,
+						39.1291122436523,
+						-12.5692930221558
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 122,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						416.556732177734,
+						39.1291122436523,
+						-12.482141494751
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 123,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						415.560577392578,
+						39.1291122436523,
+						-12.394983291626
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 124,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						414.564422607422,
+						39.1291122436523,
+						-12.3078336715698
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 127,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						415.859527587891,
+						39.1291122436523,
+						-20.4517002105713
+					],
+					"turn": -3.05432605743408
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 128,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						416.855682373047,
+						39.1291122436523,
+						-20.538854598999
+					],
+					"turn": -3.05432605743408
+				},
+				{
+					"buildable": "res://buildables/structure/gable_26.tres",
+					"id": 129,
+					"paid": {
+						"Planks": 2
+					},
+					"plot": "plot_4",
+					"position": [
+						416.357635498047,
+						40.1291084289551,
+						-20.4952774047852
+					],
+					"turn": -3.05432605743408
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 130,
+					"paid": {
+						"Planks": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						413.867126464844,
+						39.1291122436523,
+						-20.2773876190186
+					],
+					"turn": -3.05432605743408
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 131,
+					"paid": {
+						"Planks": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						414.863403320313,
+						39.1291122436523,
+						-20.3645477294922
+					],
+					"turn": -3.05432605743408
+				},
+				{
+					"buildable": "res://buildables/structure/gable_26.tres",
+					"id": 132,
+					"paid": {
+						"Planks": 2
+					},
+					"plot": "plot_4",
+					"position": [
+						414.365234375,
+						40.1291084289551,
+						-20.3209686279297
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/gable_26.tres",
+					"id": 133,
+					"paid": {
+						"Planks": 2
+					},
+					"plot": "plot_4",
+					"position": [
+						415.062469482422,
+						40.1291084289551,
+						-12.3514108657837
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/gable_26.tres",
+					"id": 134,
+					"paid": {
+						"Planks": 2
+					},
+					"plot": "plot_4",
+					"position": [
+						417.054870605469,
+						40.1291084289551,
+						-12.5257205963135
+					],
+					"turn": -3.05432629585266
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 135,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						411.986755371094,
+						39.1291122436523,
+						-13.0861339569092
+					],
+					"turn": 1.65806245803833
+				},
+				{
+					"buildable": "res://buildables/structure/ridge_26.tres",
+					"id": 136,
+					"paid": {
+						"Planks": 3,
+						"Plant Fiber": 2
+					},
+					"plot": "plot_4",
+					"position": [
+						415.971527099609,
+						41.1291084289551,
+						-13.4347534179688
+					],
+					"turn": 1.65806269645691
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 137,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						412.095764160156,
+						39.1291122436523,
+						-11.840892791748
+					],
+					"turn": 1.65806269645691
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 138,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						414.088073730469,
+						40.1291084289551,
+						-12.0152006149292
+					],
+					"turn": 1.65806269645691
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 139,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						418.072784423828,
+						40.1291084289551,
+						-12.3638219833374
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 140,
+					"paid": {
+						"Planks": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						412.095764160156,
+						39.1291122436523,
+						-11.840892791748
+					],
+					"turn": 1.65806245803833
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 141,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						419.564056396484,
+						39.1291122436523,
+						-18.2662544250488
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 142,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						419.389801025391,
+						39.1291122436523,
+						-20.2586460113525
+					],
+					"turn": -1.48353004455566
+				},
+				{
+					"buildable": "res://buildables/structure/ridge_26.tres",
+					"id": 143,
+					"paid": {
+						"Planks": 3,
+						"Plant Fiber": 2
+					},
+					"plot": "plot_4",
+					"position": [
+						415.448577880859,
+						41.1291084289551,
+						-19.4119300842285
+					],
+					"turn": 1.65806305408478
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 144,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						419.324432373047,
+						39.1291122436523,
+						-21.0057907104492
+					],
+					"turn": -1.48352944850922
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 145,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						417.33203125,
+						40.1291084289551,
+						-20.8314781188965
+					],
+					"turn": -1.48352944850922
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 146,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						413.347320556641,
+						40.1291084289551,
+						-20.4828605651855
+					],
+					"turn": 1.65806293487549
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 147,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						411.354858398438,
+						39.1291084289551,
+						-20.3085479736328
+					],
+					"turn": 1.65806293487549
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 148,
+					"paid": {
+						"Planks": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						411.354858398438,
+						39.1291084289551,
+						-20.3085479736328
+					],
+					"turn": 1.65806293487549
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 149,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_4",
+					"position": [
+						411.463806152344,
+						39.1291122436523,
+						-19.0633029937744
+					],
+					"turn": 1.65806293487549
+				},
+				{
+					"buildable": "res://buildables/structure/window.tres",
+					"id": 150,
+					"paid": {
+						"Planks": 3
+					},
+					"plot": "plot_4",
+					"position": [
+						415.062469482422,
+						36.6291122436523,
+						-12.3514108657837
+					],
+					"turn": 0.087266705930233
+				},
+				{
+					"buildable": "res://buildables/furniture/fireplace.tres",
+					"id": 154,
+					"paid": {
+						"Stone": 6
+					},
+					"plot": "plot_4",
+					"position": [
+						410.263885498047,
+						36.6291122436523,
+						-16.113374710083
+					],
+					"turn": 1.6580628156662
+				},
+				{
+					"buildable": "res://buildables/furniture/chimney_section.tres",
+					"id": 155,
+					"paid": {
+						"Rope": 1,
+						"Sticks": 2,
+						"Stone": 6
+					},
+					"plot": "plot_4",
+					"position": [
+						410.08740234375,
+						37.8161087036133,
+						-15.9503717422485
+					],
+					"turn": 1.6580628156662
+				},
+				{
+					"buildable": "res://buildables/furniture/chimney_section.tres",
+					"id": 156,
+					"paid": {
+						"Rope": 1,
+						"Sticks": 2,
+						"Stone": 6
+					},
+					"plot": "plot_4",
+					"position": [
+						410.08740234375,
+						38.8161087036133,
+						-15.9503717422485
+					],
+					"turn": 1.6580628156662
+				},
+				{
+					"buildable": "res://buildables/furniture/chimney_section.tres",
+					"id": 157,
+					"paid": {
+						"Rope": 1,
+						"Sticks": 2,
+						"Stone": 6
+					},
+					"plot": "plot_4",
+					"position": [
+						410.08740234375,
+						39.8161125183105,
+						-15.9503717422485
+					],
+					"turn": 1.6580628156662
+				},
+				{
+					"buildable": "res://buildables/furniture/chimney_top.tres",
+					"id": 158,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						410.08740234375,
+						40.8161125183105,
+						-15.9503717422485
+					],
+					"turn": 1.6580628156662
+				},
+				{
+					"buildable": "res://buildables/furniture/bed.tres",
+					"id": 159,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						413.963439941406,
+						36.6291122436523,
+						-19.1765956878662
+					],
+					"turn": 0.087266705930233
+				},
+				{
+					"buildable": "res://buildables/furniture/bed.tres",
+					"id": 161,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						416.952026367188,
+						36.6291122436523,
+						-19.4380550384521
+					],
+					"turn": 0.087266705930233
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 162,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						409.3095703125,
+						39.1291122436523,
+						-17.8710060119629
+					],
+					"turn": 0.0872666835784912
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 163,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						409.658142089844,
+						39.1291122436523,
+						-13.8862247467041
+					],
+					"turn": -3.05432629585266
+				},
+				{
+					"buildable": "res://buildables/structure/ridge_26.tres",
+					"id": 164,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						412.721466064453,
+						40.1291084289551,
+						-16.1618785858154
+					],
+					"turn": -3.05432629585266
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 165,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						410.9033203125,
+						39.1291122436523,
+						-13.9951725006104
+					],
+					"turn": -3.05432629585266
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 166,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						410.554809570313,
+						39.1291122436523,
+						-17.9799556732178
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 167,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						409.658142089844,
+						39.1291122436523,
+						-13.8862247467041
+					],
+					"turn": -3.05432629585266
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 168,
+					"paid": {},
+					"plot": "plot_4",
+					"position": [
+						409.3095703125,
+						39.1291122436523,
+						-17.8710060119629
+					],
+					"turn": 0.0872663259506226
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 305,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						428.942749023438,
+						36.957275390625,
+						9.44382095336914
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 306,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						427.528533935547,
+						36.957275390625,
+						8.0296049118042
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 307,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						430.356964111328,
+						36.957275390625,
+						8.02960777282715
+					],
+					"turn": -0.785398244857788
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 308,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						428.942749023438,
+						36.957275390625,
+						6.61539125442505
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 309,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						430.356994628906,
+						36.957275390625,
+						10.8580541610718
+					],
+					"turn": -0.785398244857788
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 310,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						431.771209716797,
+						36.957275390625,
+						9.44384002685547
+					],
+					"turn": -0.785398244857788
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 311,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						433.185424804688,
+						36.957275390625,
+						10.8580541610718
+					],
+					"turn": -0.785398244857788
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 312,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						431.771209716797,
+						36.957275390625,
+						12.2722673416138
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 313,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						430.356994628906,
+						36.957275390625,
+						13.6864805221558
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 314,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						428.942779541016,
+						36.957275390625,
+						12.2722673416138
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 315,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						427.528533935547,
+						36.957275390625,
+						10.8580341339111
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 316,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						426.114318847656,
+						36.957275390625,
+						9.44381904602051
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 317,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						424.700103759766,
+						36.957275390625,
+						10.8580312728882
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 318,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						426.114318847656,
+						36.957275390625,
+						12.2722473144531
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 319,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						427.528564453125,
+						36.957275390625,
+						13.6864805221558
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 320,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						428.942779541016,
+						36.957275390625,
+						15.1006946563721
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 321,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						424.700103759766,
+						36.957275390625,
+						8.02960395812988
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 322,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						426.114318847656,
+						36.957275390625,
+						6.61539077758789
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 323,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						426.114349365234,
+						36.957275390625,
+						15.1006937026978
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 324,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						424.700103759766,
+						36.957275390625,
+						13.6864604949951
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 325,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						430.356964111328,
+						36.957275390625,
+						5.20117807388306
+					],
+					"turn": -0.785398244857788
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 326,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						431.771179199219,
+						36.957275390625,
+						6.61539459228516
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 327,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						433.185424804688,
+						36.957275390625,
+						8.02962684631348
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 328,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						434.599609375,
+						36.957275390625,
+						9.44384098052979
+					],
+					"turn": -0.785398244857788
+				},
+				{
+					"buildable": "res://buildables/structure/doorway.tres",
+					"id": 329,
+					"paid": {
+						"Planks": 3
+					},
+					"plot": "plot_6",
+					"position": [
+						432.478302001953,
+						36.957275390625,
+						8.73673439025879
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/door.tres",
+					"id": 330,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						432.478302001953,
+						36.957275390625,
+						8.73673439025879
+					],
+					"state": {
+						"open": true
+					},
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/stairs.tres",
+					"id": 331,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						435.306732177734,
+						34.457275390625,
+						5.90830707550049
+					],
+					"turn": -0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/window.tres",
+					"id": 332,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						431.064056396484,
+						36.957275390625,
+						7.32250118255615
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 333,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						429.649841308594,
+						36.957275390625,
+						5.90828466415405
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 334,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						433.892517089844,
+						36.957275390625,
+						10.1509475708008
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 335,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						433.892517089844,
+						36.957275390625,
+						11.5651607513428
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 336,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						432.478302001953,
+						36.957275390625,
+						12.9793748855591
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 337,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						429.649871826172,
+						36.957275390625,
+						15.8078012466431
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/window.tres",
+					"id": 338,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						431.064086914063,
+						36.957275390625,
+						14.3935880661011
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 339,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						428.235656738281,
+						36.957275390625,
+						15.8078002929688
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 340,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						426.821441650391,
+						36.957275390625,
+						15.8078002929688
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 341,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						425.4072265625,
+						36.957275390625,
+						15.8078002929688
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 342,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						36.957275390625,
+						14.3935680389404
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 343,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						36.957275390625,
+						12.9793539047241
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 344,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						36.957275390625,
+						11.5651378631592
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 345,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						36.957275390625,
+						10.1509246826172
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 346,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						36.957275390625,
+						8.73671054840088
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 349,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						426.821441650391,
+						36.957275390625,
+						5.90828418731689
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 350,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						428.235656738281,
+						36.957275390625,
+						5.90828418731689
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 353,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						436.013824462891,
+						36.957275390625,
+						9.44384098052979
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 354,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						434.599609375,
+						36.957275390625,
+						8.02962684631348
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 355,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						433.185424804688,
+						36.957275390625,
+						6.61541366577148
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 356,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						431.771179199219,
+						36.957275390625,
+						5.20117712020874
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 357,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						430.356964111328,
+						36.957275390625,
+						3.78696346282959
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 358,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						431.771179199219,
+						36.457275390625,
+						5.20117712020874
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 359,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						430.356964111328,
+						36.457275390625,
+						3.78696346282959
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 360,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						433.185394287109,
+						36.457275390625,
+						6.61539459228516
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 361,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						434.599609375,
+						36.457275390625,
+						8.02962684631348
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 362,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						436.013824462891,
+						36.457275390625,
+						9.44384098052979
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 363,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						435.306732177734,
+						39.457275390625,
+						10.1509475708008
+					],
+					"turn": -2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 364,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						435.306732177734,
+						39.457275390625,
+						8.73673439025879
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 365,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						433.892517089844,
+						39.457275390625,
+						7.32252025604248
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 366,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						432.478302001953,
+						39.457275390625,
+						5.90830659866333
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 367,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						431.064056396484,
+						39.457275390625,
+						4.49407005310059
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 368,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						429.649841308594,
+						39.457275390625,
+						4.49407005310059
+					],
+					"turn": -2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 370,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						433.892517089844,
+						39.457275390625,
+						7.32252025604248
+					],
+					"turn": -0.785398006439209
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 371,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						432.478302001953,
+						39.457275390625,
+						5.90830659866333
+					],
+					"turn": -0.785398006439209
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 373,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						433.892517089844,
+						39.457275390625,
+						11.5651607513428
+					],
+					"turn": -2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 374,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						428.235656738281,
+						39.457275390625,
+						5.90828418731689
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 375,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						429.649841308594,
+						41.457275390625,
+						7.3224983215332
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 376,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						432.478302001953,
+						41.457275390625,
+						10.1509475708008
+					],
+					"turn": -2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/roof_outer_26.tres",
+					"id": 377,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						435.306732177734,
+						39.457275390625,
+						8.73673439025879
+					],
+					"turn": -0.785398006439209
+				},
+				{
+					"buildable": "res://buildables/structure/roof_outer_26.tres",
+					"id": 378,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						429.649841308594,
+						39.457275390625,
+						4.49407005310059
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 379,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						429.649841308594,
+						39.457275390625,
+						5.90828466415405
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 380,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						433.892517089844,
+						39.457275390625,
+						10.1509475708008
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 387,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						431.417633056641,
+						39.457275390625,
+						7.67605447769165
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 389,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						432.124755859375,
+						39.457275390625,
+						8.38318061828613
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 390,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						432.124755859375,
+						40.457275390625,
+						8.38318061828613
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 391,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						432.831848144531,
+						39.457275390625,
+						9.09028720855713
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 392,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						432.831848144531,
+						40.457275390625,
+						9.09028720855713
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 393,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						431.064056396484,
+						41.457275390625,
+						7.32250118255615
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 394,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						432.478302001953,
+						41.457275390625,
+						8.73673439025879
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 395,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						433.362182617188,
+						41.457275390625,
+						9.26706409454346
+					],
+					"turn": -2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 396,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						434.776397705078,
+						39.457275390625,
+						10.6812782287598
+					],
+					"turn": -2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 397,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						430.533752441406,
+						41.457275390625,
+						6.43861484527588
+					],
+					"turn": 0.785397827625275
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 398,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						429.119537353516,
+						39.457275390625,
+						5.02440118789673
+					],
+					"turn": 0.785397827625275
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 401,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						429.649841308594,
+						39.457275390625,
+						4.49407005310059
+					],
+					"turn": 0.785397827625275
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 402,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						428.235656738281,
+						39.457275390625,
+						5.90828323364258
+					],
+					"turn": 0.785397827625275
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 403,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						431.064056396484,
+						39.457275390625,
+						4.49407005310059
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 404,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						432.478302001953,
+						39.457275390625,
+						5.90830659866333
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 405,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						433.892517089844,
+						39.457275390625,
+						7.32252025604248
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 406,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						435.306732177734,
+						39.457275390625,
+						8.73673439025879
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 407,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						435.306732177734,
+						39.457275390625,
+						10.1509475708008
+					],
+					"turn": -2.35619425773621
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 408,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						426.821441650391,
+						39.457275390625,
+						5.90828418731689
+					],
+					"turn": -0.785398006439209
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 409,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						39.457275390625,
+						8.73671054840088
+					],
+					"turn": 2.35619425773621
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 412,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						425.4072265625,
+						39.457275390625,
+						5.90828418731689
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 413,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						39.457275390625,
+						7.32249736785889
+					],
+					"turn": 0.785397887229919
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 414,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						425.937530517578,
+						39.457275390625,
+						5.02440071105957
+					],
+					"turn": -0.785398006439209
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 415,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.109130859375,
+						39.457275390625,
+						7.85282707214355
+					],
+					"turn": 2.35619425773621
+				},
+				{
+					"buildable": "res://buildables/structure/roof_inner_45.tres",
+					"id": 416,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						426.821441650391,
+						39.457275390625,
+						7.32249784469604
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 417,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						426.821441650391,
+						39.457275390625,
+						5.90828418731689
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 418,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						39.457275390625,
+						8.73671054840088
+					],
+					"turn": 2.35619425773621
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 419,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						425.937530517578,
+						39.457275390625,
+						5.02440071105957
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 420,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.109130859375,
+						39.457275390625,
+						7.85282707214355
+					],
+					"turn": 2.35619425773621
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 421,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						39.457275390625,
+						10.1509246826172
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 422,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						429.649871826172,
+						39.457275390625,
+						15.8078012466431
+					],
+					"turn": -2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 423,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						428.235656738281,
+						41.457275390625,
+						14.3935871124268
+					],
+					"turn": -2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 424,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						425.4072265625,
+						41.457275390625,
+						11.5651378631592
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 425,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						431.064086914063,
+						39.457275390625,
+						14.3935880661011
+					],
+					"turn": -2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 426,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						429.649871826172,
+						41.457275390625,
+						12.9793739318848
+					],
+					"turn": -2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 427,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						432.478302001953,
+						39.457275390625,
+						12.9793748855591
+					],
+					"turn": -2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 428,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						431.064086914063,
+						41.457275390625,
+						11.5651607513428
+					],
+					"turn": -2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 430,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						426.821441650391,
+						41.457275390625,
+						10.1509246826172
+					],
+					"turn": 0.785397827625275
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 431,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						428.235626220703,
+						41.457275390625,
+						8.7367115020752
+					],
+					"turn": 0.785397827625275
+				},
+				{
+					"buildable": "res://buildables/structure/roof_inner_45.tres",
+					"id": 432,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						425.4072265625,
+						39.457275390625,
+						10.1509246826172
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 433,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						426.821441650391,
+						39.457275390625,
+						15.8078002929688
+					],
+					"turn": -2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 434,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						39.457275390625,
+						12.9793539047241
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 435,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						428.235656738281,
+						39.457275390625,
+						15.8078002929688
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 436,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						39.457275390625,
+						11.5651378631592
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 437,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						425.4072265625,
+						41.457275390625,
+						12.9793519973755
+					],
+					"turn": -0.785398244857788
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 439,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						39.457275390625,
+						14.3935680389404
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 440,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						425.4072265625,
+						39.457275390625,
+						15.8078002929688
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 445,
+					"paid": {
+						"Planks": 3
+					},
+					"plot": "plot_6",
+					"position": [
+						426.821411132813,
+						41.457275390625,
+						14.3935661315918
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/inverse_2_45.tres",
+					"id": 446,
+					"paid": {
+						"Planks": 2
+					},
+					"plot": "plot_6",
+					"position": [
+						426.821441650391,
+						39.457275390625,
+						14.3935871124268
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/inverse_2_45.tres",
+					"id": 447,
+					"paid": {
+						"Planks": 2
+					},
+					"plot": "plot_6",
+					"position": [
+						425.4072265625,
+						39.457275390625,
+						12.9793519973755
+					],
+					"turn": -0.785398244857788
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 448,
+					"paid": {
+						"Planks": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						430.710510253906,
+						39.457275390625,
+						6.9689474105835
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 449,
+					"paid": {
+						"Planks": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						430.710510253906,
+						40.457275390625,
+						6.9689474105835
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 450,
+					"paid": {
+						"Planks": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						431.417633056641,
+						40.457275390625,
+						7.67605447769165
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/structure/ridge_45.tres",
+					"id": 451,
+					"paid": {
+						"Planks": 3,
+						"Plant Fiber": 2
+					},
+					"plot": "plot_6",
+					"position": [
+						426.821441650391,
+						41.457275390625,
+						8.7367115020752
+					],
+					"turn": -0.785398244857788
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 452,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						433.892517089844,
+						39.457275390625,
+						11.5651607513428
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 453,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						432.478302001953,
+						39.457275390625,
+						12.9793748855591
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 454,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						431.064086914063,
+						39.457275390625,
+						14.3935880661011
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 455,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						429.649871826172,
+						39.457275390625,
+						15.8078012466431
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 456,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						426.821441650391,
+						39.457275390625,
+						15.8078002929688
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 457,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						39.457275390625,
+						12.9793539047241
+					],
+					"turn": 0.785397827625275
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 458,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						39.457275390625,
+						10.1509246826172
+					],
+					"turn": 0.785397827625275
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 459,
+					"paid": {
+						"Planks": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						423.109130859375,
+						39.457275390625,
+						11.0348072052002
+					],
+					"turn": 0.785397827625275
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 460,
+					"paid": {
+						"Planks": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						423.109100341797,
+						39.457275390625,
+						13.8632373809814
+					],
+					"turn": 0.785397827625275
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 461,
+					"paid": {
+						"Planks": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						425.937561035156,
+						39.457275390625,
+						16.6916847229004
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 462,
+					"paid": {
+						"Planks": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						428.765991210938,
+						39.457275390625,
+						16.6916847229004
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 463,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						428.765991210938,
+						39.457275390625,
+						16.6916847229004
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 464,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						427.351776123047,
+						41.457275390625,
+						15.2774705886841
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 465,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						425.937561035156,
+						39.457275390625,
+						16.6916847229004
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 466,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						423.109100341797,
+						39.457275390625,
+						13.8632373809814
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 467,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						424.523315429688,
+						41.457275390625,
+						12.4490213394165
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 468,
+					"paid": {
+						"Planks": 1,
+						"Plant Fiber": 1
+					},
+					"plot": "plot_6",
+					"position": [
+						423.109130859375,
+						39.457275390625,
+						11.0348072052002
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/furniture/fireplace.tres",
+					"id": 469,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						424.935272216797,
+						36.957275390625,
+						14.67698097229
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/furniture/chimney_section.tres",
+					"id": 470,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						424.904876708984,
+						38.1442756652832,
+						14.9152774810791
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/furniture/chimney_section.tres",
+					"id": 471,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						424.904876708984,
+						39.1442756652832,
+						14.9152774810791
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/furniture/chimney_section.tres",
+					"id": 472,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						424.904876708984,
+						40.1442756652832,
+						14.9152774810791
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/furniture/chimney_section.tres",
+					"id": 473,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						424.904876708984,
+						41.1442756652832,
+						14.9152774810791
+					],
+					"turn": 2.35619449615479
+				},
+				{
+					"buildable": "res://buildables/furniture/chimney_top.tres",
+					"id": 474,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						424.904876708984,
+						42.1442756652832,
+						14.9152774810791
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/furniture/storage_shelf.tres",
+					"id": 476,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						430.834259033203,
+						36.957275390625,
+						7.55231142044067
+					],
+					"turn": -0.785398244857788
+				},
+				{
+					"buildable": "res://buildables/structure/outer_eave_corner_26.tres",
+					"id": 480,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						436.013824462891,
+						39.457275390625,
+						9.44384098052979
+					],
+					"turn": -0.785398185253143
+				},
+				{
+					"buildable": "res://buildables/structure/outer_eave_corner_26.tres",
+					"id": 481,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						430.356964111328,
+						39.457275390625,
+						3.78696346282959
+					],
+					"turn": 0.785397827625275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 482,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						372.804595947266,
+						34.0090866088867,
+						8.43637466430664
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 483,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						370.834991455078,
+						34.0090866088867,
+						8.08908557891846
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 484,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						371.182281494141,
+						34.0090866088867,
+						6.11946249008179
+					],
+					"turn": -0.174532666802406
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 485,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						373.151885986328,
+						34.0090866088867,
+						6.46676588058472
+					],
+					"turn": -0.174532666802406
+				},
+				{
+					"buildable": "res://buildables/furniture/foraging_basket.tres",
+					"id": 487,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						424.700103759766,
+						36.957275390625,
+						8.7367115020752
+					],
+					"turn": -0.785398304462433
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 488,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						368.865356445313,
+						34.0090866088867,
+						7.74178981781006
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 489,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						368.51806640625,
+						34.0090866088867,
+						9.71140480041504
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 490,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						370.487640380859,
+						34.0090866088867,
+						10.0586957931519
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 491,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						372.457305908203,
+						34.0090866088867,
+						10.4059820175171
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_wood.tres",
+					"id": 502,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						369.212646484375,
+						34.0090866088867,
+						5.77217435836792
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 504,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						373.789367675781,
+						34.0090866088867,
+						8.61000919342041
+					],
+					"turn": 1.39626359939575
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 505,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						367.880554199219,
+						34.0090866088867,
+						7.56814193725586
+					],
+					"turn": -1.74532914161682
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 506,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						373.789367675781,
+						36.5090866088867,
+						8.61000919342041
+					],
+					"turn": -1.74532902240753
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 507,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						367.880554199219,
+						36.5090866088867,
+						7.56814193725586
+					],
+					"turn": 1.39626359939575
+				},
+				{
+					"buildable": "res://buildables/structure/topper_26.tres",
+					"id": 508,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						370.834991455078,
+						37.5090866088867,
+						8.08907794952393
+					],
+					"turn": -1.74532902240753
+				},
+				{
+					"buildable": "res://buildables/structure/topper_26.tres",
+					"id": 509,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						370.487640380859,
+						37.5090866088867,
+						10.0586891174316
+					],
+					"turn": 1.39626359939575
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 510,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						373.442108154297,
+						34.0090866088867,
+						10.5796298980713
+					],
+					"turn": 1.39626359939575
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 511,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						372.283660888672,
+						34.0090866088867,
+						11.3907899856567
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/window.tres",
+					"id": 512,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						370.314025878906,
+						34.0090866088867,
+						11.0435094833374
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/window_split_2.tres",
+					"id": 513,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						425.4072265625,
+						36.957275390625,
+						5.90828418731689
+					],
+					"turn": -2.35619473457336
+				},
+				{
+					"buildable": "res://buildables/structure/window_split_2.tres",
+					"id": 514,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						423.993011474609,
+						36.957275390625,
+						7.32249736785889
+					],
+					"turn": 0.785397887229919
+				},
+				{
+					"buildable": "res://buildables/furniture/sorting_table.tres",
+					"id": 515,
+					"paid": {},
+					"plot": "plot_6",
+					"position": [
+						425.053649902344,
+						36.957275390625,
+						6.96894407272339
+					],
+					"turn": 0.785398066043854
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 516,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						367.533264160156,
+						34.0090866088867,
+						9.53775024414063
+					],
+					"turn": -1.74532914161682
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 517,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						368.344421386719,
+						34.0090866088867,
+						10.6962127685547
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 518,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						373.442108154297,
+						36.5090866088867,
+						10.5796298980713
+					],
+					"turn": -1.74532902240753
+				},
+				{
+					"buildable": "res://buildables/structure/roof.tres",
+					"id": 519,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						367.533264160156,
+						36.5090866088867,
+						9.53774261474609
+					],
+					"turn": 1.39626359939575
+				},
+				{
+					"buildable": "res://buildables/structure/gable_26.tres",
+					"id": 520,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						372.283660888672,
+						36.5090866088867,
+						11.3907899856567
+					],
+					"turn": 2.96706008911133
+				},
+				{
+					"buildable": "res://buildables/structure/gable_26.tres",
+					"id": 521,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						368.344421386719,
+						36.5090866088867,
+						10.6962127685547
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 522,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						370.806396484375,
+						36.5090866088867,
+						11.1303281784058
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 523,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						369.821624755859,
+						36.5090866088867,
+						10.9566850662231
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 524,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						373.789367675781,
+						36.5090866088867,
+						8.61000919342041
+					],
+					"turn": -1.74532914161682
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 525,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						373.442108154297,
+						36.5090866088867,
+						10.5796298980713
+					],
+					"turn": -1.74532914161682
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 526,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						367.880554199219,
+						36.5090866088867,
+						7.56814193725586
+					],
+					"turn": 1.39626336097717
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 527,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						367.533264160156,
+						36.5090866088867,
+						9.53775024414063
+					],
+					"turn": 1.39626336097717
+				},
+				{
+					"buildable": "res://buildables/structure/stairs.tres",
+					"id": 528,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						373.672821044922,
+						31.5090866088867,
+						3.51234269142151
+					],
+					"turn": -0.174532666802406
+				},
+				{
+					"buildable": "res://buildables/structure/stairs.tres",
+					"id": 529,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						371.703216552734,
+						31.5090866088867,
+						3.16504669189453
+					],
+					"turn": -0.174532532691956
+				},
+				{
+					"buildable": "res://buildables/structure/stairs.tres",
+					"id": 530,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						369.733642578125,
+						31.5090866088867,
+						2.81775617599487
+					],
+					"turn": -0.174532666802406
+				},
+				{
+					"buildable": "res://buildables/furniture/firewood_rack.tres",
+					"id": 531,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						373.296997070313,
+						34.0090866088867,
+						8.52319812774658
+					],
+					"turn": 1.39626359939575
+				},
+				{
+					"buildable": "res://buildables/furniture/chopping_block.tres",
+					"id": 532,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						369.212646484375,
+						34.0090866088867,
+						5.77217435836792
+					],
+					"turn": 1.39626359939575
+				},
+				{
+					"buildable": "res://buildables/furniture/tool_rack.tres",
+					"id": 533,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						367.856140136719,
+						34.7590866088867,
+						8.56904315948486
+					],
+					"turn": 1.39626359939575
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 534,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						373.225006103516,
+						36.5090866088867,
+						11.8106346130371
+					],
+					"turn": -1.74532914161682
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 535,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						367.316192626953,
+						36.5090866088867,
+						10.768759727478
+					],
+					"turn": 1.39626359939575
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 536,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						374.006469726563,
+						36.5090866088867,
+						7.37901258468628
+					],
+					"turn": -1.74532902240753
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_26.tres",
+					"id": 537,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						368.097625732422,
+						36.5090866088867,
+						6.33712482452393
+					],
+					"turn": 1.39626336097717
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 538,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						374.006469726563,
+						36.5090866088867,
+						7.37901258468628
+					],
+					"turn": -1.74532914161682
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 539,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						368.097625732422,
+						36.5090866088867,
+						6.33712482452393
+					],
+					"turn": 1.39626336097717
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 540,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						373.225006103516,
+						36.5090866088867,
+						11.8106346130371
+					],
+					"turn": -1.74532914161682
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 541,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						367.316192626953,
+						36.5090866088867,
+						10.768759727478
+					],
+					"turn": 1.39626336097717
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 542,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						374.310302734375,
+						34.0090866088867,
+						5.65560102462769
+					],
+					"turn": -0.174532666802406
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 543,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						368.401489257813,
+						33.0090866088867,
+						4.61371850967407
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 544,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						374.310302734375,
+						33.0090866088867,
+						5.65560102462769
+					],
+					"turn": -0.174532666802406
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 545,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						368.401489257813,
+						34.0090866088867,
+						4.61371850967407
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/gable_half_1_26.tres",
+					"id": 547,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						369.821624755859,
+						37.5090866088867,
+						10.9566698074341
+					],
+					"turn": -0.174532666802406
+				},
+				{
+					"buildable": "res://buildables/structure/gable_half_1_26.tres",
+					"id": 548,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						370.806396484375,
+						37.5090866088867,
+						11.1303205490112
+					],
+					"turn": 2.96706008911133
+				},
+				{
+					"buildable": "res://buildables/structure/topper_overhang_26.tres",
+					"id": 549,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						371.052001953125,
+						37.5090866088867,
+						6.85806322097778
+					],
+					"turn": 1.39626359939575
+				},
+				{
+					"buildable": "res://buildables/structure/topper_overhang_26.tres",
+					"id": 550,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						370.270629882813,
+						37.5090866088867,
+						11.2897033691406
+					],
+					"turn": -1.74532914161682
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 551,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						368.227844238281,
+						34.0090866088867,
+						5.59852600097656
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 552,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						368.05419921875,
+						34.0090866088867,
+						6.58333396911621
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 553,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						373.963043212891,
+						34.0090866088867,
+						7.62521457672119
+					],
+					"turn": -0.17453271150589
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 554,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						372.978240966797,
+						36.5090866088867,
+						7.45156621932983
+					],
+					"turn": 2.96706008911133
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 555,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						371.008636474609,
+						36.5090866088867,
+						7.1042628288269
+					],
+					"turn": 2.96706008911133
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 556,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						369.038970947266,
+						36.5090866088867,
+						6.7569694519043
+					],
+					"turn": 2.96706008911133
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 557,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						371.993438720703,
+						36.5090866088867,
+						7.27791118621826
+					],
+					"turn": -1.74532878398895
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 558,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						370.023834228516,
+						36.5090866088867,
+						6.93061494827271
+					],
+					"turn": -1.74532878398895
+				},
+				{
+					"buildable": "res://buildables/structure/beam_diag_26.tres",
+					"id": 559,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						371.008636474609,
+						36.5090866088867,
+						7.1042628288269
+					],
+					"turn": 2.96706008911133
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 560,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						374.136688232422,
+						34.0090866088867,
+						6.64041423797607
+					],
+					"turn": -0.174532666802406
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 561,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						374.136688232422,
+						35.0090866088867,
+						6.64041423797607
+					],
+					"turn": -1.74532914161682
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 562,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						368.227844238281,
+						35.0090866088867,
+						5.59852600097656
+					],
+					"turn": -1.74532914161682
+				},
+				{
+					"buildable": "res://buildables/structure/beam_diag_26.tres",
+					"id": 564,
+					"paid": {},
+					"plot": "plot_7",
+					"position": [
+						371.008636474609,
+						36.5090866088867,
+						7.1042628288269
+					],
+					"turn": -0.174532517790794
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 566,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						411.547882080078,
+						36.8595848083496,
+						1.94118523597717
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 567,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						409.578277587891,
+						36.8595848083496,
+						2.28847026824951
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 568,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						407.608642578125,
+						36.8595848083496,
+						2.63576650619507
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 569,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.639038085938,
+						36.8595848083496,
+						2.9830629825592
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 570,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						403.669403076172,
+						36.8595848083496,
+						3.33035945892334
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 571,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						404.016723632813,
+						36.8595848083496,
+						5.29997491836548
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 572,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						404.364013671875,
+						36.8595848083496,
+						7.26959037780762
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 574,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						406.333618164063,
+						36.8595848083496,
+						6.92229413986206
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 575,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.986328125,
+						36.8595848083496,
+						4.95267868041992
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 576,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						407.955932617188,
+						36.8595848083496,
+						4.60538196563721
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 577,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						408.303253173828,
+						36.8595848083496,
+						6.5749979019165
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 578,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						409.925567626953,
+						36.8595848083496,
+						4.25808572769165
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 579,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.272857666016,
+						36.8595848083496,
+						6.22770118713379
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 580,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						411.895172119141,
+						36.8595848083496,
+						3.91078948974609
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 581,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						412.242462158203,
+						36.8595848083496,
+						5.88040494918823
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 582,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						403.379211425781,
+						36.8595848083496,
+						7.44323825836182
+					],
+					"turn": -1.39626348018646
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 583,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						404.537658691406,
+						36.8595848083496,
+						8.25439834594727
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 584,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						406.507263183594,
+						36.8595848083496,
+						7.90710163116455
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 585,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						408.476898193359,
+						36.8595848083496,
+						7.55980539321899
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 586,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.446502685547,
+						36.8595848083496,
+						7.21250915527344
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 587,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						412.416107177734,
+						36.8595848083496,
+						6.86521244049072
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 588,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						413.227294921875,
+						36.8595848083496,
+						5.70675659179688
+					],
+					"turn": 1.74532926082611
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 589,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						412.879974365234,
+						36.8595848083496,
+						3.73714113235474
+					],
+					"turn": 1.74532926082611
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 590,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						412.532684326172,
+						36.8595848083496,
+						1.76753711700439
+					],
+					"turn": 1.74532926082611
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 591,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						411.374237060547,
+						36.8595848083496,
+						0.956377506256104
+					],
+					"turn": -2.96705961227417
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 592,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						403.495758056641,
+						36.8595848083496,
+						2.34555172920227
+					],
+					"turn": -2.96705961227417
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 593,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						402.684600830078,
+						36.8595848083496,
+						3.50400757789612
+					],
+					"turn": -1.39626348018646
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 594,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						403.031921386719,
+						36.8595848083496,
+						5.47362327575684
+					],
+					"turn": -1.39626348018646
+				},
+				{
+					"buildable": "res://buildables/structure/stairs.tres",
+					"id": 595,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						409.057312011719,
+						34.3595848083496,
+						-0.665952682495117
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/stairs.tres",
+					"id": 596,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						407.087707519531,
+						34.3595848083496,
+						-0.318656444549561
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/stairs.tres",
+					"id": 597,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.118103027344,
+						34.3595848083496,
+						0.0286400318145752
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/roof_outer_45.tres",
+					"id": 598,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						411.374237060547,
+						39.3595848083496,
+						0.956377506256104
+					],
+					"turn": 0.174533233046532
+				},
+				{
+					"buildable": "res://buildables/structure/roof_outer_45.tres",
+					"id": 599,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						413.227294921875,
+						39.3595848083496,
+						5.70675659179688
+					],
+					"turn": -1.39626336097717
+				},
+				{
+					"buildable": "res://buildables/structure/roof_outer_45.tres",
+					"id": 600,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						404.537658691406,
+						39.3595848083496,
+						8.25439834594727
+					],
+					"turn": -2.96705985069275
+				},
+				{
+					"buildable": "res://buildables/structure/roof_outer_45.tres",
+					"id": 601,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						402.684600830078,
+						39.3595848083496,
+						3.50400757789612
+					],
+					"turn": 1.74532926082611
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 602,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.446502685547,
+						39.3595848083496,
+						7.21250915527344
+					],
+					"turn": -2.96705961227417
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 603,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						408.476898193359,
+						39.3595848083496,
+						7.55980539321899
+					],
+					"turn": -2.96705961227417
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 604,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						406.507263183594,
+						39.3595848083496,
+						7.90710163116455
+					],
+					"turn": -2.96705961227417
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 605,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						403.031921386719,
+						39.3595848083496,
+						5.47362327575684
+					],
+					"turn": 1.74532902240753
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 606,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						412.879974365234,
+						39.3595848083496,
+						3.73715257644653
+					],
+					"turn": -1.3962630033493
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 607,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						409.404632568359,
+						39.3595848083496,
+						1.3036744594574
+					],
+					"turn": 0.174533233046532
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 608,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						407.434997558594,
+						39.3595848083496,
+						1.65097165107727
+					],
+					"turn": 0.174533233046532
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 609,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.465393066406,
+						39.3595848083496,
+						1.99826896190643
+					],
+					"turn": 0.174533233046532
+				},
+				{
+					"buildable": "res://buildables/structure/topper_45.tres",
+					"id": 610,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						407.955932617188,
+						41.3595848083496,
+						4.60538196563721
+					],
+					"turn": -2.96705961227417
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 613,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						411.374237060547,
+						39.3595848083496,
+						0.956377506256104
+					],
+					"turn": 0.174533098936081
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 614,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						409.404632568359,
+						39.3595848083496,
+						1.3036744594574
+					],
+					"turn": 0.174533098936081
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 615,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						407.434997558594,
+						39.3595848083496,
+						1.65097069740295
+					],
+					"turn": 0.174533098936081
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 616,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.465393066406,
+						39.3595848083496,
+						1.9982670545578
+					],
+					"turn": 0.174533098936081
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 617,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						403.495758056641,
+						39.3595848083496,
+						2.34555172920227
+					],
+					"turn": 0.174533098936081
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 618,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						402.684600830078,
+						39.3595848083496,
+						3.50400757789612
+					],
+					"turn": 1.74532902240753
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 619,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						403.031921386719,
+						39.3595848083496,
+						5.47362327575684
+					],
+					"turn": 1.74532902240753
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 620,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						403.379211425781,
+						39.3595848083496,
+						7.44323825836182
+					],
+					"turn": 1.74532902240753
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 621,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						404.537658691406,
+						39.3595848083496,
+						8.25439834594727
+					],
+					"turn": -2.96705985069275
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 622,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						406.507263183594,
+						39.3595848083496,
+						7.90710163116455
+					],
+					"turn": -2.96705961227417
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 623,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						408.476898193359,
+						39.3595848083496,
+						7.55980539321899
+					],
+					"turn": -2.96705961227417
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 624,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.446502685547,
+						39.3595848083496,
+						7.21250915527344
+					],
+					"turn": -2.96705961227417
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 625,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						412.416107177734,
+						39.3595848083496,
+						6.86521244049072
+					],
+					"turn": -2.96705961227417
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 626,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						413.227294921875,
+						39.3595848083496,
+						5.70675659179688
+					],
+					"turn": -1.39626348018646
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 627,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						412.879974365234,
+						39.3595848083496,
+						3.73715257644653
+					],
+					"turn": -1.3962630033493
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 628,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						412.532684326172,
+						39.3595848083496,
+						1.76753711700439
+					],
+					"turn": -1.3962630033493
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 629,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.389434814453,
+						36.8595848083496,
+						1.13001441955566
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 630,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.389434814453,
+						34.3595848083496,
+						1.13001441955566
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 631,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						404.480590820313,
+						34.3595848083496,
+						2.17190361022949
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/pillar_wood.tres",
+					"id": 632,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						404.480590820313,
+						36.8595848083496,
+						2.17190361022949
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 633,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						409.404632568359,
+						39.2595863342285,
+						1.3036744594574
+					],
+					"turn": -2.96705937385559
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 634,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						407.434997558594,
+						39.2595863342285,
+						1.65097165107727
+					],
+					"turn": -2.96705937385559
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 635,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.465393066406,
+						39.2595863342285,
+						1.99826896190643
+					],
+					"turn": -2.96705937385559
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 636,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						404.654235839844,
+						39.3595848083496,
+						3.15671110153198
+					],
+					"turn": -1.39626312255859
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 637,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.001525878906,
+						39.3595848083496,
+						5.12632656097412
+					],
+					"turn": -1.39626348018646
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 638,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.348815917969,
+						39.3595848083496,
+						7.09594249725342
+					],
+					"turn": 1.74532926082611
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 639,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.563079833984,
+						39.3595848083496,
+						2.11483335494995
+					],
+					"turn": -1.39626312255859
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 640,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.910369873047,
+						39.3595848083496,
+						4.08444881439209
+					],
+					"turn": -1.39626348018646
+				},
+				{
+					"buildable": "res://buildables/structure/beam_2.tres",
+					"id": 641,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						411.257659912109,
+						39.3595848083496,
+						6.05406427383423
+					],
+					"turn": -1.39626348018646
+				},
+				{
+					"buildable": "res://buildables/structure/beam_diag_45.tres",
+					"id": 642,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.910369873047,
+						39.3595848083496,
+						4.08444881439209
+					],
+					"turn": -1.39626348018646
+				},
+				{
+					"buildable": "res://buildables/structure/beam_diag_45.tres",
+					"id": 643,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.910369873047,
+						39.3595848083496,
+						4.08444881439209
+					],
+					"turn": 1.74532914161682
+				},
+				{
+					"buildable": "res://buildables/structure/beam_diag_45.tres",
+					"id": 645,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.001525878906,
+						39.3595848083496,
+						5.12632656097412
+					],
+					"turn": -1.39626348018646
+				},
+				{
+					"buildable": "res://buildables/structure/beam_diag_45.tres",
+					"id": 646,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.001525878906,
+						39.3595848083496,
+						5.12632656097412
+					],
+					"turn": 1.74532926082611
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 653,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						404.827880859375,
+						39.3595848083496,
+						4.14151906967163
+					],
+					"turn": 0.174533098936081
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 654,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						404.827880859375,
+						40.3595848083496,
+						4.14151906967163
+					],
+					"turn": 0.174533098936081
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 655,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.175170898438,
+						39.3595848083496,
+						6.11113452911377
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 656,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.175170898438,
+						40.3595848083496,
+						6.11113452911377
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/beam_diag_26.tres",
+					"id": 657,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.348815917969,
+						39.3595848083496,
+						7.09594249725342
+					],
+					"turn": 1.74532926082611
+				},
+				{
+					"buildable": "res://buildables/structure/beam_diag_26.tres",
+					"id": 658,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						404.654235839844,
+						39.3595848083496,
+						3.15671110153198
+					],
+					"turn": -1.39626312255859
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 659,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.736724853516,
+						39.3595848083496,
+						3.09964108467102
+					],
+					"turn": 0.174533098936081
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 660,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.736724853516,
+						40.3595848083496,
+						3.09964108467102
+					],
+					"turn": 0.174533098936081
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 662,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						411.084014892578,
+						39.3595848083496,
+						5.06925678253174
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/pole_1.tres",
+					"id": 663,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						411.084014892578,
+						40.3595848083496,
+						5.06925678253174
+					],
+					"turn": 0.174533024430275
+				},
+				{
+					"buildable": "res://buildables/structure/beam_diag_26.tres",
+					"id": 664,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.563079833984,
+						39.3595848083496,
+						2.11483335494995
+					],
+					"turn": -1.39626312255859
+				},
+				{
+					"buildable": "res://buildables/structure/beam_diag_26.tres",
+					"id": 665,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						411.257659912109,
+						39.3595848083496,
+						6.05406332015991
+					],
+					"turn": 1.74532926082611
+				},
+				{
+					"buildable": "res://buildables/structure/hip_end_45.tres",
+					"id": 670,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						410.910369873047,
+						41.3595848083496,
+						4.08444976806641
+					],
+					"turn": -1.3962630033493
+				},
+				{
+					"buildable": "res://buildables/structure/hip_end_45.tres",
+					"id": 671,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.001525878906,
+						41.3595848083496,
+						5.12632656097412
+					],
+					"turn": 1.74532902240753
+				},
+				{
+					"buildable": "res://buildables/structure/outer_eave_corner_26.tres",
+					"id": 672,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						412.359039306641,
+						39.3595848083496,
+						0.782729387283325
+					],
+					"turn": 0.174533098936081
+				},
+				{
+					"buildable": "res://buildables/structure/outer_eave_corner_26.tres",
+					"id": 673,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						402.510955810547,
+						39.3595848083496,
+						2.51919984817505
+					],
+					"turn": 1.74532902240753
+				},
+				{
+					"buildable": "res://buildables/structure/outer_eave_corner_26.tres",
+					"id": 674,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						403.552856445313,
+						39.3595848083496,
+						8.42804622650146
+					],
+					"turn": -2.96705985069275
+				},
+				{
+					"buildable": "res://buildables/furniture/storehouse_storage.tres",
+					"id": 675,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						408.358642578125,
+						36.8595848083496,
+						6.88915157318115
+					],
+					"turn": -2.96705961227417
+				},
+				{
+					"buildable": "res://buildables/structure/beam_diag_26.tres",
+					"id": 676,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.001525878906,
+						39.3595848083496,
+						5.12632656097412
+					],
+					"turn": -1.39626312255859
+				},
+				{
+					"buildable": "res://buildables/structure/beam_diag_26.tres",
+					"id": 677,
+					"paid": {},
+					"plot": "plot_8",
+					"position": [
+						405.001525878906,
+						39.3595848083496,
+						5.12632656097412
+					],
+					"turn": 1.74532926082611
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 685,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						37.1351470947266,
+						40.6676559448242
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 686,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						37.1351470947266,
+						40.6676635742188
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 687,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						37.1351470947266,
+						42.6676559448242
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 688,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						37.1351470947266,
+						42.6676635742188
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 689,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						37.1351470947266,
+						42.6676635742188
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 690,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						37.1351470947266,
+						44.6676635742188
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 691,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						37.1351470947266,
+						46.6676635742188
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 692,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						37.1351470947266,
+						48.6676635742188
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 693,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						37.1351470947266,
+						44.6676635742188
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 694,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						37.1351470947266,
+						46.6676635742188
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 695,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						37.1351470947266,
+						48.6676635742188
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 696,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						37.1351470947266,
+						44.6676559448242
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 697,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						37.1351470947266,
+						46.6676559448242
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 698,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						37.1351470947266,
+						48.6676559448242
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 699,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						37.1351470947266,
+						42.6676635742188
+					],
+					"turn": 0.0000000556362707015978
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 700,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						37.1351470947266,
+						44.6676635742188
+					],
+					"turn": 0.0000000556362707015978
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 701,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						37.1351470947266,
+						46.6676635742188
+					],
+					"turn": 0.0000000556362707015978
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 702,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						37.1351470947266,
+						48.6676635742188
+					],
+					"turn": 0.0000000556362707015978
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 703,
+					"paid": {},
+					"position": [
+						430.633911132813,
+						37.1351470947266,
+						46.6676635742188
+					],
+					"turn": 0.0000000556362707015978
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 704,
+					"paid": {},
+					"position": [
+						430.633911132813,
+						37.1351470947266,
+						44.6676635742188
+					],
+					"turn": 0.0000000556362707015978
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_steps.tres",
+					"id": 705,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						36.1351470947266,
+						38.6676559448242
+					],
+					"turn": 0.0000000874227765734759
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_steps.tres",
+					"id": 706,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						36.1351470947266,
+						38.6676635742188
+					],
+					"turn": 0.0000000874227765734759
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 707,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						37.1351470947266,
+						41.6676635742188
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 708,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						37.1351470947266,
+						42.6676635742188
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 710,
+					"paid": {},
+					"position": [
+						430.633911132813,
+						37.1351470947266,
+						43.6676635742188
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/window_split_1.tres",
+					"id": 711,
+					"paid": {},
+					"position": [
+						431.633911132813,
+						37.1351470947266,
+						45.1676635742188
+					],
+					"turn": -1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/window_split_1.tres",
+					"id": 712,
+					"paid": {},
+					"position": [
+						431.633911132813,
+						37.1351470947266,
+						46.1676635742188
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall_1.tres",
+					"id": 713,
+					"paid": {},
+					"position": [
+						431.633911132813,
+						37.1351470947266,
+						44.1676635742188
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall_1.tres",
+					"id": 714,
+					"paid": {},
+					"position": [
+						431.633911132813,
+						37.1351470947266,
+						47.1676635742188
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 715,
+					"paid": {},
+					"position": [
+						430.633911132813,
+						37.1351470947266,
+						47.6676635742188
+					],
+					"turn": 0.0000000556362707015978
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 716,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						37.1351470947266,
+						48.6676635742188
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 717,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						37.1351470947266,
+						49.6676635742188
+					],
+					"turn": 0.0000000556362707015978
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 718,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						37.1351470947266,
+						49.6676635742188
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/window_split_2.tres",
+					"id": 719,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						37.1351470947266,
+						49.6676559448242
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/window_split_2.tres",
+					"id": 720,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						37.1351470947266,
+						49.6676635742188
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 721,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						37.1351470947266,
+						48.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 724,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						37.1351470947266,
+						42.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 725,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						37.1351470947266,
+						41.6676635742188
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 726,
+					"paid": {},
+					"position": [
+						423.633911132813,
+						37.1351470947266,
+						40.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall_1.tres",
+					"id": 728,
+					"paid": {},
+					"position": [
+						427.133911132813,
+						37.1351470947266,
+						39.6676559448242
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/doorway.tres",
+					"id": 730,
+					"paid": {},
+					"position": [
+						425.633911132813,
+						37.1351470947266,
+						39.6676559448242
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 731,
+					"paid": {},
+					"position": [
+						427.633911132813,
+						37.1351470947266,
+						40.6676559448242
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 733,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						37.1351470947266,
+						44.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 734,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						37.1351470947266,
+						46.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 735,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						39.6351470947266,
+						48.6676635742188
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/wall_1.tres",
+					"id": 776,
+					"paid": {},
+					"position": [
+						424.133911132813,
+						37.1351470947266,
+						39.6676635742188
+					],
+					"turn": -0.0000000635730259546108
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 817,
+					"paid": {},
+					"position": [
+						427.633911132813,
+						39.6351470947266,
+						40.6676559448242
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 818,
+					"paid": {},
+					"position": [
+						423.633911132813,
+						39.6351470947266,
+						40.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 819,
+					"paid": {},
+					"position": [
+						427.633911132813,
+						39.6351470947266,
+						39.4176635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 820,
+					"paid": {},
+					"position": [
+						423.633911132813,
+						39.6351470947266,
+						39.4176635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 821,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						39.6351470947266,
+						39.6676559448242
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 822,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						39.6351470947266,
+						39.6676559448242
+					],
+					"turn": 0.000000150995802528087
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 823,
+					"paid": {},
+					"position": [
+						427.633911132813,
+						39.6351470947266,
+						40.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 824,
+					"paid": {},
+					"position": [
+						423.633911132813,
+						39.6351470947266,
+						40.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 825,
+					"paid": {},
+					"position": [
+						423.633911132813,
+						39.6351470947266,
+						39.4176635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 826,
+					"paid": {},
+					"position": [
+						427.633911132813,
+						39.6351470947266,
+						39.4176635742188
+					],
+					"turn": -1.57079613208771
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 827,
+					"paid": {},
+					"position": [
+						430.633911132813,
+						39.6351470947266,
+						43.6676635742188
+					],
+					"turn": 0.000000150995802528087
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 828,
+					"paid": {},
+					"position": [
+						430.633911132813,
+						39.6351470947266,
+						47.6676559448242
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/wall_half_2.tres",
+					"id": 830,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						39.6351470947266,
+						49.6676635742188
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/wall_half_2.tres",
+					"id": 831,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						39.6351470947266,
+						49.6676635742188
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/wall_half_2.tres",
+					"id": 833,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						39.6351470947266,
+						48.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall_half_2.tres",
+					"id": 834,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						39.6351470947266,
+						46.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/wall_half_2.tres",
+					"id": 835,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						39.6351470947266,
+						44.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/wall_half_2.tres",
+					"id": 836,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						39.6351470947266,
+						42.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/wall_half_2.tres",
+					"id": 837,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						39.6351470947266,
+						41.6676635742188
+					],
+					"turn": 0.000000150995802528087
+				},
+				{
+					"buildable": "res://buildables/structure/wall_half_2.tres",
+					"id": 840,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						39.6351470947266,
+						41.6676635742188
+					],
+					"turn": 0.000000150995802528087
+				},
+				{
+					"buildable": "res://buildables/structure/wall_half_2.tres",
+					"id": 841,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						39.6351470947266,
+						42.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall_half_2.tres",
+					"id": 844,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						39.6351470947266,
+						48.6676559448242
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall_half_2.tres",
+					"id": 845,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						39.6351470947266,
+						49.6676559448242
+					],
+					"turn": 0.0000000556362707015978
+				},
+				{
+					"buildable": "res://buildables/structure/wall_half_2.tres",
+					"id": 846,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						39.6351470947266,
+						49.6676559448242
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 847,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						40.8851470947266,
+						48.6676559448242
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 851,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						40.8851470947266,
+						48.6676559448242
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 854,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						40.8851470947266,
+						46.6676559448242
+					],
+					"turn": 1.57079648971558
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 855,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						40.8851470947266,
+						44.6676559448242
+					],
+					"turn": 1.57079648971558
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 857,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						40.8851470947266,
+						42.6676635742188
+					],
+					"turn": 1.57079648971558
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 858,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						40.8851470947266,
+						42.6676635742188
+					],
+					"turn": 1.57079601287842
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 859,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						40.8851470947266,
+						44.6676635742188
+					],
+					"turn": 1.57079601287842
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 860,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						40.8851470947266,
+						46.6676559448242
+					],
+					"turn": 1.57079601287842
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 861,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						40.8851470947266,
+						46.6676635742188
+					],
+					"turn": 1.57079601287842
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 862,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						40.8851470947266,
+						44.6676635742188
+					],
+					"turn": 1.57079601287842
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 863,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						40.8851470947266,
+						42.6676635742188
+					],
+					"turn": 1.57079601287842
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 865,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						40.8851470947266,
+						42.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 866,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						40.8851470947266,
+						42.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 867,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						40.8851470947266,
+						41.6676635742188
+					],
+					"turn": -0.000000301991605056173
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 870,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						40.8851470947266,
+						41.6676635742188
+					],
+					"turn": 0.000000174845553146952
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 871,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						40.8851470947266,
+						42.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 872,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						40.8851470947266,
+						44.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 874,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						40.8851470947266,
+						46.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 875,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						40.8851470947266,
+						48.6676559448242
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 877,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						40.8851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000174845553146952
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 878,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						40.8851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000174845553146952
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 879,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						40.8851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000150995802528087
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 880,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						40.8851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000150995802528087
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 881,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						40.8851470947266,
+						48.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 882,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						40.8851470947266,
+						46.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/wall.tres",
+					"id": 883,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						40.8851470947266,
+						44.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 884,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						43.3851470947266,
+						42.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 885,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						43.3851470947266,
+						44.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 886,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						43.3851470947266,
+						46.6676635742188
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 887,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						43.3851470947266,
+						48.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 888,
+					"paid": {},
+					"position": [
+						423.633911132813,
+						45.3851470947266,
+						42.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 889,
+					"paid": {},
+					"position": [
+						423.633911132813,
+						45.3851470947266,
+						44.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 891,
+					"paid": {},
+					"position": [
+						423.633911132813,
+						45.3851470947266,
+						46.6676635742188
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 892,
+					"paid": {},
+					"position": [
+						423.633911132813,
+						45.3851470947266,
+						48.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 893,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						43.3851470947266,
+						42.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 894,
+					"paid": {},
+					"position": [
+						427.633911132813,
+						45.3851470947266,
+						42.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 895,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						43.3851470947266,
+						44.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 896,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						43.3851470947266,
+						46.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 897,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						43.3851470947266,
+						48.6676559448242
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 898,
+					"paid": {},
+					"position": [
+						427.633911132813,
+						45.3851470947266,
+						48.6676559448242
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 899,
+					"paid": {},
+					"position": [
+						427.633911132813,
+						45.3851470947266,
+						46.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/roof_45.tres",
+					"id": 900,
+					"paid": {},
+					"position": [
+						427.633911132813,
+						45.3851470947266,
+						44.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 901,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						43.3851470947266,
+						49.6676559448242
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 902,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						43.3851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000150995802528087
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 903,
+					"paid": {},
+					"position": [
+						427.133911132813,
+						43.3851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000174845553146952
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 904,
+					"paid": {},
+					"position": [
+						426.133911132813,
+						43.3851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000174845553146952
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 905,
+					"paid": {},
+					"position": [
+						427.133911132813,
+						44.3851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000174845553146952
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 906,
+					"paid": {},
+					"position": [
+						426.133911132813,
+						44.3851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000174845553146952
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 907,
+					"paid": {},
+					"position": [
+						425.133911132813,
+						43.3851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000174845553146952
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 908,
+					"paid": {},
+					"position": [
+						425.133911132813,
+						44.3851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000174845553146952
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 909,
+					"paid": {},
+					"position": [
+						424.133911132813,
+						43.3851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000150995802528087
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 910,
+					"paid": {},
+					"position": [
+						424.133911132813,
+						44.3851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000150995802528087
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 911,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						45.3851470947266,
+						49.6676559448242
+					],
+					"turn": 0.000000174845553146952
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 912,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						45.3851470947266,
+						49.6676559448242
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 913,
+					"paid": {},
+					"position": [
+						428.633911132813,
+						43.3851470947266,
+						41.6676635742188
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 914,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						43.3851470947266,
+						41.6676635742188
+					],
+					"turn": -0.000000301991605056173
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 915,
+					"paid": {},
+					"position": [
+						424.133911132813,
+						43.3851470947266,
+						41.6676635742188
+					],
+					"turn": -0.000000301991605056173
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 916,
+					"paid": {},
+					"position": [
+						424.133911132813,
+						44.3851470947266,
+						41.6676635742188
+					],
+					"turn": -0.000000301991605056173
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 917,
+					"paid": {},
+					"position": [
+						425.133911132813,
+						43.3851470947266,
+						41.6676635742188
+					],
+					"turn": -0.000000301991605056173
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 918,
+					"paid": {},
+					"position": [
+						425.133911132813,
+						44.3851470947266,
+						41.6676635742188
+					],
+					"turn": -0.000000301991605056173
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 920,
+					"paid": {},
+					"position": [
+						426.133911132813,
+						44.3851470947266,
+						41.6676635742188
+					],
+					"turn": -0.000000301991605056173
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 922,
+					"paid": {},
+					"position": [
+						427.133911132813,
+						44.3851470947266,
+						41.6676635742188
+					],
+					"turn": -0.000000301991605056173
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 924,
+					"paid": {},
+					"position": [
+						426.133911132813,
+						43.3851470947266,
+						41.6676635742188
+					],
+					"turn": -0.000000301991605056173
+				},
+				{
+					"buildable": "res://buildables/structure/wall_quarter.tres",
+					"id": 925,
+					"paid": {},
+					"position": [
+						427.133911132813,
+						43.3851470947266,
+						41.6676635742188
+					],
+					"turn": -0.000000301991605056173
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 926,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						45.3851470947266,
+						41.6676635742188
+					],
+					"turn": -0.000000301991605056173
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 927,
+					"paid": {},
+					"position": [
+						426.633911132813,
+						45.3851470947266,
+						41.6676635742188
+					],
+					"turn": 3.14159226417542
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 931,
+					"paid": {},
+					"position": [
+						423.633911132813,
+						45.3851470947266,
+						41.4176635742188
+					],
+					"turn": 1.57079601287842
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 933,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						43.3851470947266,
+						41.4176635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 934,
+					"paid": {},
+					"position": [
+						427.633911132813,
+						45.3851470947266,
+						41.4176635742188
+					],
+					"turn": -1.57079684734344
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 935,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						43.3851470947266,
+						41.4176635742188
+					],
+					"turn": -1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 936,
+					"paid": {},
+					"position": [
+						431.883911132813,
+						39.6351470947266,
+						43.6676635742188
+					],
+					"turn": 0.000000150995802528087
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 937,
+					"paid": {},
+					"position": [
+						431.883911132813,
+						39.6351470947266,
+						47.6676635742188
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 938,
+					"paid": {},
+					"position": [
+						430.633911132813,
+						39.6351470947266,
+						43.6676635742188
+					],
+					"turn": 0.000000150995802528087
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 939,
+					"paid": {},
+					"position": [
+						430.633911132813,
+						39.6351470947266,
+						47.6676635742188
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 940,
+					"paid": {},
+					"position": [
+						431.883911132813,
+						39.6351470947266,
+						47.6676635742188
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 941,
+					"paid": {},
+					"position": [
+						431.883911132813,
+						39.6351470947266,
+						43.6676635742188
+					],
+					"turn": 0.000000150995802528087
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 945,
+					"paid": {},
+					"position": [
+						427.633911132813,
+						45.3851470947266,
+						49.9176559448242
+					],
+					"turn": -1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 946,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						43.3851470947266,
+						49.9176559448242
+					],
+					"turn": -1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 947,
+					"paid": {},
+					"position": [
+						423.633911132813,
+						45.3851470947266,
+						49.9176559448242
+					],
+					"turn": 1.57079648971558
+				},
+				{
+					"buildable": "res://buildables/structure/gable_overhang_45.tres",
+					"id": 948,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						43.3851470947266,
+						49.9176635742188
+					],
+					"turn": 1.57079648971558
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 949,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						43.3851470947266,
+						42.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 950,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						43.3851470947266,
+						44.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 951,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						43.3851470947266,
+						46.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 952,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						43.3851470947266,
+						48.6676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 953,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						43.3851470947266,
+						48.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 954,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						43.3851470947266,
+						46.6676635742188
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 955,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						43.3851470947266,
+						44.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/eave_26.tres",
+					"id": 956,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						43.3851470947266,
+						42.6676635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 957,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						43.3851470947266,
+						41.4176635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 958,
+					"paid": {},
+					"position": [
+						421.633911132813,
+						43.3851470947266,
+						49.9176635742188
+					],
+					"turn": 1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 959,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						43.3851470947266,
+						41.4176635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/eave_corner_26.tres",
+					"id": 960,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						43.3851470947266,
+						49.9176559448242
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/inverse_1_45.tres",
+					"id": 963,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						39.6351470947266,
+						44.1676635742188
+					],
+					"turn": -1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/inverse_1_45.tres",
+					"id": 964,
+					"paid": {},
+					"position": [
+						429.633911132813,
+						39.6351470947266,
+						47.1676559448242
+					],
+					"turn": 1.57079648971558
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 965,
+					"paid": {},
+					"position": [
+						431.633911132813,
+						39.6351470947266,
+						44.6676635742188
+					],
+					"turn": -1.570796251297
+				},
+				{
+					"buildable": "res://buildables/structure/gable_45.tres",
+					"id": 966,
+					"paid": {},
+					"position": [
+						431.633911132813,
+						39.6351470947266,
+						46.6676635742188
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/window_split_1.tres",
+					"id": 969,
+					"paid": {},
+					"position": [
+						426.133911132813,
+						40.8851470947266,
+						41.6676635742188
+					],
+					"turn": 3.14159226417542
+				},
+				{
+					"buildable": "res://buildables/structure/window_split_1.tres",
+					"id": 970,
+					"paid": {},
+					"position": [
+						425.133911132813,
+						40.8851470947266,
+						41.6676635742188
+					],
+					"turn": -0.000000301991605056173
+				},
+				{
+					"buildable": "res://buildables/structure/wall_1.tres",
+					"id": 971,
+					"paid": {},
+					"position": [
+						424.133911132813,
+						40.8851470947266,
+						41.6676635742188
+					],
+					"turn": 3.14159226417542
+				},
+				{
+					"buildable": "res://buildables/structure/wall_1.tres",
+					"id": 972,
+					"paid": {},
+					"position": [
+						427.133911132813,
+						40.8851470947266,
+						41.6676635742188
+					],
+					"turn": 3.14159226417542
+				},
+				{
+					"buildable": "res://buildables/structure/inverse_1_45.tres",
+					"id": 973,
+					"paid": {},
+					"position": [
+						424.133911132813,
+						39.6351470947266,
+						41.6676635742188
+					],
+					"turn": -0.000000301991605056173
+				},
+				{
+					"buildable": "res://buildables/structure/inverse_1_45.tres",
+					"id": 974,
+					"paid": {},
+					"position": [
+						427.133911132813,
+						39.6351470947266,
+						41.6676559448242
+					],
+					"turn": -3.14159250259399
+				},
+				{
+					"buildable": "res://buildables/structure/stairs.tres",
+					"id": 996,
+					"paid": {},
+					"position": [
+						422.633911132813,
+						37.1351470947266,
+						45.6676635742188
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/half_stairs.tres",
+					"id": 997,
+					"paid": {},
+					"position": [
+						424.633911132813,
+						39.6351470947266,
+						48.6676635742188
+					],
+					"turn": 1.57079637050629
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 998,
+					"paid": {},
+					"position": [
+						442.757690429688,
+						37.6613082885742,
+						41.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 999,
+					"paid": {},
+					"position": [
+						442.757690429688,
+						37.6613082885742,
+						39.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 1000,
+					"paid": {},
+					"position": [
+						440.757690429688,
+						37.6613082885742,
+						39.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 1001,
+					"paid": {},
+					"position": [
+						440.757690429688,
+						37.6613082885742,
+						41.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 1002,
+					"paid": {},
+					"position": [
+						442.757690429688,
+						37.6613082885742,
+						37.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 1003,
+					"paid": {},
+					"position": [
+						440.757690429688,
+						37.6613082885742,
+						37.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 1004,
+					"paid": {},
+					"position": [
+						444.757690429688,
+						37.6613082885742,
+						37.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 1005,
+					"paid": {},
+					"position": [
+						446.757690429688,
+						37.6613082885742,
+						39.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 1006,
+					"paid": {},
+					"position": [
+						444.757690429688,
+						37.6613082885742,
+						39.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 1007,
+					"paid": {},
+					"position": [
+						446.757690429688,
+						37.6613082885742,
+						41.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/foundation_stone.tres",
+					"id": 1008,
+					"paid": {},
+					"position": [
+						444.757690429688,
+						37.6613082885742,
+						41.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/stairs.tres",
+					"id": 1009,
+					"paid": {},
+					"position": [
+						440.757690429688,
+						35.1613082885742,
+						34.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/stairs.tres",
+					"id": 1010,
+					"paid": {},
+					"position": [
+						440.757690429688,
+						37.6613082885742,
+						38.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/floor.tres",
+					"id": 1015,
+					"paid": {},
+					"position": [
+						440.757690429688,
+						40.1613082885742,
+						41.4763145446777
+					],
+					"turn": 0.0
+				},
+				{
+					"buildable": "res://buildables/structure/half_stairs.tres",
+					"id": 1018,
+					"paid": {},
+					"position": [
+						442.757690429688,
+						40.1613082885742,
+						41.4763145446777
+					],
+					"turn": 1.57079637050629
+				}
+			],
+			"next_id": 1019
+		},
+		"player": {
+			"done": [
+				"Gather:Sticks",
+				"Gather:Plant Fiber",
+				"Gather:Stone",
+				"Craft:Hammer",
+				"Craft:Axe",
+				"Craft:Knife",
+				"Craft:Pickaxe",
+				"Gather:Wood",
+				"Build:Campfire",
+				"Build:Lean-to",
+				"Build:Workbench",
+				"Craft:Rope",
+				"Craft:Planks",
+				"Build:Storage Chest",
+				"Craft:Spear",
+				"Gather:Berries",
+				"Gather:Herbs",
+				"Build:Stone Foundation",
+				"Build:Curved Wall 45°",
+				"Build:Wall",
+				"Build:Stairs",
+				"Build:Round Floor",
+				"Build:Triangle Floor",
+				"Build:Half Wall 1 m",
+				"Build:Floor",
+				"Build:Doorway Wall",
+				"Build:26° Roof",
+				"Build:Bed",
+				"Build:Fireplace",
+				"Build:Door",
+				"Build:26° Gable",
+				"Build:26° Eave",
+				"Build:26° Eave Corner",
+				"Build:26° Ridge Cap",
+				"Build:26° Gable Overhang",
+				"Build:Storage Shelf",
+				"Build:Chopping Block",
+				"Build:Chimney Section",
+				"Build:Chimney Top",
+				"Build:Foraging Basket",
+				"Build:Wood Pillar",
+				"Build:Window Wall",
+				"Build:45° Roof",
+				"Build:45° Roof Inner Corner",
+				"Build:26° Roof Inner Corner",
+				"Build:Quarter Wall 1×1 m",
+				"Build:Wood Foundation",
+				"Build:Stone Sorting Table",
+				"Build:Beam 2 m",
+				"Build:26° Roof Outer Corner",
+				"Build:45° Gable",
+				"Build:45° Gable Overhang",
+				"Build:45° Eave",
+				"Build:45° Eave Corner",
+				"Build:45° Inverse Triangle 2 m",
+				"Build:45° Ridge Cap",
+				"Build:26° Outer Eave Corner",
+				"Build:26° Roof Topper",
+				"Build:Split Window Wall 2 m",
+				"Build:Firewood Rack",
+				"Build:Tool Rack",
+				"Build:Pole 1 m",
+				"Build:26° Half Gable 1 m",
+				"Build:26° Topper Overhang",
+				"Build:Diagonal Beam 26°",
+				"Build:45° Roof Outer Corner",
+				"Build:45° Roof Topper",
+				"Build:Diagonal Beam 45°",
+				"Build:45° Ridge End",
+				"Build:45° Hip End",
+				"Build:Storehouse Storage",
+				"Build:Foundation Steps",
+				"Build:Split Window Wall 1 m",
+				"Build:Wall 1 m",
+				"Build:Half Wall 2 m",
+				"Build:Floor 1×1 m",
+				"Build:45° Inverse Triangle 1 m",
+				"Build:Half Stairs"
+			],
+			"dropped_tools": [],
+			"hunger": 51.3382021232297,
+			"inventory": {
+				"Axe": 1,
+				"Berries": 4,
+				"Hammer": 1,
+				"Herbs": 4,
+				"Knife": 1,
+				"Pickaxe": 1,
+				"Plant Fiber": 18,
+				"Spear": 1,
+				"Sticks": 28,
+				"Stone": 12,
+				"Wood": 6
+			},
+			"item_bundles": [],
+			"look": 0.452700704336166,
+			"notes_read": [],
+			"position": [
+				442.556610107422,
+				38.6614990234375,
+				39.9730758666992
+			],
+			"stamina": 75.6691010616149,
+			"torch_left": 0.0,
+			"turn": 2.62306094169617,
+			"unlocked": [
+				"res://buildables/structure/foundation_wood.tres",
+				"res://buildables/structure/foundation_stone.tres",
+				"res://buildables/structure/foundation_wood_rtri.tres",
+				"res://buildables/structure/foundation_stone_rtri.tres",
+				"res://buildables/structure/foundation_wood_tri45.tres",
+				"res://buildables/structure/foundation_stone_tri45.tres",
+				"res://buildables/structure/floor.tres",
+				"res://buildables/structure/floor_1.tres",
+				"res://buildables/structure/floor_rtri.tres",
+				"res://buildables/structure/floor_tri45.tres",
+				"res://buildables/structure/wall.tres",
+				"res://buildables/structure/wall_1.tres",
+				"res://buildables/structure/wall_half_2.tres",
+				"res://buildables/structure/wall_half_1.tres",
+				"res://buildables/structure/wall_quarter.tres",
+				"res://buildables/structure/wall_long.tres",
+				"res://buildables/structure/wall_short.tres",
+				"res://buildables/structure/window.tres",
+				"res://buildables/structure/gable_26.tres",
+				"res://buildables/structure/gable_45.tres",
+				"res://buildables/structure/gable_wall_45.tres",
+				"res://buildables/structure/wall_strip_2.tres",
+				"res://buildables/structure/wall_strip_1.tres",
+				"res://buildables/structure/gable_half_1_26.tres",
+				"res://buildables/structure/gable_half_1_45.tres",
+				"res://buildables/structure/inverse_2_26.tres",
+				"res://buildables/structure/inverse_1_26.tres",
+				"res://buildables/structure/inverse_2_45.tres",
+				"res://buildables/structure/inverse_1_45.tres",
+				"res://buildables/structure/window_split_2.tres",
+				"res://buildables/structure/window_split_1.tres",
+				"res://buildables/structure/topper_gable_26.tres",
+				"res://buildables/structure/topper_gable_45.tres",
+				"res://buildables/structure/roof.tres",
+				"res://buildables/structure/roof_inner_26.tres",
+				"res://buildables/structure/roof_outer_26.tres",
+				"res://buildables/structure/eave_26.tres",
+				"res://buildables/structure/eave_corner_26.tres",
+				"res://buildables/structure/gable_overhang_26.tres",
+				"res://buildables/structure/hip_end_26.tres",
+				"res://buildables/structure/outer_eave_corner_26.tres",
+				"res://buildables/structure/ridge_26.tres",
+				"res://buildables/structure/topper_26.tres",
+				"res://buildables/structure/topper_overhang_26.tres",
+				"res://buildables/structure/valley_eave_corner_26.tres",
+				"res://buildables/structure/roof_45.tres",
+				"res://buildables/structure/roof_inner_45.tres",
+				"res://buildables/structure/roof_outer_45.tres",
+				"res://buildables/structure/eave_45.tres",
+				"res://buildables/structure/eave_corner_45.tres",
+				"res://buildables/structure/gable_overhang_45.tres",
+				"res://buildables/structure/hip_end_45.tres",
+				"res://buildables/structure/outer_eave_corner_45.tres",
+				"res://buildables/structure/ridge_45.tres",
+				"res://buildables/structure/topper_45.tres",
+				"res://buildables/structure/topper_overhang_45.tres",
+				"res://buildables/structure/valley_eave_corner_45.tres",
+				"res://buildables/structure/pillar_wood.tres",
+				"res://buildables/structure/pillar_stone.tres",
+				"res://buildables/structure/beam_1.tres",
+				"res://buildables/structure/beam_2.tres",
+				"res://buildables/structure/beam_diag_26.tres",
+				"res://buildables/structure/beam_diag_45.tres",
+				"res://buildables/structure/pole_1.tres",
+				"res://buildables/structure/pole_2.tres",
+				"res://buildables/structure/stairs.tres",
+				"res://buildables/structure/half_stairs.tres",
+				"res://buildables/structure/foundation_steps.tres",
+				"res://buildables/structure/doorway.tres",
+				"res://buildables/structure/door.tres",
+				"res://buildables/round/round_foundation_wood.tres",
+				"res://buildables/round/round_foundation_stone.tres",
+				"res://buildables/round/round_foundation_wood_22.tres",
+				"res://buildables/round/round_foundation_stone_22.tres",
+				"res://buildables/round/round_floor.tres",
+				"res://buildables/round/round_floor_22.tres",
+				"res://buildables/round/curved_wall_45.tres",
+				"res://buildables/round/curved_wall_22.tres",
+				"res://buildables/round/cone_roof.tres",
+				"res://buildables/workbench.tres",
+				"res://buildables/storage_chest.tres",
+				"res://buildables/furniture/bed.tres",
+				"res://buildables/furniture/foraging_basket.tres",
+				"res://buildables/furniture/chopping_block.tres",
+				"res://buildables/furniture/tool_rack.tres",
+				"res://buildables/furniture/sorting_table.tres",
+				"res://buildables/furniture/storage_shelf.tres",
+				"res://buildables/furniture/storehouse_storage.tres",
+				"res://buildables/furniture/fireplace.tres",
+				"res://buildables/furniture/chimney_section.tres",
+				"res://buildables/furniture/chimney_top.tres",
+				"res://buildables/furniture/firewood_rack.tres",
+				"res://buildables/furniture/stone_ore_bin.tres",
+				"res://buildables/furniture/slat_crate.tres",
+				"res://buildables/furniture/woven_crate.tres",
+				"res://buildables/furniture/woven_basket.tres",
+				"res://buildables/lean_to.tres",
+				"res://buildables/structure/ladder.tres",
+				"res://buildables/structure/railing_2.tres",
+				"res://buildables/structure/railing_1.tres",
+				"res://buildables/structure/fence.tres",
+				"res://buildables/plots/house.tres",
+				"res://buildables/plots/foragers_hut.tres",
+				"res://buildables/plots/woodcutters_hut.tres",
+				"res://buildables/plots/storehouse.tres",
+				"res://buildables/plots/workshop.tres"
+			],
+			"warmth": 100.0
+		},
+		"plots": {
+			"list": [
+				{
+					"id": "plot_4",
+					"name": "Basic House",
+					"position": [
+						414.795715332031,
+						35.8976402282715,
+						-15.2559728622437
+					],
+					"size": [
+						11.0,
+						11.0
+					],
+					"turn": 1.6580628156662,
+					"type": "res://buildables/plots/house.tres"
+				},
+				{
+					"id": "plot_6",
+					"name": "Forager's Hut",
+					"position": [
+						429.034240722656,
+						36.457275390625,
+						9.4595308303833
+					],
+					"production": {
+						"Berries": 30,
+						"Copper Ore": 8,
+						"Herbs": 12,
+						"Mushrooms": 12,
+						"Plant Fiber": 6,
+						"Stone": 24,
+						"Tin Ore": 8
+					},
+					"size": [
+						11.0,
+						15.0
+					],
+					"turn": -0.785398304462433,
+					"type": "res://buildables/plots/foragers_hut.tres"
+				},
+				{
+					"id": "plot_7",
+					"name": "Woodcutter's Hut",
+					"position": [
+						370.672790527344,
+						33.5090866088867,
+						6.76377201080322
+					],
+					"size": [
+						8.0,
+						10.0
+					],
+					"turn": -0.17453271150589,
+					"type": "res://buildables/plots/woodcutters_hut.tres"
+				},
+				{
+					"id": "plot_8",
+					"name": "Storehouse",
+					"position": [
+						407.797698974609,
+						36.3595848083496,
+						3.65133380889893
+					],
+					"size": [
+						11.0,
+						9.0
+					],
+					"town_storage": {
+						"Berries": 17,
+						"Copper Ore": 2,
+						"Herbs": 2,
+						"Mushrooms": 2,
+						"Plant Fiber": 1,
+						"Stone": 4,
+						"Tin Ore": 1
+					},
+					"turn": 0.174533024430275,
+					"type": "res://buildables/plots/storehouse.tres"
+				}
+			],
+			"next_id": 9
+		},
+		"respawns": {
+			"bookings": [
+				{
+					"due": 7.02557355440363,
+					"id": "n5717",
+					"kind": "berries",
+					"where": [
+						401.843627929688,
+						35.7389144897461,
+						-9.43313598632813
+					]
+				},
+				{
+					"due": 6.52812560208882,
+					"id": "n4449",
+					"kind": "pickup",
+					"where": [
+						399.28369140625,
+						36.4039268493652,
+						10.9641723632813
+					]
+				},
+				{
+					"due": 6.529178749774,
+					"id": "n4152",
+					"kind": "pickup",
+					"where": [
+						402.942016601563,
+						36.4161987304688,
+						20.3880920410156
+					]
+				},
+				{
+					"due": 6.52979217569993,
+					"id": "n4317",
+					"kind": "pickup",
+					"where": [
+						404.32275390625,
+						36.4414558410645,
+						24.0099792480469
+					]
+				}
+			]
+		},
+		"settlers": {
+			"last_dawn_day": 6,
+			"last_dusk_day": 5,
+			"list": [
+				{
+					"home": "plot_4",
+					"hungry_days": 1,
+					"id": "settler_3",
+					"job": "plot_6",
+					"look": {
+						"build": 1.02694272994995,
+						"bundle": false,
+						"hair": [
+							0.664244456631479,
+							0.642817236694384,
+							0.610676342930589
+						],
+						"hair_style": 3.0,
+						"height": 0.955827057361603,
+						"scarf": [
+							0.259646356105804,
+							0.436205864638758,
+							0.436205864638758
+						],
+						"skin": [
+							0.367229786079434,
+							0.25126247914892,
+							0.183614893039717
+						],
+						"trousers": [
+							0.241436485616047,
+							0.271616063182197,
+							0.301795625757997
+						],
+						"tunic": [
+							0.331296943477668,
+							0.401572042727054,
+							0.481886433320796
+						]
+					},
+					"name": "Lorne Ivers",
+					"position": [
+						423.896820068359,
+						36.4450378417969,
+						9.67818546295166
+					],
+					"turn": -0.785410940647125
+				},
+				{
+					"home": "plot_4",
+					"hungry_days": 0,
+					"id": "settler_4",
+					"job": "plot_7",
+					"look": {
+						"build": 1.01677668094635,
+						"bundle": true,
+						"hair": [
+							0.466243505477905,
+							0.205147141298667,
+							0.111898438813572
+						],
+						"hair_style": 2.0,
+						"height": 0.918644607067108,
+						"scarf": [
+							0.430667359093835,
+							0.323000527342181,
+							0.484500758926053
+						],
+						"skin": [
+							0.739490083449468,
+							0.539627913221832,
+							0.399724370237058
+						],
+						"trousers": [
+							0.340250947882769,
+							0.299008388260074,
+							0.237144594918158
+						],
+						"tunic": [
+							0.302740335573368,
+							0.333014369130705,
+							0.363288402688042
+						]
+					},
+					"name": "Yusuf Oakes",
+					"position": [
+						370.004913330078,
+						34.0097045898438,
+						5.45153999328613
+					],
+					"turn": 1.38565349578857
+				}
+			],
+			"next_id": 5
+		},
+		"world": {
+			"changes": {
+				"n4152": "gone",
+				"n4317": "gone",
+				"n4449": "gone",
+				"n5717": "empty"
+			},
+			"moved": {
+				"n4213": [
+					4.01663535833359,
+					140.330420732498
+				]
+			}
+		}
+	},
+	"version": 2
+}

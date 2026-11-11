@@ -181,6 +181,8 @@ var _last_stations: PackedStringArray = []
 var _torch_left := 0.0
 # The developer console (debug builds only; null otherwise)
 var _console: DevConsole
+# The bug snapshot key's (F9, debug builds only)
+var _bug_snapshot: BugSnapshot
 # The settlers, and a settler's panel (E aimed at one)
 var _settlers: SettlerManager
 var _settler_panel: SettlerPanel
@@ -208,6 +210,10 @@ func _ready() -> void:
 	# Debug builds: the lag spike logger (it writes nothing until it's turned on in Settings)
 	if OS.is_debug_build():
 		get_parent().add_child.call_deferred(SpikeLog.new())
+		# The bug snapshot key (F9)
+		_bug_snapshot = BugSnapshot.new()
+		_bug_snapshot.player = self
+		add_child(_bug_snapshot)
 	_note_panel = NOTE_PANEL_SCENE.instantiate()
 	$HUD.add_child(_note_panel)
 	_fps_label = Label.new()
@@ -706,10 +712,15 @@ func _unhandled_input(event: InputEvent) -> void:
 					_dowsing.pulse()
 			KEY_F3:
 				_fps_label.visible = not _fps_label.visible
-			KEY_F9:
+			KEY_F8:
 				# Debug builds only: the console's spawn_settler (a refugee arrives in front of you)
 				if _console:
 					_console.run("spawn_settler")
+			KEY_F9:
+				# Debug builds only: a bug snapshot (a brighter screenshot, the camera, the piece
+				# under the crosshair and the whole game, in docs/reference/ours; see BugSnapshot)
+				if _bug_snapshot:
+					_bug_snapshot.take()
 			KEY_F10:
 				# Debug builds only: the console's day (skip to the next dawn)
 				if _console:

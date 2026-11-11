@@ -8,7 +8,7 @@ extends Control
 ## (tp); Esc closes it. While it's open the player stands still and no other keys do anything.
 ## A small "DEV" tag shows in the top-right corner while any cheat toggle is on (see DevCheats).
 ##
-## F9 and F10 are shortcuts for spawn_settler and day.
+## F8 and F10 are shortcuts for spawn_settler and day (F9 takes a bug snapshot; see BugSnapshot).
 
 ## How tall the plaque is (pixels at 1920 x 1080), and the gap to the screen's edges
 const HEIGHT := 400.0
@@ -29,7 +29,7 @@ const COMMANDS := {
 	"fly": ["fly", "Toggle: fly through everything (Space up, Ctrl down, Shift faster)"],
 	"time": ["time <0-24>", "Set the time of day, in hours (6 is sunrise, 18 sunset)"],
 	"day": ["day", "Skip to the next dawn: dusk meals, then dawn output (also F10)"],
-	"spawn_settler": ["spawn_settler [count]", "Bring settlers in at once (default 1; also F9)"],
+	"spawn_settler": ["spawn_settler [count]", "Bring settlers in at once (default 1; also F8)"],
 	"tp": ["tp <x> <z>  |  tp settlement", "Jump to a spot, or to the nearest plot"],
 	"clear_inventory": ["clear_inventory", "Empty your inventory and action bar"],
 	"save": ["save", "Make a manual save"],
@@ -43,6 +43,7 @@ var _panel: PanelContainer
 var _log: RichTextLabel
 var _entry: LineEdit
 var _tag: Label
+var _stamp: Label
 var _history: PackedStringArray = []
 var _history_at := -1
 var _mouse_before := Input.MOUSE_MODE_CAPTURED
@@ -92,6 +93,16 @@ func _ready() -> void:
 	_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_tag)
+	# Which code this is (see BuildStamp), always showing in debug builds, under the DEV tag
+	_stamp = Label.new()
+	_stamp.text = BuildStamp.text()
+	_stamp.add_theme_font_override("font", mono)
+	_stamp.add_theme_font_size_override("font_size", 13)
+	_stamp.add_theme_color_override("font_color", Color(0.85, 0.85, 0.8, 0.8))
+	_stamp.add_theme_color_override("font_outline_color", Color.BLACK)
+	_stamp.add_theme_constant_override("outline_size", 4)
+	_stamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_stamp)
 	_print("Steampunk Valley developer console. Type [b]help[/b] for the commands.", DIM_COLOR)
 
 
@@ -125,6 +136,8 @@ func _process(_delta: float) -> void:
 		_tag.text = "DEV · " + ", ".join(DevCheats.active_names())
 		_tag.size = _tag.get_combined_minimum_size()
 		_tag.position = Vector2(screen.x - EDGE - _tag.size.x, 76.0)
+	_stamp.size = _stamp.get_combined_minimum_size()
+	_stamp.position = Vector2(screen.x - EDGE - _stamp.size.x, 100.0 if _tag.visible else 76.0)
 
 
 # The console's own keys come first: ~ opens and closes it, and while it's open Esc, Up, Down and

@@ -5,7 +5,7 @@ extends Node
 ##
 ## Arrival (for now, until quests bring refugees): each morning, if a working House has a free bed,
 ## one refugee arrives, walking in from the direction of the nearest edge of the valley, and moves
-## into that House. At most one a day. "A refugee named Name has arrived." In debug builds, F9
+## into that House. At most one a day. "A refugee named Name has arrived." In debug builds, F8
 ## brings one at once, a few steps in front of the player (see the player).
 ##
 ## Homes: a House holds one settler per bed (its capacity); each resident sleeps in a bed of their
@@ -273,7 +273,7 @@ func _morning_arrival() -> void:
 
 
 ## Brings a refugee at once, a few steps in front of the player (the console's spawn_settler, and
-## F9), `sideways` meters to the right of straight ahead, placed as safely as a dawn arrival (see
+## F8), `sideways` meters to the right of straight ahead, placed as safely as a dawn arrival (see
 ## find_safe_spot). Null if there's nowhere safe nearby.
 func spawn_debug(player: Node3D, sideways := 0.0) -> Settler:
 	var ahead := -player.global_basis.z

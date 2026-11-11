@@ -14,7 +14,7 @@ unlock_item = "Planks"
 unlock_hint = "Craft planks to unlock"
 scene = ExtResource("2_scene")
 section = "Beams & Pillars"
-menu_order = 5
+menu_order = 8
 costs = Array[Dictionary]([{
 "Planks": 2
 }])

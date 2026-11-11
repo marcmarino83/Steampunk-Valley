@@ -65,8 +65,13 @@ const DOT_RADIUS := 0.035
 const MAX_DOTS := 64
 const BAR_HEIGHT := 0.9
 const BAR_RADIUS := 0.018
-## The controls row while placing anything (pieces, furniture, the workbench, chest and campfire)
-const CONTROLS := [["Place", "LMB"], ["Turn", "Wheel"], ["No snap (turn 1°)", "Hold Shift"], ["Demolish", "MMB"], ["Cancel", "RMB"]]
+## The controls row while placing a building piece, and while placing furniture or the workbench,
+## chest and campfire (which aren't raised or lowered)
+const CONTROLS := [["Place", "LMB"], ["Turn", "Wheel"], ["Raise/Lower", "PgUp/PgDn"], ["No snap (turn 1°)", "Hold Shift"], ["Demolish", "MMB"], ["Cancel", "RMB"]]
+const FURNITURE_CONTROLS := [["Place", "LMB"], ["Turn", "Wheel"], ["No snap (turn 1°)", "Hold Shift"], ["Demolish", "MMB"], ["Cancel", "RMB"]]
+## Page Up / Page Down raise and lower a free (unsnapped) piece this much a press, with no limit
+## (that moves it; no piece is ever reshaped to fit where it goes)
+const RAISE_STEP := 0.25
 
 var registry: PieceRegistry
 ## The plots, to tell which one a new piece belongs to
@@ -79,7 +84,11 @@ var turn := 0.0
 
 var _player: CharacterBody3D
 var _buildable: PieceBuildable
+# The shape the ghost is built as (its buildable's), and its def
+var _shape_name := ""
 var _shape: Dictionary
+# How far Page Up / Page Down have raised (+) or lowered (-) it while free
+var _lift := 0.0
 var _bounds := AABB()
 # The point of its own it's held at the crosshair by (see hold_point)
 var _hold := Vector3.ZERO
@@ -103,6 +112,13 @@ var _dots: Array[MeshInstance3D] = []
 var _bar: MeshInstance3D
 # Each piece with its touching pieces, and their snap points, worked out once until pieces change
 var _round_cache := {}
+# For each piece's snap points round it, what kind of piece each is a corner of (see _point_kind)
+var _kind_cache := {}
+## Kinds of snap point (see _point_kind): a floor's or foundation's corner (on its top's edge), a
+## flight of stairs' corner, anything else's
+const POINT_FLOOR := 1
+const POINT_STAIRS := 2
+const POINT_OTHER := 4
 # The sticky corner: the piece and the snap point the ghost last met (Vector3.INF: none)
 var _sticky_target: BuildPiece
 var _sticky_point := Vector3.INF
@@ -113,7 +129,9 @@ func _ready() -> void:
 	_furniture = FurnitureSpot.new(_player)
 	set_physics_process(false)
 	if registry:
-		registry.changed.connect(func(): _round_cache.clear())
+		registry.changed.connect(func():
+			_round_cache.clear()
+			_kind_cache.clear())
 
 
 func is_placing() -> bool:
@@ -139,13 +157,20 @@ func snapping_now() -> bool:
 func begin(piece: PieceBuildable, _keep := false) -> void:
 	cancel()
 	_buildable = piece
-	_shape = registry.shape_of(piece.shape)
-	_bounds = PieceShapes.bounds_of(_shape)
-	_hold = hold_point(_shape)
+	_set_shape(piece.shape)
+	_lift = 0.0
 	_problem = "Point at the ground or a piece"
 	_make_ghost()
 	_make_markers()
 	set_physics_process(true)
+
+
+# The ghost is built as this shape
+func _set_shape(shape: String) -> void:
+	_shape_name = shape
+	_shape = registry.shape_of(shape)
+	_bounds = PieceShapes.bounds_of(_shape)
+	_hold = hold_point(_shape)
 
 
 func cancel() -> void:
@@ -161,6 +186,7 @@ func cancel() -> void:
 	_own_looks.clear()
 	_red = false
 	_buildable = null
+	_shape_name = ""
 	_set_target(null)
 	_pair = []
 	_sticky_target = null
@@ -175,6 +201,10 @@ func handle_input(event: InputEvent) -> bool:
 		return true
 	# Finish or cancel this before putting the hammer away (Tab opens the build menu to switch)
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode >= KEY_1 and event.keycode <= KEY_9:
+		return true
+	# Page Up / Page Down: a free piece up or down (repeating while held)
+	if event is InputEventKey and event.pressed and event.keycode in [KEY_PAGEUP, KEY_PAGEDOWN] and not is_furniture():
+		_lift += RAISE_STEP * (1.0 if event.keycode == KEY_PAGEUP else -1.0)
 		return true
 	if event is InputEventMouseButton and event.pressed:
 		if turn_by_wheel(event):
@@ -202,16 +232,18 @@ func turn_by_wheel(event: InputEventMouseButton) -> bool:
 	return true
 
 
-## What the on-screen controls show while placing (see HudControls): the five controls, and the
-## piece's panel: icon, name, cost (red if you can't afford it), "Turn 45°" when it's turned, and
-## why it can't go there if it can't
+## What the on-screen controls show while placing (see HudControls): the controls, and the piece's
+## panel: icon, name, cost (red if you can't afford it), "Turn 45°" when it's turned, how far it's
+## raised or lowered while free, and why it can't go there (red)
 func hud_state() -> Dictionary:
 	var details: PackedStringArray = []
 	if not is_zero_approx(turn):
 		details.append(turn_text(turn))
+	if _pair.is_empty() and not is_zero_approx(_lift) and not is_furniture():
+		details.append("%s %.2f m" % ["Raised" if _lift > 0.0 else "Lowered", absf(_lift)])
 	if not _problem.is_empty():
 		details.append(_problem)
-	return {"controls": CONTROLS, "info": {
+	return {"controls": FURNITURE_CONTROLS if is_furniture() else CONTROLS, "info": {
 		"icon": _buildable.icon,
 		"title": _buildable.display_name,
 		"cost": _buildable.cost_text(),
@@ -271,6 +303,10 @@ func _follow_crosshair() -> void:
 		return
 	_pair = []
 	var snapping := snapping_now()
+	if target == null:
+		# On the ground (or nothing): a foundation stands proud of it, its top FOUNDATION_LIFT up
+		spot += Vector3.UP * float(_shape.get("free_lift", 0.0))
+	var aimed_at := target
 	if target:
 		_where = _ghost_at(spot, target)
 		if snapping:
@@ -283,7 +319,10 @@ func _follow_crosshair() -> void:
 		_where = _ghost_at(spot, null)
 		_sticky_target = null
 		_sticky_point = Vector3.INF
-	_set_target(target)
+	# Free (not snapped): Page Up / Page Down raise and lower it
+	if _pair.is_empty():
+		_where.origin.y += _lift
+	_set_target(target if target else aimed_at)
 	_problem = _check(_where)
 	_preview.visible = true
 	_preview.global_transform = _where
@@ -300,10 +339,10 @@ func _ghost_at(spot: Vector3, target: BuildPiece) -> Transform3D:
 
 
 ## The point of its own a piece is held at the crosshair by: its origin (a floor's top middle, a
-## wall's bottom middle, a roof's low edge middle...), except a roof topper, held like a roof by the
-## middle of one low edge (aimed at a roof's high edge, it reaches on over the ridge), and a piece
-## whose origin isn't on it (curved walls and cone roofs have theirs at the middle of the circle),
-## held by the middle of its base
+## wall's bottom middle, a roof's low edge middle, a flight's middle on the ground...), except a roof
+## topper, held like a roof by the middle of one low edge (aimed at a roof's high edge, it reaches on
+## over the ridge), and a piece whose origin isn't on it (curved walls and cone roofs have theirs at
+## the middle of the circle), held by the middle of its base
 static func hold_point(def: Dictionary) -> Vector3:
 	var box := PieceShapes.bounds_of(def)
 	var lows: Array = def["sockets"].filter(func(s): return (s["type"] as String).begins_with("topper_low"))
@@ -343,11 +382,11 @@ func _best_pair(target: BuildPiece, spot: Vector3, reach: float) -> Dictionary:
 func _pick(ghost: Transform3D, spot: Vector3, points: Array, anchors: Array, target: BuildPiece, reach: float) -> Dictionary:
 	var eye: Vector3 = (_player.camera as Camera3D).global_position
 	var pairs := []
-	for own in SnapCorners.of(_buildable.shape, _shape):
+	for own in SnapCorners.of(_shape_name, _shape):
 		var at: Vector3 = ghost * (own as Vector3)
 		for p in anchors:
 			var gap := at.distance_to(p)
-			if gap <= reach:
+			if gap <= reach and _may_meet(_point_kind(target, p)):
 				pairs.append([gap, at, p])
 	pairs.sort_custom(func(a, b):
 		if absf(float(a[0]) - float(b[0])) > TIE:
@@ -375,7 +414,7 @@ func _pick(ghost: Transform3D, spot: Vector3, points: Array, anchors: Array, tar
 # How many of the ghost's corners, put at `where`, meet one of `points`
 func _landed(where: Transform3D, points: Array) -> int:
 	var count := 0
-	for own in SnapCorners.of(_buildable.shape, _shape):
+	for own in SnapCorners.of(_shape_name, _shape):
 		var at: Vector3 = where * (own as Vector3)
 		if points.any(func(p): return at.distance_to(p) < MEET):
 			count += 1
@@ -385,7 +424,7 @@ func _landed(where: Transform3D, points: Array) -> int:
 # True if the ghost at `where` would sink into the target or a piece touching it (see PieceOverlap)
 func _sinks_in(where: Transform3D, target: BuildPiece) -> bool:
 	for piece in _pieces_round(target):
-		if PieceOverlap.overlaps(_buildable.shape, _shape, where, piece):
+		if PieceOverlap.overlaps(_shape_name, _shape, where, piece):
 			return true
 	return false
 
@@ -429,10 +468,41 @@ func _points_round(piece: BuildPiece) -> Array:
 	var key := piece.get_instance_id()
 	if not _round_cache.has(key):
 		var points := []
+		var kinds := {}
 		for other in _pieces_round(piece):
-			points.append_array(SnapCorners.in_world(other))
+			var def: Dictionary = other.shape_def()
+			var kind := POINT_FLOOR if def.get("floor", false) else (POINT_STAIRS if def.get("stairs", false) else POINT_OTHER)
+			for p: Vector3 in SnapCorners.in_world(other):
+				points.append(p)
+				var at := _point_key(p)
+				kinds[at] = int(kinds.get(at, 0)) | kind
 		_round_cache[key] = points
+		_kind_cache[key] = kinds
 	return _round_cache[key]
+
+
+# What the snap point `p` round a piece is (see _points_round): POINT_FLOOR, POINT_STAIRS and
+# POINT_OTHER together, for each kind of piece with a corner there
+func _point_kind(piece: BuildPiece, p: Vector3) -> int:
+	_points_round(piece)
+	return int(_kind_cache[piece.get_instance_id()].get(_point_key(p), 0))
+
+
+static func _point_key(p: Vector3) -> Vector3i:
+	return Vector3i((p * 1000.0).round())
+
+
+# Which snap points the ghost's corners may meet. A flight of stairs (Stairs, Half Stairs,
+# Foundation Steps), by its top corners or its bottom ones alike, only a floor's or foundation's
+# corners (all of which are on its top's edge); on bare ground it simply stands where it's put. And
+# so the other way round: a point that is only a flight's corners only takes a floor or foundation.
+# Nothing else pairs with a flight, so a flight never meets anything by a wrong corner, leaving a gap.
+func _may_meet(kind: int) -> bool:
+	if _shape.get("stairs", false):
+		return kind & POINT_FLOOR != 0
+	if kind & POINT_STAIRS and kind & (POINT_FLOOR | POINT_OTHER) == 0:
+		return _shape.get("floor", false)
+	return true
 
 
 # A piece and the pieces directly touching it
@@ -488,7 +558,7 @@ func furniture_spot(hit: Dictionary, far_point: Vector3, bounds: AABB, backs: bo
 # or not having the materials. It may overlap anything and sink into the ground as far as you like;
 # anyone standing there glides aside when it goes down (see PeopleMover).
 func _check(where: Transform3D) -> String:
-	var twin := registry.duplicate_of(_buildable.shape, where)
+	var twin := registry.duplicate_of(_shape_name, where)
 	if twin:
 		return "Already placed" + (": build its ghost instead" if twin.is_ghost() else "")
 	if not _buildable.can_afford(_player.inventory):
@@ -524,12 +594,12 @@ func _make_ghost() -> void:
 	if _buildable.model_scene:
 		_preview.add_child(BuildPiece.fitted_model(_buildable, _shape))
 	else:
-		var detail := registry.detail_mesh(_buildable.shape, 0)
+		var detail := registry.detail_mesh(_shape_name, 0)
 		var look_material: Material = registry.detail_material()
 		var meshes: Array = [detail.get("mesh"), detail.get("door_mesh")]
 		if detail.get("mesh") == null:
 			meshes = [_shape["mesh"], _shape["door_mesh"]]
-			look_material = registry.material_for(_buildable.shape)
+			look_material = registry.material_for(_shape_name)
 		for mesh in meshes:
 			if mesh:
 				var look := MeshInstance3D.new()

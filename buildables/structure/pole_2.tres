@@ -7,14 +7,14 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "pole_2"
-display_name = "Pole 2 m"
+display_name = "Pole 2.5 m"
 starts_locked = true
 unlocked_by = "Craft"
 unlock_item = "Planks"
 unlock_hint = "Craft planks to unlock"
 scene = ExtResource("2_scene")
 section = "Beams & Pillars"
-menu_order = 8
+menu_order = 11
 costs = Array[Dictionary]([{
 "Planks": 2
 }])

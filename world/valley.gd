@@ -143,10 +143,11 @@ extends StaticBody3D
 ## Leave one empty, or name a set that isn't there, and that job is simply skipped.
 ## Mossy forest floor under the trees:
 @export var forest_floor_set := "forest_floor/Ground037"
-## Trail surfaces: stony gravel, kicked toward the edges and in patches along the way...
+## Trail surfaces (the editor's Terrain Paths and the dirt paths painted in the game): plain worn
+## earth (the old sandy pebble set, gravel_path/Ground049C, stood out too much)...
+@export var path_set := "soil/Ground109"
+## ...with a few loose stones in small clusters down the middle
 @export var gravel_set := "gravel_path/Ground108"
-## ...and packed sandy ground with pebbles, worn down the middle
-@export var path_set := "gravel_path/Ground049C"
 ## Light, dry soil: worn, sunny slopes and ridges, bare patches in the meadows, and the
 ## frayed edges of trails
 @export var light_soil_set := "soil/Ground109"
@@ -316,6 +317,10 @@ var _last_preview_at := 0
 ## At most this often the ground follows a moving modifier, in milliseconds
 const PREVIEW_EVERY := 40
 
+## The dirt paths the player has painted in the game with the hammer (see PaintedPaths); none in
+## the editor
+var painted_paths: PaintedPaths
+
 # Counts rebuild requests, so a burst of them (like dragging a marker) only rebuilds once
 var _rebuild_ticket := 0
 # The patch of map (x, z) waiting to be rebuilt, gathered from every request in that burst
@@ -330,6 +335,11 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	generate()
 	if not Engine.is_editor_hint():
+		painted_paths = PaintedPaths.new()
+		painted_paths.name = "PaintedPaths"
+		painted_paths.valley = self
+		add_child(painted_paths)
+		painted_paths.setup(map_rect(), _ground)
 		_place_player()
 		var respawner := Respawner.new()
 		respawner.name = "Respawner"
@@ -707,6 +717,9 @@ func find_dry_spot(near: Vector2) -> Vector2:
 func generate() -> void:
 	# Clear out the old terrain before building a new one
 	for child in get_children():
+		# (painted paths are the player's, and stay)
+		if child == painted_paths:
+			continue
 		remove_child(child)
 		child.queue_free()
 
@@ -714,6 +727,8 @@ func generate() -> void:
 		return
 	_ground = ground_material.duplicate() if ground_material else null
 	_apply_texture_sets()
+	if painted_paths:
+		painted_paths.setup(map_rect(), _ground)
 	_base_heights = _heights.duplicate()
 	_preview_start = PackedFloat32Array()
 	for layer in [_trail_mask, _trail_cover, _trail_noise, _trail_grass, _forest_floor]:
@@ -2206,6 +2221,17 @@ func is_on_trail(x: float, z: float, margin := 0.0) -> bool:
 ## Blended between the grid points around it, so it fades smoothly across a trail's edge.
 func trail_amount(x: float, z: float) -> float:
 	return _sample_layer(_trail_mask, x, z)
+
+
+## How much painted dirt path (see PaintedPaths) there is at a spot: 0 = none, 1 = bare path
+func painted_path_amount(x: float, z: float) -> float:
+	return painted_paths.amount_at(x, z) if painted_paths else 0.0
+
+
+## The painted paths reaching into this area (x, z), as a snapshot a worker thread can read
+## with PaintedPaths.sample_snapshot
+func painted_path_snapshot(area: Rect2) -> Dictionary:
+	return painted_paths.snapshot(area) if painted_paths else {"origin": Vector2.ZERO, "tiles": {}}
 
 
 ## True if the trail here has Edge Grass on: grass grows in tufts along its edges, and in a

@@ -35,6 +35,16 @@ var _details := {}
 var _detail_material: ShaderMaterial
 var _joints: JointDetails
 
+## Debug runs from the project only: the close-up look code, checked every LOOK_CHECK_SECONDS for a
+## change on disk while the game runs. The looks made once per shape and shared by every piece of
+## it would otherwise keep the older code's shape for the rest of the session (and new pieces would
+## get them too), however the code has changed; when it has, the code is reloaded and every
+## piece's looks are made again (see remake_looks).
+const LOOK_CODE := "res://building/pieces/piece_detail.gd"
+const LOOK_CHECK_SECONDS := 2.0
+var _look_stamp := 0
+var _look_check := 0.0
+
 
 func _ready() -> void:
 	add_to_group("saveable")
@@ -44,6 +54,41 @@ func _ready() -> void:
 	_joints.registry = self
 	add_child(_joints)
 	changed.connect(_joints.mark_dirty)
+	_look_stamp = FileAccess.get_modified_time(LOOK_CODE) if OS.is_debug_build() else 0
+	set_process(_look_stamp != 0)
+
+
+func _process(delta: float) -> void:
+	_look_check -= delta
+	if _look_check > 0.0:
+		return
+	_look_check = LOOK_CHECK_SECONDS
+	var stamp := FileAccess.get_modified_time(LOOK_CODE)
+	if stamp == 0 or stamp == _look_stamp:
+		return
+	_look_stamp = stamp
+	# The running game may still have the older code: take it from the file
+	var script := load(LOOK_CODE) as GDScript
+	var source := FileAccess.get_file_as_string(LOOK_CODE)
+	if script and not source.is_empty() and source != script.source_code:
+		script.source_code = source
+		script.reload(true)
+	remake_looks()
+	print("[Pieces] the look code changed: every piece's looks made again")
+
+
+## Every piece's close-up and middle looks made again from the current look code (ghosts too), and
+## the corner posts and ridge logs with them; the looks made before are let go
+func remake_looks() -> void:
+	_details.clear()
+	for piece in all_pieces():
+		var ghost: bool = piece.is_ghost()
+		if ghost:
+			piece.set_ghost(false)
+		piece.redress(detail_mesh(piece.shape_name, piece.piece_id), detail_material(), mid_mesh(piece.shape_name, piece.piece_id))
+		if ghost:
+			piece.set_ghost(true)
+	_joints.mark_dirty()
 
 
 func _exit_tree() -> void:
@@ -186,12 +231,13 @@ func spawn(piece: PieceBuildable, where: Transform3D, paid: Dictionary, id := 0,
 
 func _spawn(piece: PieceBuildable, where: Transform3D, paid: Dictionary, id: int, owner_plot: String, state: Dictionary) -> BuildPiece:
 	var built: BuildPiece = piece.scene.instantiate()
-	built.setup(piece, shape_of(piece.shape), material_for(piece.shape))
+	var shape := piece.shape
+	built.setup(piece, shape_of(shape), material_for(shape))
 	if id <= 0:
 		id = _next_id
 	_next_id = maxi(_next_id, id + 1)
 	built.piece_id = id
-	built.dress(detail_mesh(piece.shape, id), detail_material(), mid_mesh(piece.shape, id))
+	built.dress(detail_mesh(shape, id), detail_material(), mid_mesh(shape, id))
 	built.weather()
 	built.owner_plot = owner_plot
 	built.paid = paid.duplicate()
@@ -218,6 +264,14 @@ const DUPLICATE_DISTANCE := 0.05
 const DUPLICATE_TURN := deg_to_rad(5.0)
 
 
+## The fixed flights of stairs, by shape (see PieceShapes.FLIGHTS and load_data)
+const STAIRS_PATH := "res://buildables/structure/stairs.tres"
+const FLIGHT_PATHS := {
+	"stairs": STAIRS_PATH,
+	"half_stairs": "res://buildables/structure/half_stairs.tres",
+}
+
+
 ## An identical piece already at `where` (the same shape, within DUPLICATE_DISTANCE and
 ## DUPLICATE_TURN, its symmetry allowed for), ghosts included; null if there's none. `ignore`
 ## never counts.
@@ -226,7 +280,7 @@ func duplicate_of(shape_name: String, where: Transform3D, ignore: BuildPiece = n
 	var step := symmetry if symmetry > 0.0 else TAU
 	var yaw := atan2(where.basis.z.x, where.basis.z.z)
 	for piece in pieces_near(where.origin, DUPLICATE_DISTANCE):
-		if piece == ignore or piece.is_queued_for_deletion() or piece.buildable.shape != shape_name:
+		if piece == ignore or piece.is_queued_for_deletion() or piece.shape_name != shape_name:
 			continue
 		var other_yaw := atan2(piece.global_basis.z.x, piece.global_basis.z.z)
 		var apart := wrapf(yaw - other_yaw + step / 2.0, 0.0, step) - step / 2.0
@@ -324,7 +378,8 @@ func save_data() -> Dictionary:
 		if not state.is_empty():
 			entry["state"] = state
 		list.append(entry)
-	return {"next_id": _next_id, "list": list}
+	# (made on the building grid standard: see GridUpgrade)
+	return {"next_id": _next_id, "list": list, "grid": GridUpgrade.GRID_VERSION}
 
 
 func load_data(data: Dictionary) -> void:
@@ -333,21 +388,43 @@ func load_data(data: Dictionary) -> void:
 	_pieces.clear()
 	_next_id = int(data.get("next_id", 1))
 	var dropped := {}
+	# Every piece as saved, then (in a save from before the building grid standard) brought up to it
+	var pieces := []
 	for entry in data.get("list", []):
+		pieces.append({"buildable": str(entry.get("buildable", "")), "where": Transform3D(SaveGame.to_rotation(entry), SaveGame.to_vector(entry.get("position"))), "entry": entry})
+	if int(data.get("grid", 1)) < GridUpgrade.GRID_VERSION:
+		GridUpgrade.upgrade(pieces)
+	for p in pieces:
+		var entry: Dictionary = p["entry"]
+		var path: String = p["buildable"]
+		var where: Transform3D = p["where"]
+		var state: Dictionary = entry.get("state", {})
+		# A flight of stairs saved while stairs were fitted to their drop (its height saved with it,
+		# at 35°) comes back as the fixed flight nearest that height, its top step where it was
+		if path == STAIRS_PATH and state.has("stairs_height"):
+			var old_height := float(state["stairs_height"])
+			var top_edge := where * Vector3(0, old_height, old_height / tan(deg_to_rad(35.0)) / 2.0)
+			var nearest := "stairs"
+			for flight in PieceShapes.FLIGHTS:
+				if absf(float(PieceShapes.FLIGHTS[flight][0]) - old_height) < absf(float(PieceShapes.FLIGHTS[nearest][0]) - old_height):
+					nearest = flight
+			var size: Array = PieceShapes.FLIGHTS[nearest]
+			path = FLIGHT_PATHS[nearest]
+			state = state.duplicate()
+			state.erase("stairs_height")
+			where.origin = top_edge - where.basis * Vector3(0, float(size[0]), float(size[1]) / 2.0)
 		# A piece that's since been taken out of the game (its buildable file is gone) is dropped
 		# quietly, without refunding it
-		var path := str(entry.get("buildable", ""))
 		if not ResourceLoader.exists(path):
 			dropped[path] = int(dropped.get(path, 0)) + 1
 			continue
 		var piece := load(path) as PieceBuildable
 		if piece == null:
 			continue
-		var where := Transform3D(SaveGame.to_rotation(entry), SaveGame.to_vector(entry.get("position")))
 		var paid := {}
 		var saved_paid: Dictionary = entry.get("paid", {})
 		for item in saved_paid:
 			paid[item] = int(saved_paid[item])
-		spawn(piece, where, paid, int(entry.get("id", 0)), str(entry.get("plot", "")), entry.get("state", {}))
+		spawn(piece, where, paid, int(entry.get("id", 0)), str(entry.get("plot", "")), state)
 	for path in dropped:
 		print("[Pieces] %d piece(s) of %s left out: that piece is no longer in the game" % [dropped[path], path])

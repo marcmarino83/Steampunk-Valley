@@ -27,6 +27,14 @@ const PLANK_MAX := 0.3
 const GAP_MIN := 0.008
 const GAP_MAX := 0.016
 const BEVEL := 0.016
+## Stairs' header board at the top of a flight (see _stairs): how tall (enough to hide a stringer's
+## whole cut end, about 0.25 m on the steeper flights) and how thick
+const HEADER_HEIGHT := 0.27
+const HEADER_THICK := 0.05
+## How far below the flight's top (the floor's top) the header board's top is: right under the top tread
+const HEADER_TOP_DROP := 0.075
+## How far into the header board (from its back face) the stringers are cut off
+const HEADER_BITE := 0.012
 ## How much darker a plank's narrow sides (in the gaps) and its bevelled edges are, so each plank
 ## reads on its own
 const SIDE_SHADE := 0.5
@@ -100,8 +108,6 @@ static func build(shape: String, seed_value: int, simple_look := false) -> Dicti
 			b._wall(G, PieceShapes.HALF_HEIGHT, [])
 		"wall_half_1":
 			b._wall(1.0, PieceShapes.HALF_HEIGHT, [])
-		"wall_quarter":
-			b._wall(1.0, 1.0, [])
 		"wall_strip_2":
 			b._wall(G, PieceShapes.STRIP_HEIGHT, [])
 		"wall_strip_1":
@@ -193,18 +199,16 @@ static func build(shape: String, seed_value: int, simple_look := false) -> Dicti
 			return {"mesh": _topper(_rise_of(shape), seed_value, true, simple_look), "door_mesh": null}
 		"cone_roof":
 			b._cone_roof()
-		"stairs":
-			b._stairs()
-		"foundation_steps":
-			b._stairs(PieceShapes.FOUNDATION_STEPS_HEIGHT, PieceShapes.FOUNDATION_STEPS)
-		"pillar_wood":
-			b._wood_pillar()
-		"pillar_stone":
-			b._stone_pillar()
-		"pole_1", "pole_2":
-			b._pole(1.0 if shape == "pole_1" else G)
-		"beam_1", "beam_2":
-			b._beam(1.0 if shape == "beam_1" else G)
+		"stairs", "half_stairs":
+			b._stairs(PieceShapes.FLIGHTS[shape][0], PieceShapes.FLIGHTS[shape][1])
+		"pillar_wood", "pillar_wood_half":
+			b._wood_pillar(PieceShapes.HALF_PILLAR_HEIGHT if shape.ends_with("_half") else PieceShapes.PILLAR_HEIGHT)
+		"pillar_stone", "pillar_stone_half":
+			b._stone_pillar(PieceShapes.HALF_PILLAR_HEIGHT if shape.ends_with("_half") else PieceShapes.PILLAR_HEIGHT)
+		"pole_1", "pole_2", "pole_5":
+			b._pole(PieceShapes.POLE_HEIGHTS[shape])
+		"beam_1", "beam_2", "beam_4":
+			b._beam(PieceShapes.BEAM_LENGTHS[shape])
 		"beam_diag_26", "beam_diag_45":
 			b._diagonal_beam(_rise_of(shape))
 		"ladder":
@@ -391,7 +395,9 @@ func _wall(width: float, height: float, holes: Array) -> void:
 					spans = _cut_spans(spans, hr.position.x, hr.end.x)
 			for s in spans:
 				var span: Array = s
-				_wall_plank(span[0], span[1], y, y + h, t, course)
+				# (the bottom and top courses run flush and level to the wall's foot and top, so
+				# a wall on a floor, a wall on a wall and a roof on a wall meet plank to plank)
+				_wall_plank(span[0], span[1], y, y + h, t, course, y <= 0.0001, y + h >= height - 0.0001)
 			y += h
 			course += 1
 	# Chunky frames round the holes. A hole running out to the wall's edge (a split-window wall's)
@@ -432,15 +438,18 @@ func _wall(width: float, height: float, holes: Array) -> void:
 
 
 # One level plank from x0 to x1, y0 to y1 (gaps taken off), with random thickness, tilt and ends
-func _wall_plank(x0: float, x1: float, y0: float, y1: float, t: float, course: int) -> void:
+func _wall_plank(x0: float, x1: float, y0: float, y1: float, t: float, course: int, at_foot := false, at_top := false) -> void:
 	var gap := rng.randf_range(GAP_MIN, GAP_MAX)
 	var a := x0 + rng.randf_range(0.0, 0.014)
 	var b := x1 - rng.randf_range(0.0, 0.014)
 	if b - a < 0.05:
 		return
-	var lo := y0 + gap / 2.0
-	var hi := y1 - gap / 2.0
+	# (a plank on the wall's foot or top runs right to it, level: no half gap, no tilt)
+	var lo := y0 if at_foot else y0 + gap / 2.0
+	var hi := y1 if at_top else y1 - gap / 2.0
 	var tilt := rng.randf_range(-0.006, 0.006)
+	if at_foot or at_top:
+		tilt = 0.0
 	var c := Vector2((a + b) / 2.0, (lo + hi) / 2.0)
 	# Rough, irregular ends: each corner trimmed back a different amount
 	var poly := PackedVector2Array([Vector2(a + rng.randf_range(0.0, 0.025), lo), Vector2(b - rng.randf_range(0.0, 0.025), lo), Vector2(b - rng.randf_range(0.0, 0.025), hi), Vector2(a + rng.randf_range(0.0, 0.025), hi)])
@@ -607,9 +616,11 @@ func _door() -> void:
 # ---- Floors and foundations ----
 
 # Rough floor planks along X with gaps, laid over the outline (x, z), on a dark base down to
-# `bottom`. The top stays at (or a hair under) 0.
+# `bottom`. The top stays at (or a hair under) 0. The base fills the outline exactly: its sides
+# are the floor's edge faces, in the planes of its snap corners, where a hung flight's header
+# board meets them.
 func _floor(outline: PackedVector2Array, bottom: float, plank_depth := 0.05) -> void:
-	prism(_inset(outline, 0.01), Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, bottom, -plank_depth + 0.002, 0.0, _wood_shade(0.55), WOOD, _generic_uv(), 0)
+	prism(outline, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, bottom, -plank_depth + 0.002, 0.0, _wood_shade(0.55), WOOD, _generic_uv(), 0)
 	var lo := INF
 	var hi := -INF
 	var left := INF
@@ -625,7 +636,11 @@ func _floor(outline: PackedVector2Array, bottom: float, plank_depth := 0.05) -> 
 		if hi - (z + w) < 0.1:
 			w = hi - z
 		var gap := rng.randf_range(0.007, 0.014)
-		var strip := PieceShapes._clip(outline, Vector2(0, 1), z + gap / 2.0, z + w - gap / 2.0)
+		# (the outermost planks run right to the floor's edges: what meets an edge, a neighbouring
+		# floor or a flight's tread, meets it plank to plank, with no gap)
+		var near := z if z <= lo + 0.0001 else z + gap / 2.0
+		var far := z + w if z + w >= hi - 0.0001 else z + w - gap / 2.0
+		var strip := PieceShapes._clip(outline, Vector2(0, 1), near, far)
 		if strip.size() >= 3:
 			# Long strips are two planks, butted at a random spot
 			var pieces: Array = [strip]
@@ -636,8 +651,10 @@ func _floor(outline: PackedVector2Array, bottom: float, plank_depth := 0.05) -> 
 				var poly: PackedVector2Array = piece
 				if poly.size() < 3:
 					continue
-				var top := -rng.randf_range(0.0, 0.007)
-				prism(poly, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, -plank_depth, top, BEVEL * 0.8, _wood_shade(1.0), WOOD, _plank_uv(z + w / 2.0, w - gap), 0)
+				# (every plank's top flush with the floor's top, where its snap corners are, so what
+				# stands on it, a flight's footing board, sits exactly on it)
+				rng.randf()
+				prism(poly, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, -plank_depth, 0.0, BEVEL * 0.8, _wood_shade(1.0), WOOD, _plank_uv(z + w / 2.0, w - gap), 0)
 		z += w
 
 
@@ -656,18 +673,54 @@ func _foundation_wood(outline: PackedVector2Array, edges: Array) -> void:
 			var b: Vector2 = edge[1]
 			var inward := _inward(a, b, centre)
 			var r := course / 2.0 * rng.randf_range(0.9, 1.04)
-			var stretch := (b - a).normalized() * (0.04 if (k % 2 == 0) else -0.02)
-			var pa := a + inward * r - stretch
-			var pb := b + inward * r + stretch
-			log_part(Vector3(pa.x, y, pa.y), Vector3(pb.x, y, pb.y), r, LOG_SIDES, 0.07, _wood_shade(0.85) * (1.0 - 0.35 * clampf(-y / SHOWN_DEPTH, 0.0, 1.0)), WOOD)
+			var pa := a + inward * r
+			var pb := b + inward * r
+			# Its ends cut on the faces of the edges it meets at the corners (every other course a
+			# little short of them), so no log runs past a face: what sits against a face (a hung
+			# flight's header board, a neighbour) would go through it
+			var short := 0.0 if k % 2 == 0 else 0.03
+			var cut_a := _end_cut(edges, a, b, centre, y, short)
+			var cut_b := _end_cut(edges, b, a, centre, y, short)
+			# (laid r in, a ridge facing straight out: each log touches the edge face's plane, the
+			# plane of the snap corners, all along it)
+			log_part(Vector3(pa.x, y, pa.y), Vector3(pb.x, y, pb.y), r, LOG_SIDES, 0.07, _wood_shade(0.85) * (1.0 - 0.35 * clampf(-y / SHOWN_DEPTH, 0.0, 1.0)), WOOD, cut_a, cut_b, Vector3(-inward.x, 0.0, -inward.y))
 		y -= course
 		k += 1
+
+
+# Where a log along the edge from `other` to `corner` ends at `corner`, as a cut for log_part (moved
+# `short` m back): at a real corner, the face of the other edge meeting it there (so the logs of
+# the two edges cross in the corner, as they're notched in a log wall); where the outline only
+# bends a little (round pieces' arcs), the mitre between the two edges, never moved back; with no
+# edge meeting it there, straight across the log at the corner
+func _end_cut(edges: Array, corner: Vector2, other: Vector2, centre: Vector2, y: float, short: float) -> Plane:
+	var along := (corner - other).normalized()
+	var at := Vector3(corner.x, y, corner.y)
+	for e in edges:
+		var p: Vector2 = e[0]
+		var q: Vector2 = e[1]
+		var far := q if p.distance_to(corner) < 0.001 else (p if q.distance_to(corner) < 0.001 else Vector2.INF)
+		if far == Vector2.INF or far.distance_to(other) < 0.001:
+			continue
+		var out := -_inward(p, q, centre)
+		if absf(out.dot(along)) >= 0.5:
+			var n := Vector3(out.x, 0.0, out.y)
+			return Plane(n, n.dot(at) - short)
+		var mitre := (along + (far - corner).normalized()).normalized()
+		var m := Vector3(mitre.x, 0.0, mitre.y)
+		# (never short along an arc: the logs run on round it unbroken)
+		return Plane(m, m.dot(at))
+	var n2 := Vector3(along.x, 0.0, along.y)
+	return Plane(n2, n2.dot(at) - short)
 
 
 # A stone foundation: courses of irregular bevelled blocks along the given outer edges, flagstones
 # on top, dark mortar showing between them
 func _foundation_stone(outline: PackedVector2Array, edges: Array) -> void:
 	prism(_inset(outline, 0.03), Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, -PieceShapes.FOUNDATION_DEPTH, -0.01, 0.0, Color(1, 1, 1), DARK, _generic_uv(), 0)
+	# The flagstones' mortar bed fills the outline exactly, so the piece is drawn right to its edges
+	# and corners (even a round wedge's point, where no stone reaches)
+	prism(outline, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, -0.08, -0.01, 0.0, Color(1, 1, 1), DARK, _generic_uv(), 0)
 	# Flagstones on top
 	var cell := 0.66
 	for i in range(-6, 6):
@@ -676,7 +729,9 @@ func _foundation_stone(outline: PackedVector2Array, edges: Array) -> void:
 			var z0 := j * cell + rng.randf_range(-0.04, 0.04)
 			var flag := PieceShapes._clip(PieceShapes._clip(outline, Vector2(1, 0), x0 + 0.015, x0 + cell - 0.015), Vector2(0, 1), z0 + 0.015, z0 + cell - 0.015)
 			if flag.size() >= 3 and _area(flag) > 0.01:
-				prism(flag, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, -0.08, -rng.randf_range(0.0, 0.008), 0.03, _stone_shade(), STONE, _stone_uv(), 0)
+				# (flush with the top, as floor planks are)
+				rng.randf()
+				prism(flag, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, -0.08, 0.0, 0.03, _stone_shade(), STONE, _stone_uv(), 0)
 	var centre := _centroid(outline)
 	var y := -0.08
 	var row := 0
@@ -703,14 +758,27 @@ func _stone_row(a: Vector2, b: Vector2, inward: Vector2, y: float, h: float, row
 		var l := rng.randf_range(0.35, 0.8)
 		var t0 := maxf(t, -extend) + 0.014
 		var t1 := minf(t + l, length + extend) - 0.014
+		# A plain foundation wall's first and last stones run right to the edge's ends, so the piece
+		# is drawn to its corners (two edges' stones meet in a corner from either side)
+		if out == 0.0:
+			if t <= 0.0:
+				t0 = 0.0
+			if t + l >= length:
+				t1 = length
 		t += l
 		if t1 - t0 < 0.1:
 			continue
 		var jut := rng.randf_range(-STONE_JUT, STONE_JUT) if out > 0.0 else -rng.randf_range(0.0, STONE_JUT)
+		var turn := rng.randf_range(-0.04, 0.04)
+		# The top course of a plain wall is laid square and flush: its faces are the foundation's
+		# edge face, in the plane of its snap corners, where a hung flight's header board meets it
+		if row == 0 and out == 0.0:
+			jut = 0.0
+			turn = 0.0
 		var face := -out - jut
 		var d := depth * rng.randf_range(0.9, 1.1)
 		var foot := PackedVector2Array([a + dir * t0 + inward * face, a + dir * t1 + inward * face, a + dir * t1 + inward * (face + d), a + dir * t0 + inward * (face + d)])
-		foot = _turned(foot, _centroid(foot), rng.randf_range(-0.04, 0.04))
+		foot = _turned(foot, _centroid(foot), turn)
 		if not outline.is_empty():
 			foot = _clip_to(foot, outline)
 		if foot.size() < 3:
@@ -931,46 +999,75 @@ func _shakes(o: Vector3, u: Vector3, s: Vector3, n: Vector3, poly: PackedVector2
 
 # ---- Stairs, posts, beams and the rest ----
 
-# Chunky plank treads on two log stringers (Foundation Steps: the same, shorter; see
-# PieceShapes._stairs)
-func _stairs(height := PieceShapes.WALL_HEIGHT, steps := PieceShapes.STAIRS_STEPS) -> void:
+# Chunky plank treads on two log stringers, `height` tall over `length`, in evenly spaced steps
+# (Foundation Steps: the same, shorter; see PieceShapes._stairs). The treads run the flight's full
+# GRID width, so stairs fill a 2 m floor opening edge to edge.
+func _stairs(height: float, length: float) -> void:
+	var steps := PieceShapes.step_count(height)
 	var rise := height / steps
-	var run := PieceShapes.STAIRS_RUN / PieceShapes.STAIRS_STEPS
-	var start := -run * steps / 2.0
+	var run := length / steps
+	var start := -length / 2.0
 	var w := PieceShapes.GRID
+	# The flight fills its grid cells exactly: every tread spans the full width and no more, the
+	# bottom one starts on the near edge (no nosing past it) and the top one ends on the far edge with
+	# its top level with a floor's there, so a floor snapped to either end meets it plank to plank.
+	# (The other treads each reach 2 cm over the riser below, as stair nosings do, inside the cells.)
 	for i in steps:
 		var top := rise * (i + 1)
-		var z0 := start + run * i - 0.02
+		var z0 := start + run * i - (0.0 if i == 0 else 0.02)
 		var z1 := start + run * (i + 1)
 		var mid := z0 + (z1 - z0) * rng.randf_range(0.45, 0.55)
 		for part in [[z0, mid - 0.005], [mid + 0.005, z1]]:
 			var p: Array = part
-			var poly := PackedVector2Array([Vector2(-w / 2.0 + 0.04, p[0]), Vector2(w / 2.0 - 0.04, p[0]), Vector2(w / 2.0 - 0.04, p[1]), Vector2(-w / 2.0 + 0.04, p[1])])
-			poly = _turned(poly, _centroid(poly), rng.randf_range(-0.01, 0.01))
-			prism(poly, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, top - 0.075, top - rng.randf_range(0.0, 0.006), BEVEL, _wood_shade(0.95), WOOD, _plank_uv((p[0] + p[1]) / 2.0, p[1] - p[0]), 0)
+			var poly := PackedVector2Array([Vector2(-w / 2.0, p[0]), Vector2(w / 2.0, p[0]), Vector2(w / 2.0, p[1]), Vector2(-w / 2.0, p[1])])
+			# (the random lie each plank used to get, kept drawn so the rest of the look stays the same)
+			rng.randf()
+			var sink := rng.randf_range(0.0, 0.006)
+			var plank_top := top if i == steps - 1 else top - sink
+			prism(poly, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, top - 0.075, plank_top, BEVEL, _wood_shade(0.95), WOOD, _plank_uv((p[0] + p[1]) / 2.0, p[1] - p[0]), 0)
+	# The header board: a plank the flight's full width, upright, right under the top tread, its
+	# outer face in the plane of the flight's top edge (the edge face of the floor or foundation it
+	# hangs from), so it looks fixed to that edge. HEADER_HEIGHT tall, HEADER_THICK thick.
+	var edge_z := length / 2.0
+	var header_top := height - HEADER_TOP_DROP
+	box_part(Vector3(0, header_top - HEADER_HEIGHT / 2.0, edge_z - HEADER_THICK / 2.0), Vector3(w, HEADER_HEIGHT, HEADER_THICK), Basis.IDENTITY, BEVEL, _wood_shade(0.9), WOOD)
+	# The stringers run parallel to the treads, the treads resting on them, and end into the back of
+	# the header board: cut upright HEADER_BITE past its back face, their tops just under the board's
+	# top there, so the whole end is inside the board and no gap can show from any angle (a log's end
+	# is at most 2 × r × 1.06 / cos(slope) tall, the 1.06 for its wobble, plus its fall across the
+	# bite; the board is taller). The bottom end is cut flat at the bottom step's level, so it sits on
+	# the floor or ground.
 	var r := 0.1
 	var k := rise / run
+	var cut_z := edge_z - HEADER_THICK + HEADER_BITE
+	var edge_y := header_top - 0.005 - r * 1.06 / cos(atan(k)) + k * (edge_z - cut_z)
 	for side in [-1.0, 1.0]:
 		var x: float = side * (w / 2.0 - 0.2)
-		# Under the treads' front edges, down to the ground
-		var top_z := start + run * (steps - 0.5)
-		var top_y := height - 0.075 - r
-		var low_y := 0.08
-		var low_z := top_z - (top_y - low_y) / k
-		log_part(Vector3(x, low_y, low_z), Vector3(x, top_y, top_z), r, 8, 0.06, _wood_shade(0.8), WOOD)
+		# (drawn from well under the ground to just past the edge; the cuts trim both ends)
+		var high := Vector3(x, edge_y + k * 0.3, edge_z + 0.3)
+		var low := Vector3(x, -3.0 * r, edge_z - (edge_y + 3.0 * r) / k)
+		log_part(low, high, r, 8, 0.06, _wood_shade(0.8), WOOD, Plane(Vector3.DOWN, 0.0), Plane(Vector3.BACK, cut_z))
+	# The footing board, matching the header: a plank the flight's full width, upright, right under
+	# the bottom tread, its outer face in the plane of the flight's bottom edge (where its bottom
+	# corners are) and its foot on the floor or ground, so the bottom joins as cleanly as the top
+	# whichever end the flight is snapped by. It's thick enough that the stringers' sawn-off front
+	# tips end HEADER_BITE inside its back: a stringer's axis is edge_y high at edge_z, so its top,
+	# wobble and all, comes down to the floor at foot_tip).
+	var foot_tip := edge_z - (edge_y + r * 1.06 / cos(atan(k))) / k
+	var foot_thick := maxf(HEADER_THICK, foot_tip + HEADER_BITE - start)
+	var foot_top := rise - HEADER_TOP_DROP
+	box_part(Vector3(0, foot_top / 2.0, start + foot_thick / 2.0), Vector3(w, foot_top, foot_thick), Basis.IDENTITY, BEVEL, _wood_shade(0.9), WOOD)
 
 
-func _wood_pillar() -> void:
-	var h := PieceShapes.PILLAR_HEIGHT
+func _wood_pillar(h: float) -> void:
 	log_part(Vector3(0, 0, 0), Vector3(0, h, 0), PieceShapes.WOOD_PILLAR / 2.0, 9, 0.08, _wood_shade(0.85), WOOD)
 	rope_ring(Vector3(0, h - 0.18, 0), Vector3.UP, PieceShapes.WOOD_PILLAR / 2.0 + 0.012, 0.014)
 	rope_ring(Vector3(0, h - 0.137, 0), Vector3.UP, PieceShapes.WOOD_PILLAR / 2.0 + 0.012, 0.014)
 
 
 # Stacked irregular stone blocks, one or two to a course, with dark mortar between
-func _stone_pillar() -> void:
+func _stone_pillar(h: float) -> void:
 	var w := PieceShapes.STONE_PILLAR
-	var h := PieceShapes.PILLAR_HEIGHT
 	box_part(Vector3(0, h / 2.0, 0), Vector3(w - 0.06, h, w - 0.06), Basis.IDENTITY, 0.0, Color(1, 1, 1), DARK, 0)
 	var y := 0.0
 	var k := 0
@@ -996,12 +1093,19 @@ func _pole(length: float) -> void:
 	log_part(Vector3.ZERO, Vector3(0, length, 0), PieceShapes.POLE / 2.0, 7, 0.08, _wood_shade(0.85), WOOD)
 
 
+# A beam's top on the level, its depth below (see PieceShapes._beam): a ridge of the log faces
+# straight up at exactly its radius, so its top is exactly on the level all along
 func _beam(length: float) -> void:
-	log_part(Vector3(-length / 2.0, 0, 0), Vector3(length / 2.0, 0, 0), PieceShapes.BEAM / 2.0, 8, 0.07, _wood_shade(0.85), WOOD)
+	var y := -PieceShapes.BEAM / 2.0
+	log_part(Vector3(-length / 2.0, y, 0), Vector3(length / 2.0, y, 0), PieceShapes.BEAM / 2.0, 8, 0.07, _wood_shade(0.85), WOOD, Plane(), Plane(), Vector3.UP)
 
 
+# The same along its slope: its top on the line between its ends
 func _diagonal_beam(rise: float) -> void:
-	log_part(Vector3(-PieceShapes.GRID / 2.0, 0, 0), Vector3(PieceShapes.GRID / 2.0, rise, 0), PieceShapes.BEAM / 2.0, 8, 0.07, _wood_shade(0.85), WOOD)
+	var a := atan2(rise, PieceShapes.GRID)
+	var up := Vector3(-sin(a), cos(a), 0)
+	var under := -up * PieceShapes.BEAM / 2.0
+	log_part(Vector3(-PieceShapes.GRID / 2.0, 0, 0) + under, Vector3(PieceShapes.GRID / 2.0, rise, 0) + under, PieceShapes.BEAM / 2.0, 8, 0.07, _wood_shade(0.85), WOOD, Plane(), Plane(), up)
 
 
 func _ladder() -> void:
@@ -1015,10 +1119,11 @@ func _ladder() -> void:
 		y += 0.3
 
 
+# (the end posts, rope lashings and all, stay inside the railing's length)
 func _railing(length: float) -> void:
 	var half := length / 2.0
 	var height := PieceShapes.RAILING_HEIGHT
-	var posts: Array[float] = [-half + 0.05, half - 0.05]
+	var posts: Array[float] = [-half + 0.08, half - 0.08]
 	if length > 1.5:
 		posts.append(0.0)
 	for x in posts:
@@ -1029,18 +1134,21 @@ func _railing(length: float) -> void:
 			rope_ring(Vector3(x, y, 0), Vector3.UP, 0.06, 0.012, 8, 4)
 
 
+# Centred on its line (PieceShapes.FENCE_DEPTH): the rails behind, the pickets in front
 func _fence() -> void:
 	var half := PieceShapes.GRID / 2.0
 	var height := PieceShapes.FENCE_HEIGHT
-	for y in [0.35, height - 0.35]:
-		log_part(Vector3(-half, y, -0.06), Vector3(half, y + rng.randf_range(-0.015, 0.015), -0.06), 0.045, 6, 0.08, _wood_shade(0.85), WOOD)
+	var rail_z := -0.025
+	var picket_z := 0.028
+	for y in [0.3, height - 0.3]:
+		log_part(Vector3(-half, y, rail_z), Vector3(half, y + rng.randf_range(-0.015, 0.015), rail_z), 0.04, 6, 0.08, _wood_shade(0.85), WOOD)
 	var x := -half + 0.1
 	while x < half:
 		var w := rng.randf_range(0.1, 0.14)
 		var top := height - rng.randf_range(0.0, 0.08)
 		var poly := PackedVector2Array([Vector2(x - w / 2.0, 0), Vector2(x + w / 2.0, 0), Vector2(x + w / 2.0, top - 0.1), Vector2(x, top), Vector2(x - w / 2.0, top - 0.1)])
 		poly = _turned(poly, Vector2(x, top / 2.0), rng.randf_range(-0.025, 0.025))
-		prism(poly, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, -0.022, 0.022, 0.006, _wood_shade(1.0), WOOD, _plank_uv(x, w), 1)
+		prism(poly, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, picket_z - 0.022, picket_z + 0.022, 0.006, _wood_shade(1.0), WOOD, _plank_uv(x, w), 1)
 		x += 0.2
 
 
@@ -1114,7 +1222,10 @@ func box_part(centre: Vector3, size: Vector3, basis: Basis, bevel: float, color:
 
 
 ## A slightly irregular log from a to b (each corner's radius wobbles a little), with end grain
-func log_part(a: Vector3, b: Vector3, r: float, sides: int, wobble: float, color: Color, kind := WOOD) -> void:
+## A log from `a` to `b`. `cut_a` / `cut_b`, if given (a plane with its normal pointing out of the
+## log), saw that end off along the plane instead of square: every point of the end is slid along
+## the log onto it (a stair stringer cut upright against a floor's edge, or flat on the ground).
+func log_part(a: Vector3, b: Vector3, r: float, sides: int, wobble: float, color: Color, kind := WOOD, cut_a := Plane(), cut_b := Plane(), ridge_out := Vector3.ZERO) -> void:
 	var axis := b - a
 	var length := axis.length()
 	if length < 0.01:
@@ -1134,16 +1245,27 @@ func log_part(a: Vector3, b: Vector3, r: float, sides: int, wobble: float, color
 		ra.append(r * (1.0 + rng.randf_range(-wobble, wobble)))
 		rb.append(r * (1.0 + rng.randf_range(-wobble, wobble)))
 	var off := Vector2(rng.randf(), rng.randf())
+	# `ridge_out` (across the log): one ridge points exactly that way, at exactly r along the whole
+	# log, so a log laid r in from a face touches that face's plane all along it
+	if ridge_out != Vector3.ZERO:
+		spin = atan2(ridge_out.dot(up), ridge_out.dot(side))
+		ra[0] = r
+		rb[0] = r
 	var dirs: Array[Vector3] = []
 	for i in sides + 1:
 		var t := spin + TAU * i / sides
 		dirs.append(side * cos(t) + up * sin(t))
+	# A point of an end, slid along the log onto that end's cut (if it has one)
+	var onto := func(p: Vector3, cut: Plane) -> Vector3:
+		if cut.normal == Vector3.ZERO or absf(cut.normal.dot(axis)) < 0.001:
+			return p
+		return p + axis * ((cut.d - cut.normal.dot(p)) / cut.normal.dot(axis))
 	for i in sides:
 		var j := (i + 1) % sides
-		var pa0 := a + dirs[i] * ra[i]
-		var pb0 := b + dirs[i] * rb[i]
-		var pa1 := a + dirs[i + 1] * ra[j]
-		var pb1 := b + dirs[i + 1] * rb[j]
+		var pa0: Vector3 = onto.call(a + dirs[i] * ra[i], cut_a)
+		var pb0: Vector3 = onto.call(b + dirs[i] * rb[i], cut_b)
+		var pa1: Vector3 = onto.call(a + dirs[i + 1] * ra[j], cut_a)
+		var pb1: Vector3 = onto.call(b + dirs[i + 1] * rb[j], cut_b)
 		var c0 := r * TAU * i / sides / TEX * 0.5
 		var c1 := r * TAU * (i + 1) / sides / TEX * 0.5
 		var l1 := length / TEX
@@ -1152,12 +1274,13 @@ func log_part(a: Vector3, b: Vector3, r: float, sides: int, wobble: float, color
 	var end_color := color.lightened(0.18)
 	for i in sides:
 		var j := (i + 1) % sides
-		for e in [[a, ra, -axis], [b, rb, axis]]:
-			var centre: Vector3 = e[0]
+		for e in [[a, ra, -axis, cut_a], [b, rb, axis, cut_b]]:
+			var cut: Plane = e[3]
+			var centre: Vector3 = onto.call(e[0], cut)
 			var radii: Array[float] = e[1]
-			var normal: Vector3 = e[2]
-			var p0 := centre + dirs[i] * radii[i]
-			var p1 := centre + dirs[i + 1] * radii[j]
+			var normal: Vector3 = e[2] if cut.normal == Vector3.ZERO else cut.normal
+			var p0: Vector3 = onto.call(e[0] + dirs[i] * radii[i], cut)
+			var p1: Vector3 = onto.call(e[0] + dirs[i + 1] * radii[j], cut)
 			var uv := func(p: Vector3) -> Vector2:
 				return Vector2((p - centre).dot(side), (p - centre).dot(up)) / TEX * 0.6 + off
 			_tri(centre, p0, p1, normal, normal, normal, uv.call(centre), uv.call(p0), uv.call(p1), end_color, kind)

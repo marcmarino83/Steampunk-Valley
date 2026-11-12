@@ -177,17 +177,17 @@ func _row(save: Dictionary) -> PanelContainer:
 	title.text = save["name"]
 	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	title.add_theme_font_size_override("font_size", 18)
-	title.add_theme_color_override("font_color", MenuStyle.TEXT)
+	title.add_theme_color_override("font_color", BrassStyle.HEADING)
 	words.add_child(title)
 	var kind := Label.new()
 	kind.text = "Manual save" if save["kind"] == "manual" else "Autosave"
 	kind.add_theme_font_size_override("font_size", 14)
-	kind.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0) if save["kind"] == "manual" else Color(0.6, 0.75, 0.85))
+	kind.add_theme_color_override("font_color", BrassStyle.HIGHLIGHT if save["kind"] == "manual" else BrassStyle.INFO)
 	words.add_child(kind)
 	var details := Label.new()
 	details.text = "Day %d  ·  Played %s  ·  Saved %s" % [save["day"], SaveGame.play_time_text(save["play_seconds"]), save["saved_text"]]
 	details.add_theme_font_size_override("font_size", 14)
-	details.add_theme_color_override("font_color", MenuStyle.TEXT_DIM)
+	details.add_theme_color_override("font_color", BrassStyle.TEXT_DIM)
 	words.add_child(details)
 	line.add_child(words)
 

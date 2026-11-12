@@ -37,6 +37,10 @@ enabled=PackedStringArray("res://addons/terrain_path_tools/plugin.cfg", "res://a
 
 survival/warmth_enabled=false
 
+[gui]
+
+theme/default_font_multichannel_signed_distance_field=true
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

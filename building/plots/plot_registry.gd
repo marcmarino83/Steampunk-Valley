@@ -304,6 +304,21 @@ func check(plot: Plot) -> void:
 	if plot.checked and not was_working and plot.working:
 		became_working.emit(plot)
 	plot.checked = true
+	# A working plot of a type counts toward unlocks ("Plot:Storehouse" unlocks the Village Center)
+	if plot.working:
+		var player = get_tree().get_first_node_in_group("player")
+		if player and player.has_method("has_done") and not player.has_done("Plot", type.display_name):
+			player.report_progress("Plot", type.display_name)
+
+
+## The working plots of a type (by its display name)
+func working_of(type_name: String) -> Array:
+	return all_plots().filter(func(p): return p.working and p.plot_type.display_name == type_name)
+
+
+## Every plot of a type, working or not (by its display name)
+func plots_of(type_name: String) -> Array:
+	return all_plots().filter(func(p): return p.plot_type.display_name == type_name)
 
 
 # True if a roof (or a floor above) belonging to the plot is over this item, like standing under
@@ -400,6 +415,7 @@ func load_data(data: Dictionary) -> void:
 			continue
 		# The slider percentages, if they're for the same items the type shares out now (older saves
 		# of the Forager's Hut had no stone, copper or tin: they start from the type's split)
+		plot.housing = "player" if str(entry.get("housing", "villager")) == "player" else "villager"
 		var saved_shares: Dictionary = entry.get("production", {})
 		var same_items := saved_shares.size() == type.split_output.size() and saved_shares.keys().all(func(item): return type.split_output.has(str(item)))
 		if same_items:

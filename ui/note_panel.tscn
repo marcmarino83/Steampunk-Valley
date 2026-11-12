@@ -23,10 +23,12 @@ shadow_offset = Vector2(4, 6)
 
 [sub_resource type="SystemFont" id="SystemFont_serif"]
 font_names = PackedStringArray("Georgia", "Palatino Linotype", "Book Antiqua", "Times New Roman", "serif")
+multichannel_signed_distance_field = true
 
 [sub_resource type="SystemFont" id="SystemFont_serif_italic"]
 font_names = PackedStringArray("Georgia", "Palatino Linotype", "Book Antiqua", "Times New Roman", "serif")
 font_italic = true
+multichannel_signed_distance_field = true
 
 [sub_resource type="StyleBoxLine" id="StyleBoxLine_rule"]
 color = Color(0.55, 0.4, 0.22, 0.6)

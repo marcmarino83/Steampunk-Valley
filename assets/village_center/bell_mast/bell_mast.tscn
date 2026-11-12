@@ -1,0 +1,25 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" uid="uid://ckuv7igmn7144" path="res://assets/village_center/bell_mast/bell_mast.fbx" id="1_model"]
+[ext_resource type="ArrayMesh" path="res://assets/village_center/bell_mast/bell_mast_lod1.res" id="2_mid"]
+[ext_resource type="ArrayMesh" path="res://assets/village_center/bell_mast/bell_mast_lod2.res" id="3_far"]
+
+[node name="bell_mast" instance=ExtResource("1_model")]
+
+[node name="geometry_0" parent="." index="0"]
+visibility_range_end = 25.0
+visibility_range_end_margin = 2.0
+
+[node name="geometry_mid" type="MeshInstance3D" parent="."]
+transform = Transform3D(100, 0, 0, 0, 0, -100, 0, 100, 0, 0, 0, 0)
+mesh = ExtResource("2_mid")
+visibility_range_begin = 25.0
+visibility_range_begin_margin = 2.0
+visibility_range_end = 70.0
+visibility_range_end_margin = 4.0
+
+[node name="geometry_far" type="MeshInstance3D" parent="."]
+transform = Transform3D(100, 0, 0, 0, 0, -100, 0, 100, 0, 0, 0, 0)
+mesh = ExtResource("3_far")
+visibility_range_begin = 70.0
+visibility_range_begin_margin = 4.0

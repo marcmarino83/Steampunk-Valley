@@ -1,14 +1,15 @@
 class_name MenuStyle
 ## The brass-and-leather look shared by the title screen and the pause menu: a panel and its
-## buttons, matching the inventory and crafting screens.
+## buttons, matching the inventory and crafting screens. Its colours are BrassStyle's palette;
+## new panels are built on BrassPanel.
 
-const TEXT := Color(0.94, 0.8, 0.55)
-const TEXT_DIM := Color(0.7, 0.62, 0.5)
 ## The screen is laid out at 1920 × 1080 and scales with the window (Project Settings, Display >
 ## Window > Stretch). The menus were drawn for a 1152 × 648 layout, so their panels are shown this
 ## much bigger to stay readable; the action bar keeps exactly its old size (OLD_LAYOUT_SCALE).
 const MENU_SCALE := 1.5
 const OLD_LAYOUT_SCALE := 1920.0 / 1152.0
+## An enlarged menu never comes closer than this to the screen's edges (it's shrunk to fit instead)
+const FIT_MARGIN := 12.0
 
 
 ## A menu panel in the shared brass look (see BrassStyle)
@@ -24,7 +25,7 @@ static func title(text: String, size := 30) -> Label:
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", size)
-	label.add_theme_color_override("font_color", TEXT)
+	label.add_theme_color_override("font_color", BrassStyle.HEADING)
 	return label
 
 
@@ -34,7 +35,7 @@ static func note(text: String) -> Label:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.add_theme_font_size_override("font_size", 15)
-	label.add_theme_color_override("font_color", TEXT_DIM)
+	label.add_theme_color_override("font_color", BrassStyle.TEXT_DIM)
 	return label
 
 
@@ -64,15 +65,29 @@ static func enlarge(content: Control, factor := MENU_SCALE) -> void:
 	content.position = Vector2.ZERO
 	content.scale = Vector2.ONE * factor
 	var fit := func():
+		if not is_instance_valid(content):
+			return
 		var natural := content.get_combined_minimum_size()
 		content.size = natural
-		holder.custom_minimum_size = natural * factor
-		holder.size = natural * factor
+		# Never bigger than the screen (a tall panel at a large UI scale): shrunk to fit, with a margin
+		var room: Vector2 = content.get_viewport_rect().size - Vector2.ONE * FIT_MARGIN * 2.0 if content.is_inside_tree() else Vector2.INF
+		var shown := minf(factor, minf(room.x / maxf(natural.x, 1.0), room.y / maxf(natural.y, 1.0)))
+		content.scale = Vector2.ONE * shown
+		holder.custom_minimum_size = natural * shown
+		holder.size = natural * shown
 		# Have the CenterContainer above place it again, so it stays centred as it grows
 		if parent is Container:
 			parent.queue_sort()
 	content.minimum_size_changed.connect(fit)
 	content.resized.connect(fit)
+	# (fitted again when the window or the UI scale changes)
+	holder.tree_entered.connect(func():
+		var viewport := holder.get_viewport()
+		if viewport and not viewport.size_changed.is_connected(fit):
+			viewport.size_changed.connect(fit)
+		fit.call())
+	if holder.is_inside_tree():
+		holder.get_viewport().size_changed.connect(fit)
 	fit.call()
 
 

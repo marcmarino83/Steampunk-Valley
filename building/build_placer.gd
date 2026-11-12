@@ -27,8 +27,10 @@ var _plot_placer: PlotPlacer
 # Placing a template, and building a placed template's ghosts
 var _templates: TemplatePlacer
 var _ghosts: GhostBuilder
-# Painting dirt paths (the Paths tab's Dirt Path tool)
+# Painting dirt paths (the old free-hand Dirt Path tool, no longer in the menu)
 var _paths: PathPainter
+# Laying path tiles (the Paths tab: Dirt, Gravel, Stone and Remove)
+var _path_tiles: PathTilePlacer
 # A ghost was taken away on the middle button's press: its release does nothing more
 var _ghost_removed := false
 var _buildable: Buildable
@@ -86,12 +88,15 @@ func _ready() -> void:
 	_paths = PathPainter.new()
 	_paths.player = _player
 	add_child(_paths)
+	_path_tiles = PathTilePlacer.new()
+	_path_tiles.player = _player
+	add_child(_path_tiles)
 
 
 ## True while placing something (or a template, or marking out, moving or resizing a plot): the
 ## clicks, R and Esc are ours then
 func is_placing() -> bool:
-	return _buildable != null or _pieces.is_placing() or _plot_placer.is_active() or _templates.is_active() or _paths.is_active()
+	return _buildable != null or _pieces.is_placing() or _plot_placer.is_active() or _templates.is_active() or _paths.is_active() or _path_tiles.is_active()
 
 
 # ---- Ghosts (a placed template's pieces still to be built; see GhostBuilder) ----
@@ -143,6 +148,9 @@ func is_plot_mode() -> bool:
 ## (`keep`, from switching in the build menu while placing, changes nothing now.)
 func begin(buildable: Buildable, keep := false) -> void:
 	cancel()
+	if buildable is PathTileType:
+		_path_tiles.begin(buildable)
+		return
 	if buildable is PathTool:
 		_paths.begin(buildable)
 		return
@@ -176,6 +184,8 @@ func current_buildable() -> Buildable:
 		return _templates.current()
 	if _paths.is_active():
 		return _paths.current()
+	if _path_tiles.is_active():
+		return _path_tiles.current()
 	return _plot_placer.placing_type()
 
 
@@ -190,6 +200,7 @@ func cancel() -> void:
 	_plot_placer.cancel()
 	_templates.cancel()
 	_paths.cancel()
+	_path_tiles.cancel()
 
 
 ## Lifts a plot and everything it owns, to put down somewhere else (see PlotPlacer)
@@ -253,6 +264,8 @@ func update_demolish(delta: float, active: bool, holding_x: bool) -> void:
 
 ## Takes the keys and clicks that mean something while placing. Returns true if it used this one.
 func handle_input(event: InputEvent) -> bool:
+	if _path_tiles.is_active():
+		return _path_tiles.handle_input(event)
 	if _paths.is_active():
 		return _paths.handle_input(event)
 	if _templates.is_active():
@@ -289,6 +302,8 @@ func handle_input(event: InputEvent) -> bool:
 ## [[label, key], ...], "info": the piece panel, or empty}. Placing, or just holding the hammer;
 ## holding X shows the piece it would demolish.
 func hud_state() -> Dictionary:
+	if _path_tiles.is_active():
+		return _path_tiles.hud_state()
 	if _paths.is_active():
 		return _paths.hud_state()
 	if _templates.is_active():

@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="PlotType" format=3]
+
+[ext_resource type="Script" path="res://building/plots/plot_type.gd" id="1_plot"]
+[ext_resource type="Texture2D" path="res://assets/village_center/village_center_concept.jpg" id="2_icon"]
+
+[resource]
+script = ExtResource("1_plot")
+min_size = Vector2i(4, 4)
+needs_roof = false
+needs_door = false
+furniture = Array[Dictionary]([{
+"count": 1,
+"items": ["Bell Mast"],
+"label": "Bell Mast",
+"summary": "bell mast"
+}])
+houses_per = ""
+work_at = "Bell Mast"
+one_per_village = true
+draws_visitors = true
+display_name = "Village Center"
+starts_locked = true
+unlocked_by = "Plot"
+unlock_item = "Storehouse"
+unlock_hint = "Needs a working Storehouse in the village"
+section = "Plots"
+menu_order = 7
+icon_color = Color(0.86, 0.74, 0.45, 1)
+icon = ExtResource("2_icon")

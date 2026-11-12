@@ -40,6 +40,7 @@ func _ready() -> void:
 	panel.add_theme_stylebox_override("panel", frame)
 	BrassStyle.style_button(inventory_tab)
 	BrassStyle.style_button(crafting_tab)
+	$Center/Panel/VBox/Hint.add_theme_color_override("font_color", BrassStyle.TEXT_DIM)
 	for i in slot_count:
 		_add_slot(grid, "backpack")
 	# The backpack and the chest side by side
@@ -175,7 +176,7 @@ func _build_chest_panel(row: HBoxContainer) -> void:
 	_chest_title.text = "Chest"
 	_chest_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_chest_title.add_theme_font_size_override("font_size", 20)
-	_chest_title.add_theme_color_override("font_color", Color(0.94, 0.8, 0.55))
+	_chest_title.add_theme_color_override("font_color", BrassStyle.HEADING)
 	_chest_title.custom_minimum_size = Vector2(0, 36)
 	column.add_child(_chest_title)
 	# Town storage: "Food 34 · Materials 210 · Tools 2 · Other 0" (the slots in use go in the title)
@@ -202,7 +203,7 @@ func _build_chest_panel(row: HBoxContainer) -> void:
 	hint.text = "Drag or shift-click to move a stack across"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 14)
-	hint.add_theme_color_override("font_color", Color(0.7, 0.62, 0.5))
+	hint.add_theme_color_override("font_color", BrassStyle.TEXT_DIM)
 	column.add_child(hint)
 	# Town storage: every raw material and food from the backpack in one click
 	_deposit = MenuStyle.button("Deposit resources")

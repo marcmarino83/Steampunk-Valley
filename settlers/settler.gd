@@ -13,6 +13,14 @@ extends CharacterBody3D
 ##
 ## Aim at one and press E to talk: their panel shows their name, home, job and what they're doing,
 ## and lets you assign a home and a job (see SettlerPanel).
+##
+## Quest villagers (`quest`: the first two settlers, who will come from the castle quest) never
+## leave: when their needs aren't met (fed, a home) they stop working and say why ("We can't work
+## hungry") until it's fixed.
+##
+## A visitor (`visitor`) isn't a settler yet: they came to the Village Center and linger around its
+## Bell Mast by day (resting on the ground by it at night; they need no bed or food) until
+## `stay_until`, then walk off. Talking to one offers Recruit (see SettlerManager.recruit).
 
 ## Their collision layer (3): not solid to the player, but the player's look ray finds them
 const LAYER := 4
@@ -57,6 +65,16 @@ var hungry_days := 0
 var leaving := false
 var leave_to := Vector3.ZERO
 var leave_time := 0.0
+## A quest villager: permanent, never leaves (see above)
+var quest := false
+## A visitor at the Village Center, not a settler yet: a line about who they are, until when they
+## stay (the sun's day count plus time of day), whether the bell has rung for them, and how long
+## they've been on their way to the mast (seconds)
+var visitor := false
+var background := ""
+var stay_until := 0.0
+var announced := false
+var travel_time := 0.0
 
 var _agent: NavigationAgent3D
 var _model: Node3D
@@ -152,6 +170,18 @@ func is_hungry() -> bool:
 	return hungry_days > 0
 
 
+## Why a quest villager won't work, in their words ("We can't work hungry"), or empty if their
+## needs are met (or they're not a quest villager: others work hungry at half pace, and leave)
+func unmet_need() -> String:
+	if not quest or visitor:
+		return ""
+	if is_hungry():
+		return "We can't work hungry"
+	if home_id.is_empty() or manager == null or manager.plot(home_id) == null:
+		return "We can't work without a home"
+	return ""
+
+
 ## "Fed", or "Hungry (2 days)"
 func food_text() -> String:
 	if not is_hungry():
@@ -177,7 +207,7 @@ func can_interact() -> bool:
 
 
 func get_prompt() -> String:
-	return "Talk to %s" % settler_name
+	return ("Talk to %s (visitor)" if visitor else "Talk to %s") % settler_name
 
 
 func interact(player) -> void:
@@ -307,6 +337,9 @@ func _plan() -> void:
 		return
 	var sun = get_tree().get_first_node_in_group("sun")
 	var t: float = sun.time_of_day if sun else 0.5
+	if visitor:
+		_plan_visit(t)
+		return
 	var home: Plot = manager.plot(home_id)
 	var job: Plot = manager.plot(job_id)
 	if t >= SLEEP_START or t < WAKE:
@@ -314,6 +347,10 @@ func _plan() -> void:
 		return
 	_get_up()
 	if t >= WORK_START and t < WORK_END and job:
+		var need := unmet_need()
+		if not need.is_empty():
+			_plan_idle(home if home else job, need)
+			return
 		if job.working:
 			_plan_work(job)
 			return
@@ -324,6 +361,33 @@ func _plan() -> void:
 		_plan_idle(home, "Relaxing at home" if evening else ("Idle: no job" if job == null else "At home"))
 		return
 	_plan_idle(null, "Idle: no home" if job else "Idle: no home or job")
+
+
+# A visitor: by day, strolling about within a few meters of the Bell Mast, facing it when they stop;
+# at night, lying down on the ground by it (no bed). With no mast to visit, where they stand.
+func _plan_visit(t: float) -> void:
+	var mast: Node3D = manager.visitor_mast()
+	if not announced:
+		travel_time += PLAN_SECONDS
+	var night := t >= SLEEP_START or t < WAKE
+	if night and mast and global_position.distance_to(mast.global_position) < 9.0:
+		if not _lying:
+			_plan_kind = "visit:rest"
+			_lie_down(null, null)
+			_status = "Resting by the Bell Mast"
+		return
+	_get_up()
+	if mast == null:
+		_goal = Vector3.INF
+		_status = "Visiting"
+		return
+	if _plan_kind != "visit" or _spell_left <= 0.0:
+		_plan_kind = "visit"
+		_spell_left = _rng.randf_range(IDLE_SPELL.x, IDLE_SPELL.y)
+		var offset := Vector3(_rng.randf_range(2.5, 6.0), 0, 0).rotated(Vector3.UP, _rng.randf() * TAU)
+		_set_goal(manager.nav.closest_point(mast.global_position + offset), mast)
+	var near := global_position.distance_to(mast.global_position) < 9.0
+	_status = "Waiting by the Bell Mast" if near else "Walking to the Village Center"
 
 
 func _reason(plot: Plot) -> String:
@@ -675,7 +739,7 @@ func _mesh(parent: Node3D, mesh: Mesh, at: Vector3, color: Color) -> void:
 # ---- Saving ----
 
 func save_data() -> Dictionary:
-	return {
+	var data := {
 		"id": settler_id,
 		"name": settler_name,
 		"look": look,
@@ -685,6 +749,14 @@ func save_data() -> Dictionary:
 		"position": SaveGame.from_vector(global_position if not _lying else _standing_spot()),
 		"turn": rotation.y if not _lying else global_basis.get_euler().y,
 	}
+	if quest:
+		data["quest"] = true
+	if not background.is_empty():
+		data["background"] = background
+	if visitor:
+		data["stay_until"] = stay_until
+		data["announced"] = announced
+	return data
 
 
 func _standing_spot() -> Vector3:

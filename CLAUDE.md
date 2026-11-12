@@ -7,6 +7,7 @@
 - Don't commit; I'll commit myself after testing.
 - Edit files only with the editor tools, never with shell commands (sed, echo, PowerShell redirects). If a file gets corrupted, stop and tell me instead of repairing it line by line.
 - Never use orange for highlights, indicators, warnings or status colours (previews, outlines, glows, selection, alerts). Exceptions: brass and gold interface materials, fire and light, sunlight, and object icons and markers.
+- New panels must be built on the standard panel builder (ui/brass_panel.gd: header, sections, action row, key-hint row) and use only BrassStyle's palette, type sizes, spacing and button kinds (DESIGN.md, Interface style). Never hard-code an interface colour, and never write instruction paragraphs into a panel: key hints go in the hint row, longer explanations in tooltips. Follow the trimming rules in DESIGN.md's Interface style (nothing twice, no hints for buttons, collapsed checklists, details on demand). E only closes panels and interacts; tabs switch with Q and R.
 
 ## Building pieces
 

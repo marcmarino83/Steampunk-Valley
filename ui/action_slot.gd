@@ -28,6 +28,7 @@ var _glow := StyleBoxFlat.new()
 
 
 func _ready() -> void:
+	number_label.add_theme_color_override("font_color", BrassStyle.HEADING)
 	_normal_style = BrassStyle.frame("slot")
 	_style = BrassStyle.frame("slot_selected")
 	add_theme_stylebox_override("panel", _normal_style)

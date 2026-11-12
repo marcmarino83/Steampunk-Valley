@@ -63,8 +63,8 @@ const ITEM_ICONS := {
 }
 
 ## The have / need count on a recipe's cost slot: normal, and when you're short
-const COUNT_COLOR := Color(0.94, 0.9, 0.82)
-const MISSING_COLOR := Color(1.0, 0.36, 0.3)
+const COUNT_COLOR := BrassStyle.TEXT
+const MISSING_COLOR := BrassStyle.BAD
 
 @onready var swatch: ColorRect = $VBox/Swatch
 @onready var icon: TextureRect = $VBox/Icon
@@ -106,6 +106,7 @@ static func make_drag_preview(item: String) -> Control:
 func _ready() -> void:
 	# The shared brass slot (see BrassStyle)
 	add_theme_stylebox_override("panel", BrassStyle.frame("slot"))
+	name_label.add_theme_color_override("font_color", BrassStyle.HEADING)
 
 
 func _draw() -> void:

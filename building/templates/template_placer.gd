@@ -27,7 +27,7 @@ const FINE_HEIGHT_STEP := 0.05
 const FINE_TURN := PI / 12.0
 const GOOD_GLOW := Color(0.3, 1.0, 0.4, 0.75)
 const BAD_GLOW := Color(1.0, 0.25, 0.2, 0.85)
-const WARN_GLOW := Color(1.0, 0.95, 0.3, 0.8)
+const WARN_GLOW := Color(BrassStyle.WARN, 0.8)
 ## How many physics frames at most between checks of where it is (also checked whenever it moves)
 const CHECK_FRAMES := 6
 ## About how many nodes of the preview's look are made per frame (see _process)
@@ -433,6 +433,10 @@ func _place() -> void:
 		_problem = _check()
 	if not _problem.is_empty():
 		_player.flash(_problem)
+		return
+	var type: PlotType = _template.plot_type
+	if type and type.one_per_village and not plots.plots_of(type.display_name).is_empty():
+		_player.flash("The village already has a %s (one per village)" % type.display_name)
 		return
 	SpikeLog.note("a template laid out")
 	var plot := plots.create(_template.plot_type, _where, _template.size)

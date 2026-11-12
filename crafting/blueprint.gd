@@ -8,10 +8,10 @@ extends Resource
 @export_group("Unlocking")
 ## Locked until the player does what's below. Unlocked from the start when off.
 @export var starts_locked := false
-## What the player has to do
-@export_enum("Craft", "Gather", "Build") var unlocked_by := "Craft"
-## The item crafted or gathered, or the buildable built, exactly as it's named in the game,
-## like "Hammer", "Plant Fiber" or "Campfire"
+## What the player has to do ("Plot": have a plot of that type working in the village)
+@export_enum("Craft", "Gather", "Build", "Plot") var unlocked_by := "Craft"
+## The item crafted or gathered, the buildable built, or the plot type working, exactly as it's
+## named in the game, like "Hammer", "Plant Fiber", "Campfire" or "Storehouse"
 @export var unlock_item := ""
 ## More things that must all have been done the same way too (crafted, gathered or built at some
 ## point, in any order), like "Pickaxe" beside "Axe"
@@ -43,6 +43,8 @@ func unlock_hint_text() -> String:
 	if not unlock_hint.is_empty():
 		return unlock_hint
 	var things: PackedStringArray = []
+	if unlocked_by == "Plot":
+		return "Needs a working %s in the village" % " and ".join(PackedStringArray([unlock_item] + Array(unlock_also)))
 	for item in [unlock_item] + Array(unlock_also):
 		var thing: String = item.to_lower()
 		# Gathered things are counted by the handful ("gather plant fiber"); made things one at a time

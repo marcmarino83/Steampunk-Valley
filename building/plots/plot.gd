@@ -23,7 +23,7 @@ const EDGE_PLAIN := 0.6
 const LABEL_HEIGHT := 2.2
 ## Outline colours in plot view: working, and missing requirements
 const WORKING_COLOR := Color(0.35, 0.95, 0.4)
-const MISSING_COLOR := Color(1.0, 0.95, 0.3)
+const MISSING_COLOR := BrassStyle.WARN
 ## Edges, as bits (for `highlight_edges`): +X, -X, +Z, -Z
 const RIGHT := 1
 const LEFT := 2
@@ -47,6 +47,9 @@ var checked := false
 ## For a plot whose output is shared out by sliders (the Forager's Hut): item -> percent, adding up
 ## to 100 (empty: the type's starting split)
 var production := {}
+## For a house (a plot that houses settlers): "villager" (settlers can be assigned to it) or
+## "player" (the player's own home: never assigned)
+var housing := "villager"
 ## Which edges stand out (while dragging one), as RIGHT | LEFT | FRONT | BACK bits
 var highlight_edges := 0:
 	set(value):
@@ -213,7 +216,14 @@ func save_data() -> Dictionary:
 	}
 	if not production.is_empty():
 		data["production"] = production.duplicate()
+	if housing != "villager":
+		data["housing"] = housing
 	return data
+
+
+## True if settlers can be given a home here: a house plot set to villager housing
+func is_villager_housing() -> bool:
+	return not plot_type.houses_per.is_empty() and housing == "villager"
 
 
 func _apply_colour() -> void:

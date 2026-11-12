@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="PathTileType" format=3]
+
+[ext_resource type="Script" path="res://building/path_tile_type.gd" id="1_tile"]
+[ext_resource type="Texture2D" path="res://assets/textures/paths/gravel/Ground110_2K-JPG_Color.jpg" id="2_icon"]
+
+[resource]
+script = ExtResource("1_tile")
+rank = 2
+menu_hint = "Lay gravel path tiles (2 Stone a tile)  ·  Draws over dirt  ·  Hold left click to keep laying"
+display_name = "Gravel"
+starts_locked = true
+unlocked_by = "Craft"
+unlock_item = "Pickaxe"
+section = "Paths"
+menu_order = 2
+costs = Array[Dictionary]([{
+"Stone": 2
+}])
+icon_color = Color(0.55, 0.53, 0.5, 1)
+icon = ExtResource("2_icon")

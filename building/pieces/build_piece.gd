@@ -305,7 +305,7 @@ static func fitted_model(piece: PieceBuildable, def: Dictionary) -> Node3D:
 	if def.has("model_fit"):
 		return _flattened_model(piece, def["model_fit"])
 	var model: Node3D = piece.model_scene.instantiate()
-	var box := PieceShapes.bounds_of(def)
+	var box: AABB = def.get("model_box", PieceShapes.bounds_of(def))
 	var turn := Basis(Vector3.UP, def.get("model_turn", 0.0))
 	var own: AABB = Transform3D(turn, Vector3.ZERO) * _model_bounds(model)
 	if own.size.x <= 0.0 or own.size.y <= 0.0 or own.size.z <= 0.0:

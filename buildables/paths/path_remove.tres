@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="PathTileType" format=3]
+
+[ext_resource type="Script" path="res://building/path_tile_type.gd" id="1_tile"]
+
+[resource]
+script = ExtResource("1_tile")
+rank = 0
+menu_hint = "Clear every path type under a 2 × 4 m tile back to grass (free; no refund)  ·  Hold left click to keep clearing"
+display_name = "Remove"
+section = "Paths"
+menu_order = 4
+icon_color = Color(0.3, 0.42, 0.18, 1)

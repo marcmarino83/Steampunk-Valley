@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PathTileType" format=3]
+
+[ext_resource type="Script" path="res://building/path_tile_type.gd" id="1_tile"]
+[ext_resource type="Texture2D" path="res://assets/textures/paths/stone/Bricks089_2K-JPG_Color.jpg" id="2_icon"]
+
+[resource]
+script = ExtResource("1_tile")
+rank = 3
+menu_hint = "Lay stone paving tiles (4 Stone a tile)  ·  Draws over dirt and gravel  ·  Hold left click to keep laying"
+display_name = "Stone"
+starts_locked = true
+unlocked_by = "Plot"
+unlock_item = "Storehouse"
+unlock_hint = "Needs a working Storehouse in the village"
+section = "Paths"
+menu_order = 3
+costs = Array[Dictionary]([{
+"Stone": 4
+}])
+icon_color = Color(0.62, 0.6, 0.56, 1)
+icon = ExtResource("2_icon")

@@ -14,9 +14,10 @@ extends Control
 const HEIGHT := 400.0
 const EDGE := 24.0
 const HISTORY_KEPT := 50
-const ERROR_COLOR := "ff7a66"
-const DIM_COLOR := "b8a98c"
-const GOOD_COLOR := "9ee68a"
+## The log's colours (as hex, for its [color] tags), from the palette (see BrassStyle)
+static var ERROR_COLOR := BrassStyle.BAD.to_html(false)
+static var DIM_COLOR := BrassStyle.TEXT_DIM.to_html(false)
+static var GOOD_COLOR := BrassStyle.GOOD.to_html(false)
 
 ## Every command: its usage and what it does, in the order help lists them
 const COMMANDS := {
@@ -29,7 +30,9 @@ const COMMANDS := {
 	"fly": ["fly", "Toggle: fly through everything (Space up, Ctrl down, Shift faster)"],
 	"time": ["time <0-24>", "Set the time of day, in hours (6 is sunrise, 18 sunset)"],
 	"day": ["day", "Skip to the next dawn: dusk meals, then dawn output (also F10)"],
-	"spawn_settler": ["spawn_settler [count]", "Bring settlers in at once (default 1; also F8)"],
+	"skip_days": ["skip_days <days>", "Jump ahead this many mornings (meals, output, visitors come and go)"],
+	"spawn_settler": ["spawn_settler [count]", "Bring settlers in at once, with no home or job (default 1; also F8)"],
+	"spawn_visitor": ["spawn_visitor [count]", "Bring visitors in front of you at once (needs a working Village Center; at most 3)"],
 	"tp": ["tp <x> <z>  |  tp settlement", "Jump to a spot, or to the nearest plot"],
 	"clear_inventory": ["clear_inventory", "Empty your inventory and action bar"],
 	"save": ["save", "Make a manual save"],
@@ -54,6 +57,8 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mono := SystemFont.new()
 	mono.font_names = PackedStringArray(["Consolas", "Cascadia Mono", "DejaVu Sans Mono", "Courier New", "monospace"])
+	# (sharp at every UI scale, like the default font)
+	mono.multichannel_signed_distance_field = true
 	_panel = MenuStyle.panel()
 	_panel.visible = false
 	add_child(_panel)
@@ -87,7 +92,7 @@ func _ready() -> void:
 	_tag = Label.new()
 	_tag.add_theme_font_override("font", mono)
 	_tag.add_theme_font_size_override("font_size", 15)
-	_tag.add_theme_color_override("font_color", Color(1.0, 0.95, 0.3))
+	_tag.add_theme_color_override("font_color", BrassStyle.WARN)
 	_tag.add_theme_color_override("font_outline_color", Color.BLACK)
 	_tag.add_theme_constant_override("outline_size", 4)
 	_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -239,8 +244,12 @@ func run(line: String) -> void:
 			player._settlers.skip_to_dawn()
 			player.flash("Skipped to dawn (debug)")
 			_print("Skipped to dawn: tonight's meals, then the day's output.", GOOD_COLOR)
+		"skip_days":
+			_skip_days(args)
 		"spawn_settler":
 			_spawn_settlers(args)
+		"spawn_visitor":
+			_spawn_visitors(args)
 		"tp":
 			_teleport(args)
 		"clear_inventory":
@@ -357,6 +366,45 @@ func _spawn_settlers(args: PackedStringArray) -> void:
 		_error("Nowhere safe to bring a settler near you (the game's output says why each spot was turned down).")
 		return
 	_print("Brought %s." % ", ".join(names), GOOD_COLOR)
+
+
+func _skip_days(args: PackedStringArray) -> void:
+	if args.size() != 1 or not args[0].is_valid_int() or int(args[0]) < 1 or int(args[0]) > 60:
+		_usage("skip_days")
+		_error("The number of days must be from 1 to 60.")
+		return
+	var days := int(args[0])
+	player._settlers.skip_days(days)
+	player.flash("Skipped %d %s (debug)" % [days, "day" if days == 1 else "days"])
+	_print("Skipped ahead %d %s to dawn: each night's meals, each dawn's output, visitors coming and going." % [days, "day" if days == 1 else "days"], GOOD_COLOR)
+
+
+func _spawn_visitors(args: PackedStringArray) -> void:
+	var count := 1
+	if args.size() > 1 or (args.size() == 1 and (not args[0].is_valid_int() or int(args[0]) < 1 or int(args[0]) > SettlerManager.MAX_VISITORS)):
+		_usage("spawn_visitor")
+		_error("The count must be from 1 to %d." % SettlerManager.MAX_VISITORS)
+		return
+	if args.size() == 1:
+		count = int(args[0])
+	var manager: SettlerManager = player._settlers
+	var center: Plot = manager.village_center()
+	if center == null:
+		_error("Visitors only come to a working Village Center (its Bell Mast in place).")
+		return
+	var names: PackedStringArray = []
+	for i in count:
+		if manager.staying_visitors().size() >= SettlerManager.MAX_VISITORS:
+			_error("There are already %d visitors (the most at a time)." % SettlerManager.MAX_VISITORS)
+			break
+		var ahead := -(player as Node3D).global_basis.z
+		ahead.y = 0.0
+		var spot: Vector3 = (player as Node3D).global_position + ahead.normalized() * 3.0 + (player as Node3D).global_basis.x * (i - (count - 1) / 2.0) * 0.9
+		var visitor: Settler = manager.spawn_visitor(center, spot)
+		if visitor:
+			names.append(visitor.settler_name)
+	if not names.is_empty():
+		_print("Brought visitor(s) %s. The bell rings as they reach the mast." % ", ".join(names), GOOD_COLOR)
 
 
 func _teleport(args: PackedStringArray) -> void:

@@ -2,7 +2,7 @@ class_name SettingsPanel
 extends Control
 ## The settings, over whatever's behind (the title screen, or the paused game): the ornate frame
 ## with Audio (master, music and effects volume), Display (window mode, resolution, V-Sync, render
-## scale) and
+## scale, UI scale) and
 ## Controls (mouse sensitivity, invert Y, field of view). Every change applies at once and is saved
 ## (see GameSettings). Back or Esc closes it. Works while the game is paused.
 
@@ -76,6 +76,8 @@ func _ready() -> void:
 		GameSettings.save())
 	var render_slider := _slider_row(column, "Render scale", "render_scale", 50, 100, 5, "%d%%")
 	render_slider.tooltip_text = "Draws the world at this share of the resolution, sharpened back up with AMD FSR.\nLower is faster; the HUD stays sharp."
+	var ui_slider := _slider_row(column, "UI scale", "ui_scale", GameSettings.UI_SCALE_MIN, GameSettings.UI_SCALE_MAX, GameSettings.UI_SCALE_STEP, "%d%%", true)
+	ui_slider.tooltip_text = "The size of every menu, panel and the HUD (applied when you let go of the slider)"
 
 	column.add_child(_heading("Controls"))
 	_slider_row(column, "Mouse sensitivity", "mouse_sensitivity", 0.2, 3.0, 0.05, "%.2f×")
@@ -143,7 +145,7 @@ func _heading(text: String) -> Label:
 	var label := Label.new()
 	label.text = text
 	label.add_theme_font_size_override("font_size", 22)
-	label.add_theme_color_override("font_color", MenuStyle.TEXT)
+	label.add_theme_color_override("font_color", BrassStyle.HEADING)
 	return label
 
 
@@ -160,7 +162,10 @@ func _row(column: VBoxContainer, text: String) -> HBoxContainer:
 	return row
 
 
-func _slider_row(column: VBoxContainer, text: String, key: String, low: float, high: float, step: float, value_format: String) -> HSlider:
+# A setting's slider. With `apply_on_release`, dragging only shows the value, and it's applied when
+# the slider is let go of (keys still apply each step): the UI scale, which would otherwise resize
+# the slider under the mouse while it's dragged
+func _slider_row(column: VBoxContainer, text: String, key: String, low: float, high: float, step: float, value_format: String, apply_on_release := false) -> HSlider:
 	var row := _row(column, text)
 	var slider := HSlider.new()
 	slider.min_value = low
@@ -181,12 +186,19 @@ func _slider_row(column: VBoxContainer, text: String, key: String, low: float, h
 	shown.text = value_format % slider.value
 	row.add_child(shown)
 	_value_labels[key] = shown
+	var dragging := [false]
+	slider.drag_started.connect(func(): dragging[0] = true)
 	slider.value_changed.connect(func(v):
-		GameSettings.set_value(key, v)
 		shown.text = value_format % v
+		if not (apply_on_release and dragging[0]):
+			GameSettings.set_value(key, v)
 		_unsaved = true)
 	# Saved once the slider's let go of (or it loses focus after keys moved it), not every step
-	slider.drag_ended.connect(func(_changed): _save_if_changed())
+	slider.drag_ended.connect(func(_changed):
+		dragging[0] = false
+		if apply_on_release:
+			GameSettings.set_value(key, slider.value)
+		_save_if_changed())
 	slider.focus_exited.connect(_save_if_changed)
 	return slider
 

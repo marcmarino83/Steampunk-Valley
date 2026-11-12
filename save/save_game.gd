@@ -84,7 +84,7 @@ func _ready() -> void:
 	_test_note.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE, 16)
 	_test_note.position.y += 26
 	_test_note.add_theme_font_size_override("font_size", 15)
-	_test_note.add_theme_color_override("font_color", Color(1.0, 0.95, 0.3))
+	_test_note.add_theme_color_override("font_color", BrassStyle.WARN)
 	_test_note.add_theme_color_override("font_outline_color", Color.BLACK)
 	_test_note.add_theme_constant_override("outline_size", 4)
 	_test_note.visible = false

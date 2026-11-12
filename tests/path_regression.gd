@@ -100,11 +100,13 @@ func _run() -> void:
 	var tabs: Array = menu.get_script().get_script_constant_map()["TABS"]
 	_check("the build menu has a Paths tab", tabs.has("Paths"), str(tabs))
 	var tool: PathTool = load(TOOL)
+	# (the free-hand tool is retired from the menu, replaced by path tiles; it's still tested here,
+	# since what it painted in older saves still shows)
 	var listed := false
 	for b in menu.all_buildables():
-		if b.resource_path == TOOL and b.section == "Paths":
+		if b.resource_path == TOOL:
 			listed = true
-	_check("the Dirt Path tool is in the Paths tab", listed, "")
+	_check("the retired Dirt Path tool is no longer in the build menu", not listed and tool.retired, "")
 	_check("the Dirt Path is free", tool.can_afford({}) and tool.cost_text() == "Free", tool.cost_text())
 	bp.begin(tool)
 	await _frames(2)

@@ -9,10 +9,10 @@ extends Control
 ## The player tells it what to show each frame; it only rebuilds what changed.
 
 const TEXT := BrassStyle.TEXT
-const DETAIL := Color(0.78, 0.7, 0.58)
-const BAD := Color(1.0, 0.38, 0.3)
+const DETAIL := BrassStyle.TEXT_DIM
+const BAD := BrassStyle.BAD
 ## A warning that doesn't stop placing (steep ground)
-const WARN := Color(1.0, 0.84, 0.3)
+const WARN := BrassStyle.WARN
 const KEY_TEXT := BrassStyle.BRASS_LIGHT
 const LABEL_SIZE := 16
 const KEY_SIZE := 14

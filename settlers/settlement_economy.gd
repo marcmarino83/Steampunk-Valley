@@ -13,7 +13,8 @@ extends Node
 ## other chest belonging to a plot.
 ## Chests outside every plot are the player's own: settlers never eat from them. One who
 ## can't eat their fill is hungry for the day; HUNGRY_DAYS_TO_LEAVE hungry days in a row and they
-## leave the settlement.
+## leave the settlement. Quest villagers never leave: hungry, they stop working instead (and make
+## nothing) until they're fed. Visitors don't eat.
 
 ## Sent with a message for the player ("Forager's Hut: chest full", "Ada Cobb has left...")
 signal notice(text: String)
@@ -69,6 +70,9 @@ func output_today(plot: Plot, crew: Array) -> Dictionary:
 	var places := maxi(plot.plot_type.workers, 1)
 	var strength := 0.0
 	for settler in crew:
+		# (a quest villager whose needs aren't met doesn't work at all)
+		if not settler.unmet_need().is_empty():
+			continue
 		strength += 0.5 if settler.is_hungry() else 1.0
 	strength = minf(strength / places, 1.0)
 	var full := plot.daily_output()
@@ -91,6 +95,7 @@ func output_today(plot: Plot, crew: Array) -> Dictionary:
 ## Every settler's meal (berries or mushrooms); the hungry go hungry, and some leave
 func dusk() -> void:
 	var hungry: PackedStringArray = []
+	var stopped: PackedStringArray = []
 	for settler in manager.all_settlers():
 		if settler.leaving:
 			continue
@@ -99,13 +104,18 @@ func dusk() -> void:
 			settler.hungry_days = 0
 			continue
 		settler.hungry_days += 1
-		if settler.hungry_days >= HUNGRY_DAYS_TO_LEAVE:
+		if settler.quest:
+			# Quest villagers never leave: they stop working until they're fed
+			stopped.append(settler.settler_name)
+		elif settler.hungry_days >= HUNGRY_DAYS_TO_LEAVE:
 			notice.emit("%s has left the settlement after %d days without food." % [settler.settler_name, settler.hungry_days])
 			manager.send_away(settler)
 		else:
 			hungry.append(settler.settler_name)
 	if not hungry.is_empty():
 		notice.emit("No food for %s tonight: they're hungry and will work at half pace." % ", ".join(hungry))
+	if not stopped.is_empty():
+		notice.emit("No food for %s tonight: \"We can't work hungry.\" They won't work until they're fed." % ", ".join(stopped))
 
 
 # Eats up to a meal from town storage first, then the chests, nearest working plot's first;

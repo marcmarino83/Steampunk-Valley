@@ -57,6 +57,7 @@ func _ready() -> void:
 			# Each slot is as wide as one step along the bar, its picture filling the opening
 			slot.fit_opening(slot_size, gap)
 	name_label.modulate.a = 0.0
+	name_label.add_theme_color_override("font_color", BrassStyle.HEADING)
 	set_editing(false)
 	_update()
 	add_to_group("saveable")

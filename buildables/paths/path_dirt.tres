@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="PathTileType" format=3]
+
+[ext_resource type="Script" path="res://building/path_tile_type.gd" id="1_tile"]
+[ext_resource type="Texture2D" path="res://assets/textures/paths/dirt/Ground103_2K-JPG_Color.jpg" id="2_icon"]
+
+[resource]
+script = ExtResource("1_tile")
+rank = 1
+menu_hint = "Lay dirt path tiles (free)  ·  2 × 4 m, snaps to path tiles of any type  ·  Hold left click to keep laying"
+display_name = "Dirt"
+section = "Paths"
+menu_order = 1
+icon_color = Color(0.5, 0.4, 0.28, 1)
+icon = ExtResource("2_icon")

@@ -134,6 +134,20 @@ uniform sampler2D path_index : hint_default_black, filter_nearest, repeat_disabl
 uniform vec4 path_info = vec4(0.0, 0.0, 0.25, 0.0);
 const float PATH_TILE = 128.0;
 
+// The player's path tiles (see PathTiles): the same tiled map as the painted paths, with a channel
+// per rank (1 Dirt, 2 Gravel, 3 Stone, 4 later) holding how far inside (1) or outside (0) that
+// type's path a spot is, over TILE_PATH_RANGE meters. path_type_set: the texture set each rank
+// draws (-1 = none); path_type_edge: each rank's edge (how far past the tile it reaches, how soft,
+// how far its noise pushes it, the noise's size per meter). Ranks draw in order, higher on top.
+uniform sampler2DArray tile_path_tiles : hint_default_black, filter_linear, repeat_disable;
+uniform sampler2D tile_path_index : hint_default_black, filter_nearest, repeat_disable;
+uniform vec4 tile_path_info = vec4(0.0, 0.0, 0.25, 0.0);
+// (set by the Valley; unset, every rank draws nothing: see path_type_on)
+uniform int path_type_set[4];
+uniform bool path_type_on = false;
+uniform vec4 path_type_edge[4];
+const float TILE_PATH_RANGE = 2.0;
+
 varying vec3 world_pos;
 varying vec3 world_normal;
 // How soft height blending is here: softer far away, where a texture's fine bumps average out
@@ -346,6 +360,25 @@ float painted_path(vec2 xz) {
 	}
 	vec2 uv = (px - vec2(tile) * PATH_TILE + 1.0) / (PATH_TILE + 2.0);
 	return textureLod(path_tiles, vec3(uv, layer - 1.0), 0.0).r;
+}
+
+// The path tiles' channels here (see tile_path_tiles), or nothing
+vec4 tile_paths(vec2 xz) {
+	if (tile_path_info.w <= 0.0) {
+		return vec4(0.0);
+	}
+	vec2 px = (xz - tile_path_info.xy) / tile_path_info.z;
+	ivec2 tile = ivec2(floor(px / PATH_TILE));
+	ivec2 tiles = textureSize(tile_path_index, 0);
+	if (tile.x < 0 || tile.y < 0 || tile.x >= tiles.x || tile.y >= tiles.y) {
+		return vec4(0.0);
+	}
+	float layer = texelFetch(tile_path_index, tile, 0).r;
+	if (layer < 0.5) {
+		return vec4(0.0);
+	}
+	vec2 uv = (px - vec2(tile) * PATH_TILE + 1.0) / (PATH_TILE + 2.0);
+	return textureLod(tile_path_tiles, vec3(uv, layer - 1.0), 0.0);
 }
 
 void fragment() {
@@ -653,6 +686,30 @@ void fragment() {
 			// ...then over the automatic ground, by how much has been painted here
 			if (laid > 0.0) {
 				g = mix_ground(g, painted, height_mix(g.height, painted.height, coverage));
+			}
+		}
+	}
+
+	// ---- The player's path tiles, rank by rank (a higher rank lies over a lower one) ----
+	vec4 laid = tile_paths(world_pos.xz);
+	// (boulders use this material too, and stand above the ground: no path up their sides)
+	laid *= 1.0 - smoothstep(0.25, 0.6, world_pos.y - ground_height(world_pos.xz));
+	if (path_type_on && max(max(laid.r, laid.g), max(laid.b, laid.a)) > 0.002) {
+		float channels[4] = float[](laid.r, laid.g, laid.b, laid.a);
+		for (int k = 0; k < 4; k++) {
+			if (channels[k] <= 0.002 || path_type_set[k] < 0) {
+				continue;
+			}
+			vec4 edge = path_type_edge[k];
+			// How far outside the tile's edge this is (m; less than 0 inside), pushed in and out by
+			// this type's own noise: a slow wander and a finer fray, so no edge looks stamped
+			float outside = (0.5 - channels[k]) * TILE_PATH_RANGE;
+			float wander = texture(detail_noise, world_pos.xz * edge.w * 0.1 + vec2(0.17 * float(k), 0.61)).r - 0.5;
+			float fray = texture(detail_noise, world_pos.xz * edge.w * 0.37 + vec2(0.41, 0.13 * float(k))).r - 0.5;
+			float cover = 1.0 - smoothstep(edge.x - edge.y, edge.x + edge.y, outside + (wander * 1.4 + fray * 0.8) * edge.z);
+			if (cover > 0.002) {
+				Ground path = flat_set(path_type_set[k], n, large, medium);
+				g = mix_ground(g, path, height_mix(g.height, path.height, cover));
 			}
 		}
 	}

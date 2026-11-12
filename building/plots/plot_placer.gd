@@ -38,8 +38,8 @@ const LABEL_GOOD := Color(0.8, 1.0, 0.75)
 const LABEL_BAD := Color(1.0, 0.55, 0.45)
 const GHOST_GOOD := Color(0.25, 1.0, 0.35, 0.4)
 const GHOST_BAD := Color(1.0, 0.2, 0.15, 0.4)
-const GHOST_WARN := Color(1.0, 0.95, 0.25, 0.4)
-const WARN_COLOR := Color(1.0, 0.95, 0.3)
+const GHOST_WARN := Color(BrassStyle.WARN, 0.4)
+const WARN_COLOR := BrassStyle.WARN
 const OUTSIDE_GLOW := Color(1.0, 0.15, 0.1, 0.5)
 const FINE_TURN := PI / 12.0
 ## Turning a plot being moved: a wheel notch, and with Alt
@@ -299,13 +299,18 @@ func hud_state() -> Dictionary:
 		Mode.DRAW:
 			var controls := [["Opposite corner", "LMB"], ["Cancel", "RMB"]] if _has_corner else [["First corner", "LMB"], ["Rotate 90°", "R"], ["Rotate 15°", "Alt+Wheel"], ["Cancel", "RMB"]]
 			var cost := "%s m" % _size_text(_size) if _has_corner else "Click a corner"
+			var detail := "At least %s m  ·  Needs %s" % [PlotType.size_text(_type.min_size), _type.requirements_text()]
+			var taken := _already_one()
+			if taken:
+				detail = "The village already has a %s (one per village)" % _type.display_name
 			return {
 				"controls": controls,
 				"info": {
 					"title": "%s plot" % _type.display_name,
 					"cost": cost,
 					"cost_bad": _has_corner and not _big_enough,
-					"detail": "At least %s m  ·  Needs %s" % [PlotType.size_text(_type.min_size), _type.requirements_text()],
+					"detail": detail,
+					"detail_bad": taken,
 				},
 			}
 		Mode.MOVE:
@@ -325,7 +330,8 @@ func hud_state() -> Dictionary:
 				},
 			}
 		Mode.RESIZE:
-			var detail := "Let go to resize"
+			# (the smallest it can be shows here, while resizing, rather than in its panel)
+			var detail := "Let go to resize  ·  min %s m" % _size_text(Vector2(_plot.plot_type.min_size))
 			if not _outside.is_empty():
 				detail = "%d %s outside will be removed" % [_outside.size(), "piece" if _outside.size() == 1 else "pieces"]
 			return {
@@ -371,7 +377,7 @@ func _physics_process(_delta: float) -> void:
 			_preview.global_transform = _resized_transform()
 			_preview.size = _size
 			_preview.set_tint(BAD_COLOR if not _outside.is_empty() else GOOD_COLOR)
-			_preview.set_label("%s m" % _size_text(_size), LABEL_BAD if not _outside.is_empty() else LABEL_GOOD)
+			_preview.set_label("%s m  ·  min %s m" % [_size_text(_size), _size_text(Vector2(_plot.plot_type.min_size))], LABEL_BAD if not _outside.is_empty() else LABEL_GOOD)
 			_preview.rebuild()
 
 
@@ -411,6 +417,11 @@ func _update_drawing() -> void:
 	_preview.rebuild()
 
 
+# True if this is a one-per-village type (the Village Center) and the village has one already
+func _already_one() -> bool:
+	return _type.one_per_village and not plots.plots_of(_type.display_name).is_empty()
+
+
 func _draw_click() -> void:
 	if not _has_corner:
 		_corner = _crosshair_spot()
@@ -418,6 +429,9 @@ func _draw_click() -> void:
 		return
 	if not _big_enough:
 		_player.flash("A %s needs at least %s m" % [_type.display_name, _size_text(Vector2(_type.min_size))])
+		return
+	if _already_one():
+		_player.flash("The village already has a %s (one per village)" % _type.display_name)
 		return
 	var plot := plots.create(_type, _preview.global_transform, _size)
 	plots.adopt(plot)

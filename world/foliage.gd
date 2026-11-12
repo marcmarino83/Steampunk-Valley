@@ -288,7 +288,7 @@ func _work_out_patch(snapshot: Dictionary) -> void:
 	var taken: Dictionary = snapshot["taken"]
 	# Painted dirt paths: no grass or ferns on them
 	var paths: Dictionary = snapshot["paths"]
-	var any_paths := not (paths["tiles"] as Dictionary).is_empty()
+	var any_paths := not (paths["tiles"] as Dictionary).is_empty() or (paths.has("path_tiles") and not (paths["path_tiles"]["tiles"] as Dictionary).is_empty())
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(chunk)
 	var dry_above: float = snapshot["dry_above"]

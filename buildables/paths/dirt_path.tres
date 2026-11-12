@@ -11,4 +11,5 @@ menu_order = 1
 icon_color = Color(0.55, 0.45, 0.32, 1)
 icon = ExtResource("2_icon")
 start_width = 1.5
+retired = true
 menu_hint = "Hold left click and drag to paint a dirt path (free)  ·  Wheel: width  ·  Middle click or hold X: erase"

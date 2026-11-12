@@ -471,7 +471,7 @@ static func build(shape: String) -> Dictionary:
 		"round_foundation_wood", "round_foundation_stone":
 			_round_foundation(d, shape == "round_foundation_stone")
 		"bed", "foraging_basket", "chopping_block", "tool_rack", "sorting_table", "storage_shelf", "fireplace", \
-				"storehouse_storage", "firewood_rack", "stone_ore_bin", "slat_crate", "woven_crate", "woven_basket":
+				"storehouse_storage", "firewood_rack", "stone_ore_bin", "slat_crate", "woven_crate", "woven_basket", "bell_mast":
 			_furniture(d, shape)
 		"chimney_section", "chimney_top":
 			_chimney(d, shape)
@@ -1872,6 +1872,17 @@ const MODEL_BOXES := {
 	"slat_crate": Vector3(0.9, 0.454, 0.78),
 	"woven_crate": Vector3(0.9, 0.454, 0.787),
 	"woven_basket": Vector3(0.7, 0.33, 0.694),
+	# The Village Center's Bell Mast at 7 m tall, its yardarms 2.53 m across (its own proportions)
+	"bell_mast": Vector3(2.533, 7.0, 1.445),
+}
+## Model furniture solid as a few boxes rather than its whole box (shape -> [[size, centre]]), in the
+## piece's space, measured from the fitted model: the Bell Mast's plinth and its post (the yardarms
+## and bell hang high overhead, out of the way)
+const MODEL_SOLIDS := {
+	"bell_mast": [
+		[Vector3(1.83, 0.26, 1.38), Vector3(-0.01, 0.13, -0.03)],
+		[Vector3(0.3, 6.74, 0.3), Vector3(0.0, 3.63, -0.22)],
+	],
 }
 ## Extra models standing with a furniture piece's model, as part of it (see BuildPiece.fitted_model):
 ## shape -> [{"scene", "at" (its bottom middle, in the piece's space), "width" (fitted evenly to
@@ -2005,7 +2016,15 @@ static func _furniture(d: Dictionary, shape: String) -> void:
 	# and fits where it looks like it does (BuildPiece fits the model into this box)
 	size = MODEL_BOXES.get(shape, size)
 	solid.size = size
-	_collision(d, solid, _at(0, size.y / 2.0, 0))
+	if MODEL_SOLIDS.has(shape):
+		# Solid as its few parts; the model still fits the whole box
+		for part in MODEL_SOLIDS[shape]:
+			var piece_box := BoxShape3D.new()
+			piece_box.size = part[0]
+			_collision(d, piece_box, Transform3D(Basis.IDENTITY, part[1]))
+		d["model_box"] = AABB(Vector3(-size.x / 2.0, 0.0, -size.z / 2.0), size)
+	else:
+		_collision(d, solid, _at(0, size.y / 2.0, 0))
 	d["model_turn"] = MODEL_TURNS.get(shape, 0.0)
 	d["model_extras"] = MODEL_EXTRAS.get(shape, [])
 	d["furniture"] = true

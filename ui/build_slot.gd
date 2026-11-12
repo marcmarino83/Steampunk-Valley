@@ -35,6 +35,7 @@ var _options: Button
 
 
 func _ready() -> void:
+	name_label.add_theme_color_override("font_color", BrassStyle.HEADING)
 	# The shared brass slot (see BrassStyle), lit under the mouse
 	icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	# The soft dark vignette behind the picture (the tints below only touch the picture itself)

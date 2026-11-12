@@ -48,6 +48,12 @@ func _ready() -> void:
 		list.add_child(row)
 		_rows.append(row)
 	craft_button.pressed.connect(func(): craft_requested.emit(_selected))
+	# The palette (see BrassStyle)
+	name_label.add_theme_color_override("font_color", BrassStyle.HEADING)
+	used_for_label.add_theme_color_override("font_color", BrassStyle.TEXT_DIM)
+	for state in ["font_color", "font_hover_color", "font_pressed_color"]:
+		craft_button.add_theme_color_override(state, BrassStyle.TEXT)
+	craft_button.add_theme_color_override("font_disabled_color", BrassStyle.TEXT_DIM.darkened(0.3))
 
 
 ## Brings the list and details up to date. Every recipe shows: ones that need a station you're
@@ -167,7 +173,7 @@ func _make_row(recipe: Recipe) -> Button:
 	row.add_theme_constant_override("h_separation", 8)
 	row.add_theme_font_size_override("font_size", 15)
 	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
-		row.add_theme_color_override(state, Color(0.94, 0.8, 0.55))
+		row.add_theme_color_override(state, BrassStyle.HEADING)
 	row.add_theme_stylebox_override("normal", BrassStyle.frame("slot"))
 	row.add_theme_stylebox_override("hover", BrassStyle.frame("slot_hover"))
 	row.add_theme_stylebox_override("pressed", BrassStyle.frame("slot_selected"))

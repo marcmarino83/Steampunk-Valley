@@ -192,7 +192,7 @@ func _make_button(text: String, action: Callable) -> Button:
 	# The lit one glows warmer and brighter, its text gold
 	button.focus_entered.connect(func():
 		button.self_modulate = HIGHLIGHT
-		button.add_theme_color_override("font_focus_color", MenuStyle.TEXT.lightened(0.15)))
+		button.add_theme_color_override("font_focus_color", BrassStyle.HEADING.lightened(0.15)))
 	button.focus_exited.connect(func(): button.self_modulate = Color.WHITE)
 	return button
 

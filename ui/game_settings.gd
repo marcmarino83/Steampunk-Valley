@@ -32,6 +32,13 @@ static var invert_y := false
 static var fov := 75.0
 ## Debug builds only: write a line to the output for every frame slower than 33 ms (see SpikeLog)
 static var spike_log := false
+## The size of every menu, panel and HUD element, UI_SCALE_MIN to UI_SCALE_MAX (%), in UI_SCALE_STEP
+## steps. Until it's set, it's picked from the screen (default_ui_scale). The text stays sharp at
+## every size: the default font is a multichannel signed distance field font (project settings).
+static var ui_scale := 100.0
+const UI_SCALE_MIN := 75.0
+const UI_SCALE_MAX := 150.0
+const UI_SCALE_STEP := 5.0
 
 static var _loaded := false
 
@@ -41,8 +48,10 @@ static func ensure_loaded() -> void:
 	if _loaded:
 		return
 	_loaded = true
+	ui_scale = default_ui_scale()
 	var file := ConfigFile.new()
 	if file.load(PATH) == OK:
+		ui_scale = _clean_ui_scale(float(file.get_value("display", "ui_scale", ui_scale)))
 		master = float(file.get_value("audio", "master", master))
 		music = float(file.get_value("audio", "music", music))
 		effects = float(file.get_value("audio", "effects", effects))
@@ -76,6 +85,8 @@ static func value_of(key: String) -> float:
 			return fov
 		"render_scale":
 			return render_scale
+		"ui_scale":
+			return ui_scale
 	return 0.0
 
 
@@ -96,6 +107,9 @@ static func set_value(key: String, value: float) -> void:
 		"render_scale":
 			render_scale = clampf(value, 50.0, 100.0)
 			apply_render_scale()
+		"ui_scale":
+			ui_scale = _clean_ui_scale(value)
+			apply_ui_scale()
 	if key in ["master", "music", "effects"]:
 		apply_audio()
 
@@ -110,6 +124,7 @@ static func save() -> void:
 	file.set_value("display", "resolution", resolution)
 	file.set_value("display", "vsync", vsync)
 	file.set_value("display", "render_scale", render_scale)
+	file.set_value("display", "ui_scale", ui_scale)
 	file.set_value("controls", "mouse_sensitivity", mouse_sensitivity)
 	file.set_value("controls", "invert_y", invert_y)
 	file.set_value("controls", "fov", fov)
@@ -138,6 +153,7 @@ static func apply_display() -> void:
 		return
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
 	apply_render_scale()
+	apply_ui_scale()
 	match window_mode:
 		"fullscreen":
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
@@ -166,6 +182,32 @@ static func apply_render_scale() -> void:
 	else:
 		root.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
 		root.scaling_3d_scale = render_scale / 100.0
+
+
+## Sizes every menu, panel and HUD element: the window's 2D content is drawn ui_scale % of its
+## size (the screen is laid out at 1920 × 1080 and stretched to the window; this goes on top).
+## Everything is anchored, so it all stays in place; the 3D world isn't touched.
+static func apply_ui_scale() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return
+	if is_equal_approx(tree.root.content_scale_factor, ui_scale / 100.0):
+		return
+	tree.root.content_scale_factor = ui_scale / 100.0
+	# (menus fit themselves to the screen again: see MenuStyle.enlarge)
+	tree.root.size_changed.emit()
+
+
+## The UI scale for this screen: 100% up to about 1080p, 125% at 1440p and 4K
+static func default_ui_scale() -> float:
+	if DisplayServer.get_name() == "headless":
+		return 100.0
+	var height := DisplayServer.screen_get_size().y
+	return 125.0 if height >= 1400 else 100.0
+
+
+static func _clean_ui_scale(value: float) -> float:
+	return clampf(snappedf(value, UI_SCALE_STEP), UI_SCALE_MIN, UI_SCALE_MAX)
 
 
 ## The windowed resolutions that fit this screen

@@ -1,6 +1,6 @@
 extends Control
 ## The hammer's build menu. It looks just like the inventory screen, with tabs across the top
-## (Q and E move between them), and lists every Buildable resource in res://buildables/ (and its
+## (Q and R move between them; E closes it), and lists every Buildable resource in res://buildables/ (and its
 ## folders) under the tab its `section` names. Adding a buildable never means changing this script.
 ##
 ## The Buildings tab has a row for each plot type: its templates (built-in ones, then the player's,
@@ -87,7 +87,11 @@ func _ready() -> void:
 			continue
 		_tab_pages[_tab_of(buildable)].add_child(_make_slot(buildable))
 	_fill_buildings_tab()
-	hint_label.text = "[Q] / [E] Change tab   [Tab] or [Esc] Close"
+	hint_label.text = "[Q] / [R] Change tab   [E], [Tab] or [Esc] Close"
+	# The palette (see BrassStyle)
+	(column.get_node("Title") as Label).add_theme_color_override("font_color", BrassStyle.HEADING)
+	detail_label.add_theme_color_override("font_color", BrassStyle.TEXT_DIM)
+	hint_label.add_theme_color_override("font_color", BrassStyle.TEXT_DIM)
 	_actions = TemplateActions.new()
 	add_child(_actions)
 	_actions.template_deleted.connect(func(template: BuildingTemplate):
@@ -210,6 +214,9 @@ func _load_buildables() -> Array[Buildable]:
 	files.sort()
 	for file in files:
 		var buildable := load(file) as Buildable
+		# (a retired tool isn't offered any more)
+		if buildable is PathTool and (buildable as PathTool).retired:
+			continue
 		if buildable:
 			if buildable is PieceBuildable:
 				(buildable as PieceBuildable).ensure_icon()
@@ -293,9 +300,19 @@ func _update_detail() -> void:
 		var plot_type := _hovered as PlotType
 		var housing := "  ·  One settler per bed" if not plot_type.houses_per.is_empty() else ""
 		detail_label.text = "Click to mark out an empty %s plot (free)  ·  Needs %s%s" % [plot_type.display_name, plot_type.requirements_text(), housing]
+	elif _hovered is PathTileType:
+		var tile := _hovered as PathTileType
+		if not tile.menu_hint.is_empty():
+			detail_label.text = tile.menu_hint
+		else:
+			detail_label.text = "Click to lay %s tiles (%s a tile)" % [tile.display_name.to_lower(), tile.cost_text()]
+		if not tile.can_afford(_inventory):
+			detail_label.text = "Missing %s" % tile.missing_text(_inventory)
 	elif _hovered is PathTool:
 		detail_label.text = (_hovered as PathTool).menu_hint if not (_hovered as PathTool).menu_hint.is_empty() else "Click to paint %s (free)" % _hovered.display_name
 	elif _hovered.can_afford(_inventory):
 		detail_label.text = "Click to place a %s" % _hovered.display_name
 	else:
 		detail_label.text = "Missing %s" % _hovered.missing_text(_inventory)
+	# What you're short of reads as an error; the rest quietly
+	detail_label.add_theme_color_override("font_color", BrassStyle.BAD if detail_label.text.begins_with("Missing") else BrassStyle.TEXT_DIM)

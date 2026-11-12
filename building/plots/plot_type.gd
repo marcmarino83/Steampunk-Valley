@@ -33,6 +33,11 @@ extends Buildable
 ## Storehouse's storage), it adds `town_storage_slots` slots to the shared pool. 0: none.
 @export var town_storage_item := ""
 @export var town_storage_slots := 0
+## Only one plot of this type in the village (the Village Center)
+@export var one_per_village := false
+## While it's working, visitors come to it and linger around its `work_at` item (the Village
+## Center's Bell Mast), to be recruited as settlers (see SettlerManager)
+@export var draws_visitors := false
 
 
 ## The day's output for these percentages (item -> amount), at full strength. Fixed amounts as

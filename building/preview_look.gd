@@ -17,7 +17,7 @@ const LOOKS := {
 	# (a soft white glow and a thin white outline: the real wood stays clearly visible; never orange)
 	State.VALID: [Color(1.0, 1.0, 1.0, 0.07), Color(1.0, 1.0, 1.0, 0.3), Color(1.0, 1.0, 1.0), 1.5],
 	# (a clear yellow, not gold)
-	State.WARN: [Color(1.0, 0.95, 0.3, 0.16), Color(1.0, 0.97, 0.45, 0.4), Color(1.0, 0.95, 0.25), 1.75],
+	State.WARN: [Color(BrassStyle.WARN, 0.16), Color(BrassStyle.WARN, 0.4), BrassStyle.WARN, 1.75],
 	State.INVALID: [Color(1.0, 0.16, 0.1, 0.3), Color(1.0, 0.3, 0.24, 0.55), Color(1.0, 0.18, 0.12), 2.0],
 	# (a template ghost under the crosshair: no tint, a light cool outline)
 	State.GHOST_TARGET: [Color(0.85, 0.9, 1.0, 0.0), Color(0.85, 0.9, 1.0, 0.25), Color(0.86, 0.9, 1.0), 1.5],

@@ -118,8 +118,14 @@ func snapshot(area: Rect2) -> Dictionary:
 	return {"origin": _origin, "tiles": found}
 
 
-## How much path there is at a spot in a snapshot (0 to 1; see snapshot). Safe on any thread.
+## How much path there is at a spot in a snapshot (0 to 1; see snapshot), with the laid path tiles
+## if the valley's snapshot carries them ("path_tiles", see PathTiles). Safe on any thread.
 static func sample_snapshot(shot: Dictionary, x: float, z: float) -> float:
+	var laid: float = PathTiles.sample_snapshot(shot["path_tiles"], x, z) if shot.has("path_tiles") else 0.0
+	return maxf(laid, _sample_painted(shot, x, z))
+
+
+static func _sample_painted(shot: Dictionary, x: float, z: float) -> float:
 	var tiles: Dictionary = shot["tiles"]
 	if tiles.is_empty():
 		return 0.0

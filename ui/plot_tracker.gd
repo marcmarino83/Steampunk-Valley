@@ -11,9 +11,9 @@ const EDGE := 24.0
 const LINE_WIDTH := 320.0
 ## How quickly it fades in and out (per second)
 const FADE := 9.0
-const WORKING := Color(0.62, 0.92, 0.5)
-const MISSING := Color(1.0, 0.95, 0.3)
-const BUILDING := Color(0.6, 0.8, 1.0)
+const WORKING := BrassStyle.GOOD
+const MISSING := BrassStyle.WARN
+const BUILDING := BrassStyle.INFO
 
 ## The settlers (for a House's residents and a workplace's workers line)
 var settlers: SettlerManager

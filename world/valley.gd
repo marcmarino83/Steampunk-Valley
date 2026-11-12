@@ -173,6 +173,10 @@ const SET_LOOKS := {
 	"rock_cliff/Rock051": [4.0, Color(0.66, 0.64, 0.6)],
 	"rock_cliff/Rock022": [6.0, Color(0.74, 0.72, 0.69)],
 	"rock_cliff/Rocks011": [2.5, Color(0.82, 0.8, 0.76)],
+	# The player's path tiles (see PathTiles): dirt, gravel and laid stone
+	"paths/dirt/Ground103": [2.5, Color(0.86, 0.82, 0.76)],
+	"paths/gravel/Ground110": [2.0, Color(0.9, 0.88, 0.84)],
+	"paths/stone/Bricks089": [2.2, Color(0.86, 0.84, 0.8)],
 }
 
 @export_group("Ground sculpt")
@@ -320,6 +324,9 @@ const PREVIEW_EVERY := 40
 ## The dirt paths the player has painted in the game with the hammer (see PaintedPaths); none in
 ## the editor
 var painted_paths: PaintedPaths
+## The path tiles the player lays with the Paths tab's Dirt, Gravel and Stone (see PathTiles);
+## none in the editor
+var path_tiles: PathTiles
 
 # Counts rebuild requests, so a burst of them (like dragging a marker) only rebuilds once
 var _rebuild_ticket := 0
@@ -340,6 +347,11 @@ func _ready() -> void:
 		painted_paths.valley = self
 		add_child(painted_paths)
 		painted_paths.setup(map_rect(), _ground)
+		path_tiles = PathTiles.new()
+		path_tiles.name = "PathTiles"
+		path_tiles.valley = self
+		add_child(path_tiles)
+		path_tiles.setup(map_rect(), _ground)
 		_place_player()
 		var respawner := Respawner.new()
 		respawner.name = "Respawner"
@@ -717,8 +729,8 @@ func find_dry_spot(near: Vector2) -> Vector2:
 func generate() -> void:
 	# Clear out the old terrain before building a new one
 	for child in get_children():
-		# (painted paths are the player's, and stay)
-		if child == painted_paths:
+		# (painted paths and path tiles are the player's, and stay)
+		if child == painted_paths or child == path_tiles:
 			continue
 		remove_child(child)
 		child.queue_free()
@@ -729,6 +741,8 @@ func generate() -> void:
 	_apply_texture_sets()
 	if painted_paths:
 		painted_paths.setup(map_rect(), _ground)
+	if path_tiles:
+		path_tiles.setup(map_rect(), _ground)
 	_base_heights = _heights.duplicate()
 	_preview_start = PackedFloat32Array()
 	for layer in [_trail_mask, _trail_cover, _trail_noise, _trail_grass, _forest_floor]:
@@ -2223,15 +2237,20 @@ func trail_amount(x: float, z: float) -> float:
 	return _sample_layer(_trail_mask, x, z)
 
 
-## How much painted dirt path (see PaintedPaths) there is at a spot: 0 = none, 1 = bare path
+## How much path (painted dirt, see PaintedPaths, or laid path tiles, see PathTiles) there is at a
+## spot: 0 = none, 1 = bare path
 func painted_path_amount(x: float, z: float) -> float:
-	return painted_paths.amount_at(x, z) if painted_paths else 0.0
+	var painted := painted_paths.amount_at(x, z) if painted_paths else 0.0
+	return maxf(painted, path_tiles.amount_at(x, z) if path_tiles else 0.0)
 
 
-## The painted paths reaching into this area (x, z), as a snapshot a worker thread can read
-## with PaintedPaths.sample_snapshot
+## The paths (painted and tiled) reaching into this area (x, z), as a snapshot a worker thread can
+## read with PaintedPaths.sample_snapshot
 func painted_path_snapshot(area: Rect2) -> Dictionary:
-	return painted_paths.snapshot(area) if painted_paths else {"origin": Vector2.ZERO, "tiles": {}}
+	var shot: Dictionary = painted_paths.snapshot(area) if painted_paths else {"origin": Vector2.ZERO, "tiles": {}}
+	if path_tiles:
+		shot["path_tiles"] = path_tiles.snapshot(area)
+	return shot
 
 
 ## True if the trail here has Edge Grass on: grass grows in tufts along its edges, and in a
@@ -2422,7 +2441,13 @@ static var _set_cache := {}
 ## with several, each is named after the folder and the set.
 func texture_sets() -> Array:
 	var found := []
-	for folder in DirAccess.get_directories_at(TEXTURE_FOLDER):
+	# Each folder, and the folders inside it (paths/dirt, paths/gravel...), named "paths/dirt"
+	var folders: Array[String] = []
+	for top in DirAccess.get_directories_at(TEXTURE_FOLDER):
+		folders.append(top)
+		for inner in DirAccess.get_directories_at(TEXTURE_FOLDER.path_join(top)):
+			folders.append(top + "/" + inner)
+	for folder in folders:
 		var sets := []
 		for file in DirAccess.get_files_at(TEXTURE_FOLDER.path_join(folder)):
 			var ext := file.get_extension().to_lower()
@@ -2432,7 +2457,8 @@ func texture_sets() -> Array:
 		for file: String in sets:
 			var prefix := file.get_basename().trim_suffix("_Color")
 			var short := prefix.trim_suffix("_2K-JPG").trim_suffix("_1K-JPG").trim_suffix("_4K-JPG").trim_suffix("_2K-PNG")
-			var title := folder.capitalize() if sets.size() == 1 else "%s (%s)" % [folder.capitalize(), short]
+			var folder_name := folder.replace("/", " ").capitalize()
+			var title := folder_name if sets.size() == 1 else "%s (%s)" % [folder_name, short]
 			found.append({"id": folder + "/" + short, "name": title, "color": TEXTURE_FOLDER.path_join(folder).path_join(file), "prefix": TEXTURE_FOLDER.path_join(folder).path_join(prefix), "folder": folder})
 	found.sort_custom(func(a, b): return a["id"] < b["id"])
 	return found.slice(0, MAX_TEXTURE_SETS)
@@ -2484,6 +2510,13 @@ func _apply_texture_sets() -> void:
 	for job in [["forest_set", forest_floor_set], ["gravel_set", gravel_set], ["path_set", path_set], ["light_soil_set", light_soil_set], ["dark_soil_set", dark_soil_set], ["rock_set", rock_set],
 			["mossy_rock_set", mossy_rock_set], ["cliff_rock_set", cliff_rock_set], ["scree_set", scree_set]]:
 		_ground.set_shader_parameter(job[0], _set_index(job[1]))
+	# The path tiles' looks, by rank (see PathTiles): which set each draws, and its edge
+	var path_sets := PackedInt32Array()
+	for id: String in PathTiles.RANK_SETS:
+		path_sets.append(_set_index(id) if not id.is_empty() else -1)
+	_ground.set_shader_parameter("path_type_set", path_sets)
+	_ground.set_shader_parameter("path_type_on", true)
+	_ground.set_shader_parameter("path_type_edge", PackedVector4Array(PathTiles.RANK_EDGES))
 
 
 # The layer a set is in (by id), or -1 if there's no such set
@@ -2507,9 +2540,13 @@ func _build_set_arrays(sets: Array, key: String) -> Dictionary:
 		for m in SET_MAPS.size():
 			var image := _set_image(set["prefix"], SET_MAPS[m], m == 1)
 			# A set without an AO map borrows a plain white one (and the material knows to
-			# ignore it); every other map has to be there
+			# ignore it); one without a Displacement map takes its height from its AO map (the
+			# path sets: gravel's stones and the paving's slabs stand up from their dark gaps);
+			# every other map has to be there
 			if image == null and m == 3:
 				image = null
+			elif image == null and m == 4 and images[3] != null:
+				image = images[3]
 			elif image == null:
 				push_warning("Valley: texture set %s has no %s map, so it's left out" % [set["id"], SET_MAPS[m]])
 				ok = false

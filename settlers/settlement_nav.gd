@@ -85,7 +85,7 @@ func _update_tiles() -> void:
 			var reach := half.length() + PLOT_MARGIN
 			_want_around(wanted, plot.global_position, reach)
 	if settlers:
-		for settler in settlers.all_settlers():
+		for settler in settlers.all_settlers() + settlers.all_visitors():
 			_want_around(wanted, settler.global_position, SETTLER_MARGIN)
 	for key in _tiles.keys():
 		if not wanted.has(key):

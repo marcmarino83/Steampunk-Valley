@@ -618,7 +618,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_note_panel.close()
 		return
 
-	# While the build menu is open, Q and E change tab, Tab or Esc closes it, and nothing else happens
+	# While the build menu is open, Q and R change tab, E, Tab or Esc closes it, and nothing else
+	# happens (E only ever closes panels and interacts)
 	if build_menu.visible:
 		# A template's Rename / Delete is showing: it has the keys (Esc steps back out of it)
 		if build_menu.template_actions_open():
@@ -626,11 +627,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		var key: bool = event is InputEventKey and event.pressed and not event.echo
 		if key and event.keycode == KEY_Q:
 			build_menu.cycle_tab(-1)
-		elif key and event.keycode == KEY_E:
+		elif key and event.keycode == KEY_R:
 			build_menu.cycle_tab(1)
-		elif (key and event.keycode == KEY_TAB) or event.is_action_pressed("ui_cancel"):
+		elif (key and event.keycode in [KEY_E, KEY_TAB]) or event.is_action_pressed("ui_cancel"):
 			_close_build_menu()
 		return
+
+	# The inventory: Q and R switch between its Inventory and Crafting tabs, E closes it
+	if inventory_screen.visible and event is InputEventKey and event.pressed and not event.echo:
+		match event.keycode:
+			KEY_Q:
+				inventory_screen.show_tab(false)
+				return
+			KEY_R:
+				inventory_screen.show_tab(true)
+				return
+			KEY_E:
+				_toggle_inventory()
+				return
 
 	# With the hammer out, placing or not: holding the middle button picks the piece under the
 	# crosshair (it glows red), and letting go takes it down
@@ -991,7 +1005,13 @@ func is_unlocked(blueprint: Blueprint) -> bool:
 	return not blueprint.starts_locked or _unlocked.has(blueprint)
 
 
-## Something was crafted, gathered or built ("Craft", "Gather" or "Build", and its name). It's
+## True if this has been done ("Craft", "Gather", "Build" or "Plot", and its name)
+func has_done(action: String, item: String) -> bool:
+	return _done.has("%s:%s" % [action, item])
+
+
+## Something was crafted, gathered or built ("Craft", "Gather" or "Build", and its name), or a plot
+## of a type is working ("Plot", and the type's name). It's
 ## remembered, and any blueprint whose conditions are now all met unlocks, with a pop-up for each.
 func report_progress(action: String, item: String) -> void:
 	_done["%s:%s" % [action, item]] = true

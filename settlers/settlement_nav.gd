@@ -7,7 +7,8 @@ extends Node3D
 ## and rocks. Doors are left out, so settlers path through doorways (they open doors as they pass).
 ##
 ## Once a second every tile's pieces are looked over; a tile whose pieces were placed, demolished
-## or moved since it was baked is baked again (one tile per physics frame, so nothing hitches).
+## or moved since it was baked is baked again (one tile at a time, the bake itself on a worker thread,
+## so nothing hitches).
 ## Neighbouring tiles join up seamlessly (each is baked with a border of the ground around it).
 
 const TILE := 32.0
@@ -38,6 +39,8 @@ var settlers: Node
 var _tiles := {}
 var _queue: Array[Vector2i] = []
 var _check_in := 0.0
+# Tiles being baked on a worker thread right now (see _bake)
+var _baking := {}
 
 
 func _ready() -> void:
@@ -68,7 +71,8 @@ func _physics_process(delta: float) -> void:
 		var timing := SpikeLog.begin()
 		_update_tiles()
 		SpikeLog.end("settler navigation: what changed", timing)
-	if not _queue.is_empty():
+	# (one tile at a time: a tile still baking waits, so its newer bake can't land before the older)
+	if not _queue.is_empty() and _baking.is_empty():
 		var key: Vector2i = _queue.pop_front()
 		if _tiles.has(key):
 			var timing := SpikeLog.begin()
@@ -163,11 +167,21 @@ func _bake(key: Vector2i) -> void:
 	navmesh.cell_height = 0.25
 	navmesh.border_size = BORDER
 	navmesh.filter_baking_aabb = AABB(Vector3(area.position.x, heights.x - 5.0, area.position.y), Vector3(area.size.x, heights.y - heights.x + 40.0, area.size.y))
-	NavigationServer3D.bake_from_source_geometry_data(navmesh, source)
-	_finish(key, navmesh)
+	# (baked on a worker thread: the bake itself took 6 to 12 ms on the main thread, a hitch each time
+	# a piece placed nearby changed the tile; the tile keeps its old mesh until the new one is in)
+	_baking[key] = true
+	NavigationServer3D.bake_from_source_geometry_data_async(navmesh, source, _baked.bind(key, navmesh))
+
+
+# A tile's bake is done (called from the bake's thread): handed back to the main thread
+func _baked(key: Vector2i, navmesh: NavigationMesh) -> void:
+	_finish.call_deferred(key, navmesh)
 
 
 func _finish(key: Vector2i, navmesh: NavigationMesh) -> void:
+	_baking.erase(key)
+	if not _tiles.has(key):
+		return
 	var tile: Dictionary = _tiles[key]
 	(tile["region"] as NavigationRegion3D).navigation_mesh = navmesh if navmesh else NavigationMesh.new()
 	tile["baked"] = true

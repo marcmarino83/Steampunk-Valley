@@ -81,7 +81,7 @@ func _run() -> void:
 	for r in reasons:
 		lines.append([reasons[r], r])
 	lines.sort_custom(func(a, b): return a[0] > b[0])
-	print("RR SUMMARY all templates: %d pieces; exact by the centre aim %d; exact by the joint aim (where the centre aim failed) %d; not back either way %d; off the grid (listed, not counted) %d; hidden (aimed at the piece they joined) %d" % [total[0], total[1], total[2], total[0] - total[1] - total[2], off_grid, hidden])
+	print("RR SUMMARY all templates: %d pieces; exact by the centre aim %d; exact by the joint aim (where the centre aim failed) %d; not back either way %d; off the grid (listed, not counted) %d; hidden (aimed at the piece they joined) %d; nothing skipped (every piece of every template tried)" % [total[0], total[1], total[2], total[0] - total[1] - total[2], off_grid, hidden])
 	for l in lines:
 		print("RR REASON %d × %s" % [l[0], l[1]])
 	var names := by_shape.keys()
@@ -301,6 +301,10 @@ func _edge_story(buildable: PieceBuildable, was: Transform3D) -> String:
 				var cm := pp._where * PieceShapes.bounds_of(def).get_center()
 				chosen = "; chosen: body %.3f m, middle %.2f m from the line, %d edges matched" % [SnapEdges.box_distance(pp._where, PieceShapes.bounds_of(def), _last_eye, _last_end),
 					SnapEdges.point_segment(cm, _last_eye, _last_end), SnapEdges.matched(buildable.shape, def, pp._where, edges)]
+				# (the placer's own ranking keys, the right fit's among them: see ValheimPlacer._edge_fit)
+				var keys := func(r: Dictionary) -> String: return "[%.2f m off: side %d, aim %d, body %d, matched %d, line %.2f]" % [(r["origin"] as Vector3).distance_to(was.origin), r.get("side", -1), r.get("at_hit", -1), r["body"], r["matched"], r["line"]]
+				var right_one: Array = pp.last_ranking.filter(func(r): return (r["origin"] as Vector3).distance_to(was.origin) < EXACT)
+				chosen += "; placer's top fits %s; the right fit %s" % [" ".join(pp.last_ranking.slice(0, 3).map(keys)), keys.call(right_one[0]) if not right_one.is_empty() else "not ranked"]
 			return "%s; the right fit exists (along %s's %s, body %.3f m from the line, middle %.2f m from it, %d edges matched, taken %s)%s" % [did, _name(c["piece"]), c["at"]["type"], body,
 				SnapEdges.point_segment(middle, _last_eye, _last_end), SnapEdges.matched(buildable.shape, def, w, edges), pp._taken(w, pieces), chosen]
 	return "%s; no fit to where it was from the edges round it" % did

@@ -658,8 +658,14 @@ func _door(height := PieceShapes.DOOR_HEIGHT) -> void:
 # `bottom`. The top stays at (or a hair under) 0. The base fills the outline exactly: its sides
 # are the floor's edge faces, in the planes of its snap corners, where a hung flight's header
 # board meets them.
+#
+# Layers (see layer): the planks are the top surface, baked for the far look; a plain floor's base,
+# whose sides are its edge faces, is trim (real geometry in the far look). Records the top facet.
 func _floor(outline: PackedVector2Array, bottom: float, plank_depth := 0.05) -> void:
+	_top_facet(outline, plank_depth, 0.005, plank_depth - 0.005)
+	_part(bottom < -plank_depth - 0.01)
 	prism(outline, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, bottom, -plank_depth + 0.002, 0.0, _wood_shade(0.55), WOOD, _generic_uv(), 0)
+	_part(false)
 	var lo := INF
 	var hi := -INF
 	var left := INF
@@ -697,9 +703,23 @@ func _floor(outline: PackedVector2Array, bottom: float, plank_depth := 0.05) -> 
 		z += w
 
 
-# A wood foundation: stacked logs along the given outer edges, a plank deck on top, a dark core
+# A floor's or foundation's top, recorded as a facet for its far look's bake (see WallBaker): its
+# outline at the top (x, z) seen from straight above, the facet's plane `depth` under the top (the
+# planks' or flagstones' underside: the slab's top is `depth` above it), and how deep its gaps and its
+# faces sit for the bake's shading (see wall_bake.gdshader: measured up from the facet's plane)
+func _top_facet(outline: PackedVector2Array, depth: float, core: float, face: float) -> void:
+	var poly := PackedVector2Array()
+	for p in outline:
+		poly.append(Vector2(p.x, -p.y))
+	facets.append({"o": Vector3(0, -depth, 0), "u": Vector3.RIGHT, "s": Vector3.FORWARD, "n": Vector3.UP, "poly": poly,
+		"lift": depth, "core": core, "face": face, "top_only": true})
+
+
+# A wood foundation: stacked logs along the given outer edges, a plank deck on top, a dark core.
+# The deck is the top surface (see layer); the core and logs are trim.
 func _foundation_wood(outline: PackedVector2Array, edges: Array) -> void:
 	_floor(outline, -0.06, 0.06)
+	_part(true)
 	prism(_inset(outline, 0.18), Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, -PieceShapes.FOUNDATION_DEPTH, -0.06, 0.0, Color(1, 1, 1), DARK, _generic_uv(), 0)
 	var course := PieceShapes.COURSE
 	var centre := _centroid(outline)
@@ -754,9 +774,13 @@ func _end_cut(edges: Array, corner: Vector2, other: Vector2, centre: Vector2, y:
 
 
 # A stone foundation: courses of irregular bevelled blocks along the given outer edges, flagstones
-# on top, dark mortar showing between them
+# on top, dark mortar showing between them. The flagstones and their bed are the top surface (see
+# layer); the core and the stone courses are trim.
 func _foundation_stone(outline: PackedVector2Array, edges: Array) -> void:
+	_top_facet(outline, 0.08, 0.068, 0.078)
+	_part(true)
 	prism(_inset(outline, 0.03), Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, -PieceShapes.FOUNDATION_DEPTH, -0.01, 0.0, Color(1, 1, 1), DARK, _generic_uv(), 0)
+	_part(false)
 	# The flagstones' mortar bed fills the outline exactly, so the piece is drawn right to its edges
 	# and corners (even a round wedge's point, where no stone reaches)
 	prism(outline, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, -0.08, -0.01, 0.0, Color(1, 1, 1), DARK, _generic_uv(), 0)
@@ -774,6 +798,7 @@ func _foundation_stone(outline: PackedVector2Array, edges: Array) -> void:
 	var centre := _centroid(outline)
 	var y := -0.08
 	var row := 0
+	_part(true)
 	while y > -STONE_SHOWN_DEPTH:
 		var h := rng.randf_range(0.26, 0.4)
 		for e in edges:

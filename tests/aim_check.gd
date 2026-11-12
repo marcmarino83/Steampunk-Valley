@@ -73,18 +73,26 @@ func _run() -> void:
 	var stopped := false
 	# (`-- <name>`: only the templates whose file name contains it, to cover ones the budget cuts off)
 	var only: String = OS.get_cmdline_user_args()[0] if not OS.get_cmdline_user_args().is_empty() else ""
-	for file in DirAccess.get_files_at(BuildingTemplate.BUILT_IN_FOLDER):
-		if not file.ends_with(".json") or stopped or (only != "" and not file.contains(only)):
+	var mine := Array(DirAccess.get_files_at(BuildingTemplate.BUILT_IN_FOLDER)).filter(func(f): return f.ends_with(".json") and (only == "" or f.contains(only)))
+	print("AIM SUITE: %s: %s" % ["templates matching \"%s\"" % only if only != "" else "every template", ", ".join(mine)])
+	var skipped := []
+	for file in mine:
+		if stopped:
+			skipped.append(file)
 			continue
 		stopped = not await _template(BuildingTemplate.BUILT_IN_FOLDER.path_join(file), types)
+		if stopped:
+			skipped.append(file + " (partly)")
 	var families := by_family.keys()
 	families.sort()
 	for f in families:
 		var c: Array = by_family[f]
 		print("AIM FAMILY %s: %d of %d tries pass (%.1f%%); hanging from a point %d; too far from the crosshair %d" % [f, c[1], c[0], 100.0 * c[1] / maxf(c[0], 1), c[2], c[3]])
-	print("AIM SUMMARY: %d piece types, %d views per template%s; converted families' failed tries: %d" % [types.size(), VIEWS, " (stopped early: time budget)" if stopped else "", converted_failed])
+	if not skipped.is_empty():
+		print("AIM SKIPPED (time budget %d s): %s (counted as a failure; run them as their own chunk: -- <template>)" % [int(BUDGET), ", ".join(skipped)])
+	print("AIM SUMMARY: %d piece types, %d views per template, %d templates; failed tries: %d; %s" % [types.size(), VIEWS, mine.size(), converted_failed, "SKIPPED %d templates" % skipped.size() if not skipped.is_empty() else "nothing skipped"])
 	bp.cancel()
-	get_tree().quit(converted_failed)
+	get_tree().quit(converted_failed + skipped.size())
 
 
 # Every building piece type (furniture left out)

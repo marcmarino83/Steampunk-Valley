@@ -1,8 +1,12 @@
 extends Node
-## The snapping regression test: run headless after any change to building, snapping or placement
-## code (CLAUDE.md), and fix any failure before reporting:
-##
-##     godot --headless --path . res://tests/snap_regression.tscn --quit-after 40000
+## The snapping regression test, in two suites (see _cases; tests/run_suite.ps1 runs either):
+##   - quick (the default; after every change, CLAUDE.md): the core snap of each family, the cases from
+##     the latest fixes, and the snap audit on one buildable of each family. Under a minute.
+##         godot --headless --path . res://tests/snap_regression.tscn --quit-after 40000
+##   - full (before a commit): every case, in PARTS parts run separately, each well inside its limit:
+##         godot --headless --path . res://tests/snap_regression.tscn --quit-after 40000 -- --suite=full --part=1
+## The first line says which suite (and part) ran; a run past its time budget stops, lists the cases it
+## skipped ("SNAPTEST SKIPPED") and counts that as a failure; the summary says "nothing skipped" or not.
 ##
 ## It opens the world (a fresh one: nothing is loaded or saved), finds flat open ground, puts down
 ## what each case needs, and places pieces through the real placer (ValheimPlacer) the way a player
@@ -108,58 +112,111 @@ func _run() -> void:
 		await _case_template_joints()
 		_finish()
 		return
-	await _case_floor_beside()
-	await _case_hole()
-	await _case_wall_edge()
-	await _case_doorway()
-	await _case_roof()
-	await _case_pole_and_beam()
-	await _case_storey()
-	await _case_stairs()
-	await _case_foundation_height()
-	await _case_flight_joints()
-	await _case_raised_floor()
-	await _case_removed_neighbour()
-	await _case_stair_pairing()
-	await _case_stairs_grid()
-	await _case_collision_matches_look()
-	await _case_grid_saves()
-	await _case_template_joints()
-	await _case_common_joins()
-	await _case_stair_paths()
-	await _case_pillar_fan()
-	await _case_snap_toggle()
-	await _case_slender_full_circle()
-	await _case_triangle_beside_wall()
-	await _case_beam_lengths()
-	await _case_family_joins()
-	await _case_fixed_sizes()
-	await _case_floor_on_floor()
-	await _case_stairs_beside_walls()
-	await _case_under_floor()
-	await _case_wall_under_raised_foundation()
-	await _case_typed_snapping()
-	await _case_converted_families()
-	var half := PieceShapes.HALF_HEIGHT
-	await _case_turning("a half wall on top of a half wall", "structure/wall_half_2", "structure/wall_half_2", Vector3(0.6, half + 1.4, 3.2), Vector3(0.3, half, 0.0), Vector3(0, half, 0))
-	await _case_turning("a wall beside a wall", "structure/wall_2m", "structure/wall_2m", Vector3(3.6, 1.7, 3.2), Vector3(1.9, -0.03, 0.12), Vector3(2, 0, 0))
-	await _case_turning("a floor beside a floor", "structure/floor", "structure/floor", Vector3(0.3, 1.7, 5.0), Vector3(0.1, -0.03, 2.2), Vector3(0, 0, 2))
-	await _case_roof_along_slope()
-	await _case_inner_corner_valley()
-	await _case_overhang_on_slope()
-	await _case_walls_on_triangles()
-	await _case_point_pieces()
-	await _case_every_buildable()
-	await _audit()
-	# (last: it loads the user's own game in place of the fresh world)
-	await _case_user_snapshots()
+	# Which cases run: the quick suite (`-- --suite=quick`, the default) or one part of the full suite
+	# (`-- --suite=full --part=N`, see PARTS); every case is in the full suite exactly once
+	_suite = "quick"
+	_part = 0
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--suite="):
+			_suite = arg.trim_prefix("--suite=")
+		elif arg.begins_with("--part="):
+			_part = int(arg.trim_prefix("--part="))
+		elif arg.begins_with("--budget="):
+			_budget = float(arg.trim_prefix("--budget="))
+	var cases := _cases()
+	var chosen := cases.filter(func(c): return c["quick"] if _suite == "quick" else (c["part"] > 0 and (_part == 0 or c["part"] == _part)))
+	print("SNAPTEST SUITE: %s%s, %d cases" % [_suite, (" part %d of %d" % [_part, PARTS]) if _suite == "full" and _part > 0 else " (all parts)" if _suite == "full" else "", chosen.size()])
+	var started := Time.get_ticks_msec()
+	for c in chosen:
+		var t := Time.get_ticks_msec()
+		await (c["run"] as Callable).call()
+		print("SNAPTIME %s: %.1f s" % [c["name"], (Time.get_ticks_msec() - t) / 1000.0])
+		if (Time.get_ticks_msec() - started) / 1000.0 > _budget and c != chosen[-1]:
+			_skipped = chosen.slice(chosen.find(c) + 1).map(func(x): return x["name"])
+			break
 	_finish()
+
+
+## The full suite's parts (each run separately, well inside the 180 s limit)
+const PARTS := 2
+## Stop (and say what was skipped) past this many seconds, so a run never hits its hard limit
+## (`-- --budget=N` changes it, for measuring)
+const BUDGET := 150.0
+
+var _budget := BUDGET
+var _suite := "quick"
+var _part := 0
+var _skipped: Array = []
+
+
+# Every case: its name, how it's run, whether it's in the quick suite (the core snap of each family,
+# and the cases from the latest fixes), and its part of the full suite. The user's snapshots load
+# the user's own game in place of the fresh world, so they run last in their part.
+func _cases() -> Array:
+	var half := PieceShapes.HALF_HEIGHT
+	# (part 0: the quick suite only; measured times in the comments, from a full run)
+	var list := [
+		["floor beside", _case_floor_beside, true, 1],                      # 0.1 s
+		["hole", _case_hole, true, 1],                                      # 0.4 s
+		["wall edge", _case_wall_edge, true, 1],                            # 0.3 s
+		["doorway", _case_doorway, true, 1],                                # 0.2 s
+		["roof", _case_roof, true, 1],                                      # 0.2 s
+		["pole and beam", _case_pole_and_beam, true, 1],                    # 0.5 s
+		["storey", _case_storey, true, 1],                                  # 0.4 s
+		["stairs", _case_stairs, true, 1],                                  # 1.1 s
+		["foundation height", _case_foundation_height, true, 1],            # 0.5 s
+		["flight joints", _case_flight_joints, false, 1],                   # 9 s
+		["raised floor", _case_raised_floor, true, 1],                      # 0.4 s
+		["removed neighbour", _case_removed_neighbour, true, 1],            # 0.3 s
+		["stair pairing", _case_stair_pairing, false, 2],                   # 27 s
+		["stairs grid", _case_stairs_grid, false, 1],                       # 4 s
+		["collision matches look", _case_collision_matches_look, true, 1],  # 0.3 s
+		["grid saves", _case_grid_saves, true, 1],                          # 0.1 s
+		["template joints", _case_template_joints, true, 1],                # 1.8 s
+		["common joins", _case_common_joins, true, 1],                      # 2.1 s
+		["stair paths", _case_stair_paths, true, 1],                        # 0.2 s
+		["pillar fan", _case_pillar_fan, true, 1],                          # 0.6 s
+		["snap toggle", _case_snap_toggle, true, 1],                        # 0.7 s
+		["slender full circle", _case_slender_full_circle, false, 1],       # 8 s
+		["triangle beside wall", _case_triangle_beside_wall, true, 1],      # 0.4 s
+		["beam lengths", _case_beam_lengths, true, 1],                      # 0.0 s
+		["family joins", _case_family_joins, true, 1],                      # 2.3 s
+		["fixed sizes", _case_fixed_sizes, false, 2],                       # 27 s
+		["floor on floor", _case_floor_on_floor, true, 1],                  # 0.3 s
+		["stairs beside walls", _case_stairs_beside_walls, true, 1],        # 1.4 s
+		["under floor", _case_under_floor, true, 1],                        # 1.7 s
+		["wall under raised foundation", _case_wall_under_raised_foundation, true, 1],  # 0.3 s
+		["typed snapping", _case_typed_snapping, true, 1],                  # 1.1 s
+		["converted families", _case_converted_families, true, 1],          # 1.5 s
+		["crowded corners", _case_crowded_corners, true, 1],
+		["placement time", _case_placement_time, true, 1],
+		["turning: half wall on half wall", func(): await _case_turning("a half wall on top of a half wall", "structure/wall_half_2", "structure/wall_half_2", Vector3(0.6, half + 1.4, 3.2), Vector3(0.3, half, 0.0), Vector3(0, half, 0)), true, 1],
+		["turning: wall beside wall", func(): await _case_turning("a wall beside a wall", "structure/wall_2m", "structure/wall_2m", Vector3(3.6, 1.7, 3.2), Vector3(1.9, -0.03, 0.12), Vector3(2, 0, 0)), true, 1],
+		["turning: floor beside floor", func(): await _case_turning("a floor beside a floor", "structure/floor", "structure/floor", Vector3(0.3, 1.7, 5.0), Vector3(0.1, -0.03, 2.2), Vector3(0, 0, 2)), true, 1],
+		["roof along slope", _case_roof_along_slope, true, 1],              # 1.3 s
+		["inner corner valley", _case_inner_corner_valley, true, 1],        # 0.4 s
+		["overhang on slope", _case_overhang_on_slope, false, 1],           # 4.5 s
+		["walls on triangles", _case_walls_on_triangles, true, 1],          # 0.4 s
+		["point pieces", _case_point_pieces, true, 1],                      # 0.9 s
+		["every buildable", _case_every_buildable, false, 2],               # 21 s
+		# (last in part 2: it loads the user's house in place of the fresh world)
+		["the user's crowded house", _case_crowded_save, false, 2],
+		["snap audit (one of each family)", func(): await _audit(true), true, 0],
+		["snap audit", _audit, false, 1],                                   # 25 s
+		# (last: it loads the user's own game in place of the fresh world)
+		["user snapshots", _case_user_snapshots, false, 1],                 # 15 s
+	]
+	return list.map(func(c): return {"name": c[0], "run": c[1], "quick": c[2], "part": c[3]})
 
 
 func _finish() -> void:
 	pp.snap_on = true
 	bp.cancel()
-	print("SNAPTEST SUMMARY: %d passed, %d failed" % [passed, failed])
+	if not _skipped.is_empty():
+		print("SNAPTEST SKIPPED (time budget %d s): %d cases: %s" % [int(_budget), _skipped.size(), ", ".join(_skipped)])
+		failed += 1
+	var suite_name := _suite + ((" part %d of %d" % [_part, PARTS]) if _suite == "full" and _part > 0 else "")
+	print("SNAPTEST SUMMARY (%s): %d passed, %d failed; %s" % [suite_name, passed, failed, ("SKIPPED %d cases (counted as a failure)" % _skipped.size()) if not _skipped.is_empty() else "nothing skipped"])
 	get_tree().quit(failed)
 
 
@@ -541,6 +598,238 @@ func _case_typed_snapping() -> void:
 	var on_section: bool = pp.point_piece() and not pp._pair.is_empty() and _local(pp._where.origin).distance_to(section_top) < EXACT
 	_check("a chimney top on a chimney section: by its typed point", on_section and section != null, "typed points %s, snapped %s, foot %.4f m from the section's top" % [pp.point_piece(), not pp._pair.is_empty(), _local(pp._where.origin).distance_to(section_top)])
 	await _clear()
+
+
+## The crowded corner (see _case_crowded_corners): for each family, the wall-type pieces put into the
+## gap, the post at the gap's other end, and the wall that meets the gap at its corner (the other
+## family's height, so the corner's overlap is between walls of different heights: the old sinking
+## rule skipped exactly that)
+const CROWDED := {
+	"Standard": {"pieces": ["wall_2m", "wall_half_2", "wall_strip_2", "doorway_2m", "window_2m", "window_split_2_2m"], "post": "pillar_wood_2m", "meeting": "wall"},
+	"Tall": {"pieces": ["wall", "wall_half_2_tall", "wall_strip_2_tall", "doorway", "window", "window_split_2"], "post": "pillar_wood", "meeting": "wall_half_2"},
+}
+## A single placement, with what it sets off at once (the corner posts worked out again, the next
+## snap search), must take no longer than one frame at 60 fps (ms)
+const PLACEMENT_BUDGET := 1000.0 / 60.0
+
+
+# Every wall-type piece (walls, half walls, strips, doorways, windows, split windows), both families,
+# into a gap on a floor's edge bounded by a wall meeting it at its corner and a post at its other end,
+# at an L (the meeting wall ends there), a T (it carries on past) and an X (and the gap's line carries
+# on past the corner too), aimed from inside the room at the floor just inside the gap: each stands in
+# the gap on the floor's edge (its foot along it, upright, not sunk into the floor), never skipped as
+# sinking into the wall meeting it, nor hung in mid-air off that wall's end
+func _case_crowded_corners() -> void:
+	for family in CROWDED:
+		var spec: Dictionary = CROWDED[family]
+		for join in ["L", "T", "X"]:
+			_spawn("structure/floor", Vector3.ZERO)
+			_spawn("structure/" + spec["post"], Vector3(1, 0, 1))
+			_spawn("structure/" + spec["meeting"], Vector3(-1, 0, 0), 90.0)
+			if join != "L":
+				_spawn("structure/floor", Vector3(0, 0, 2))
+				_spawn("structure/" + spec["meeting"], Vector3(-1, 0, 2), 90.0)
+			if join == "X":
+				_spawn("structure/floor", Vector3(-2, 0, 0))
+				_spawn("structure/" + spec["meeting"], Vector3(-2, 0, 1))
+			await _frames(2)
+			var wrong := []
+			for shape in spec["pieces"]:
+				await _begin("structure/" + shape)
+				await _unsnap()
+				await _aim(Vector3(0.6, 1.7, -0.9), Vector3(0.3, 0.0, 0.85))
+				var at := _local(pp._where.origin)
+				var upright: bool = pp._where.basis.y.normalized().dot(Vector3.UP) > 0.999
+				if pp._pair.is_empty() or at.distance_to(Vector3(0, 0, 1)) > EXACT or not upright:
+					wrong.append("%s: %s at %s%s" % [shape, "snapped" if not pp._pair.is_empty() else "free", at.snapped(Vector3.ONE * 0.01), "" if upright else ", tilted"])
+			_check("crowded corner, %s family, %s join: every wall-type piece stands in the gap on the floor's edge (%s)" % [family, join, ", ".join(spec["pieces"])], wrong.is_empty(), "; ".join(wrong) if not wrong.is_empty() else "all %d in the gap" % (spec["pieces"] as Array).size())
+			await _clear()
+
+
+# A placement's cost: in a small built room, half walls placed one after another on its free floor
+# edges through the placer's own place call, standing still and only turning, as a player does; each
+# placement with what it sets off at once (the corner posts and ridge logs worked out again, the next
+# snap search) within one frame at 60 fps
+func _case_placement_time() -> void:
+	for x in [-2.0, 0.0, 2.0]:
+		for z in [-2.0, 0.0, 2.0]:
+			_spawn("structure/floor", Vector3(x, 0, z))
+	for x in [-2.0, 0.0, 2.0]:
+		_spawn("structure/wall_2m", Vector3(x, 0, -3))
+	for z in [-2.0, 0.0, 2.0]:
+		_spawn("structure/wall_2m", Vector3(-3, 0, z), 90.0)
+	await _frames(3)
+	var spots := [Vector3(0, 0, 1), Vector3(2, 0, 1), Vector3(1, 0, 0), Vector3(1, 0, 2), Vector3(-1, 0, 2), Vector3(0, 0, 3)]
+	var times := await _placements_timed("structure/wall_half_2", Vector3(0.2, 1.7, -1.6), spots)
+	var worst := _worst_step(times)
+	_check("a placement: each frame's share (the place call, the next snap search, the corner posts) within one frame at 60 fps (%.1f ms), in a small room" % PLACEMENT_BUDGET, times.size() == spots.size() and worst[0] <= PLACEMENT_BUDGET, "%d placed, worst %.2f ms; %s" % [times.size(), worst[0], worst[1]])
+	await _clear()
+
+
+# Places a piece at each of `spots` (the floor just inside an edge's middle, in the frame) through the
+# placer's own place call, from one eye, only turning to aim; each step a placement sets off timed on
+# its own, as each runs in a frame of its own in play: the place call (the click's frame), the next
+# snap search (the next physics frame) and the corner posts and ridge logs worked out again (0.2 s
+# later). [{"place", "search", "posts"} in ms] for those placed.
+func _placements_timed(path: String, eye: Vector3, spots: Array) -> Array:
+	var times := []
+	await _begin(path)
+	for spot in spots:
+		await _aim(eye, spot)
+		if pp._pair.is_empty() or not pp._problem.is_empty():
+			continue
+		var t := Time.get_ticks_usec()
+		pp._place()
+		var place := (Time.get_ticks_usec() - t) / 1000.0
+		# (the search's own stages timed by the spike logger, shown when it runs long)
+		var was_on := SpikeLog.enabled
+		SpikeLog.enabled = true
+		SpikeLog._times.clear()
+		SpikeLog._calls.clear()
+		t = Time.get_ticks_usec()
+		pp._follow_crosshair()
+		var search := (Time.get_ticks_usec() - t) / 1000.0
+		var stages := []
+		for k in SpikeLog._times:
+			stages.append("%s %.1f" % [str(k).trim_prefix("snap search: "), float(SpikeLog._times[k]) / 1000.0])
+		SpikeLog.enabled = was_on
+		t = Time.get_ticks_usec()
+		registry._joints._rebuild()
+		var posts := (Time.get_ticks_usec() - t) / 1000.0
+		times.append({"place": place, "search": search, "posts": posts, "stages": ", ".join(stages)})
+		await _frames(2)
+	bp.cancel()
+	return times
+
+
+# The worst single frame's work among timed placements (see _placements_timed), and a summary
+static func _worst_step(times: Array) -> Array:
+	var worst := 0.0
+	var text := []
+	for t in times:
+		worst = maxf(worst, maxf(t["place"], maxf(t["search"], t["posts"])))
+		text.append("%.1f/%.1f/%.1f%s" % [t["place"], t["search"], t["posts"], (" (search: %s)" % t["stages"]) if t["search"] > PLACEMENT_BUDGET / 2.0 else ""])
+	return [worst if not times.is_empty() else INF, "place/search/posts ms: " + ", ".join(text)]
+
+
+## The user's house (a copy of their save) and its crowded spots: [where the wall goes (the middle of
+## its foot), its turn in degrees]; at each, every wall type in PLACER_TYPES is aimed into the gap
+const CROWDED_SAVE := "res://tests/fixtures/crowded_corners/house_save.json"
+const CROWDED_SPOTS := [[Vector3(427.1, 39.51, 21.84), -180.0], [Vector3(428.1, 39.51, 22.84), 90.0], [Vector3(427.1, 37.01, 19.84), 0.0],
+	[Vector3(430.1, 37.01, 22.84), 90.0], [Vector3(442.53, 37.41, 39.04), 0.0], [Vector3(440.53, 37.41, 37.04), 0.0]]
+const PLACER_TYPES := ["wall", "wall_2m", "wall_half_2", "wall_half_2_tall", "doorway", "window_2m"]
+
+
+# The user's own house (their save, in which a Tall Wall aimed into a gap between a wall end and a post
+# sank into the floor and tilted, and a Half Wall wouldn't go where several walls meet): at each of
+# CROWDED_SPOTS (its upper storey's included, between Tall half walls and Tall walls meeting at right
+# angles), every wall type aimed into the gap from a clear view stands there on the floor's edge; then
+# half walls placed there one after another, standing still, each placement with what it sets off
+# within one frame at 60 fps. (Loads the save in place of the fresh world: last in its part.)
+func _case_crowded_save() -> void:
+	bp.cancel()
+	_hold_camera = false
+	SaveGame.load_save(ProjectSettings.globalize_path(CROWDED_SAVE))
+	player = null
+	for i in 4000:
+		await get_tree().process_frame
+		SaveGame._test_run = true
+		var found := get_tree().get_first_node_in_group("player")
+		if found and is_instance_valid(found) and found.is_inside_tree() and i > 200:
+			player = found
+			break
+	for i in 120:
+		await get_tree().process_frame
+		SaveGame._test_run = true
+	if player == null:
+		_check("the user's house loads", false, CROWDED_SAVE)
+		return
+	DevCheats.freebuild = true
+	player.set_physics_process(false)
+	player._on_held_changed("Hammer")
+	bp = player._placer
+	pp = bp._pieces
+	registry = bp.registry
+	O = Vector3.ZERO
+	var wrong := []
+	var tried := 0
+	for spot in CROWDED_SPOTS:
+		var edge := _floor_edge_under(spot[0], spot[1])
+		if edge.is_empty():
+			wrong.append("no floor edge under %s" % spot[0])
+			continue
+		var view := _clear_view(edge)
+		if view.is_empty():
+			wrong.append("no clear view of %s" % spot[0])
+			continue
+		for shape in PLACER_TYPES:
+			await _begin("structure/" + shape)
+			await _unsnap()
+			await _aim(view[0], view[1])
+			tried += 1
+			var ok := false
+			if not pp._pair.is_empty():
+				for p in SnapEdges.placements(shape, registry.shape_of(shape), 1.0, [edge]):
+					if p["own"]["type"] == "wall_base" and (p["where"] as Transform3D).origin.distance_to(pp._where.origin) < EXACT:
+						ok = true
+			if not ok:
+				wrong.append("%s at %s: %s at %s" % [shape, (spot[0] as Vector3).snapped(Vector3.ONE * 0.01), "snapped" if not pp._pair.is_empty() else "free", pp._where.origin.snapped(Vector3.ONE * 0.01)])
+	_check("the user's house: every wall type aimed into its crowded gaps (%d spots, upper storey included) stands in the gap on the floor's edge" % CROWDED_SPOTS.size(), wrong.is_empty() and tried > 0, "; ".join(wrong) if not wrong.is_empty() else "%d of %d right" % [tried, tried])
+	# The cost of placing there: half walls into the free edges round the first spot, standing still
+	# (the free edges, with no wall on them, within reach of one place to stand by a ground-floor spot:
+	# the upper storey has only two)
+	var view0 := _clear_view(_floor_edge_under(CROWDED_SPOTS[2][0], CROWDED_SPOTS[2][1]))
+	var stand: Vector3 = view0[0] if not view0.is_empty() else (CROWDED_SPOTS[2][0] as Vector3) + Vector3.UP * 1.7
+	var walls := registry.pieces_near(stand, 12.0).filter(func(p): return (p as BuildPiece).shape_name in SnapEdges.WALLS)
+	var free := []
+	for p in registry.pieces_near(stand, 8.0):
+		if not (p as BuildPiece).is_floor():
+			continue
+		for e in SnapEdges.in_world(p):
+			if e["type"] != "floor_edge" or absf((e["a"] as Vector3).y - (stand.y - 1.7)) > 0.05:
+				continue
+			var mid: Vector3 = ((e["a"] as Vector3) + (e["b"] as Vector3)) / 2.0
+			if Vector2(mid.x - stand.x, mid.z - stand.z).length() > 6.0:
+				continue
+			if walls.any(func(w): return SnapEdges.in_world(w).any(func(g): return g["type"] == "wall_base" and SnapEdges.along(g["a"], g["b"], e["a"], e["b"]))):
+				continue
+			free.append(mid - (e["out"] as Vector3) * 0.15)
+	var times := await _placements_timed("structure/wall_half_2", stand, free.slice(0, 10))
+	var worst := _worst_step(times)
+	_check("the user's house (%d pieces): a placement: each frame's share (the place call, the next snap search, the corner posts) within one frame at 60 fps (%.1f ms)" % [registry.all_pieces().size(), PLACEMENT_BUDGET], times.size() >= 3 and worst[0] <= PLACEMENT_BUDGET, "%d placed of %d free edges, worst %.2f ms; %s" % [times.size(), free.size(), worst[0], worst[1]])
+
+
+# The floor or foundation edge (typed) a wall's foot at `spot`, turned `yaw` degrees, stands along
+func _floor_edge_under(spot: Vector3, yaw: float) -> Dictionary:
+	for p in registry.pieces_near(spot, 4.0):
+		if not (p as BuildPiece).is_floor():
+			continue
+		for e in SnapEdges.in_world(p):
+			var mid: Vector3 = ((e["a"] as Vector3) + (e["b"] as Vector3)) / 2.0
+			if e["type"] == "floor_edge" and mid.distance_to(spot) < 0.02:
+				return e
+	return {}
+
+
+# A clear view into a gap along a floor edge, as a player would aim: the crosshair's first hit on the
+# floor just inside the edge, 30% along it (not at its middle, where a perpendicular edge may meet it
+# at a T), from inside or outside, 1.4 to 3 m off, straight on or a little to the side: [eye, aim
+# point], or empty
+func _clear_view(edge: Dictionary) -> Array:
+	if edge.is_empty():
+		return []
+	var along: Vector3 = ((edge["b"] as Vector3) - (edge["a"] as Vector3)).normalized()
+	var inward := -Vector3((edge["out"] as Vector3).x, 0, (edge["out"] as Vector3).z).normalized()
+	var mid: Vector3 = (edge["a"] as Vector3).lerp(edge["b"], 0.3)
+	for side in [inward, -inward]:
+		for d in [2.0, 3.0, 1.4]:
+			for slant in [0.6, -0.6, 0.0]:
+				var eye: Vector3 = mid + ((side as Vector3) + along * slant).normalized() * d + Vector3.UP * 1.7
+				var at: Vector3 = mid + (side as Vector3) * 0.15
+				var hit := pp._cast_ray(eye, eye + (at - eye) * 2.0)
+				if not hit.is_empty() and (hit["position"] as Vector3).distance_to(at) < 0.12:
+					return [eye, at]
+	return []
 
 
 # The families converted last (round floors and foundations, curved walls, ladders, railings, the
@@ -2702,11 +2991,17 @@ const AUDIT := [
 ]
 
 
-func _audit() -> void:
+#
+# `sample` (the quick suite): only one piece of each audit row (its first shape), a straight and a
+# diagonal beam, Stairs and Tall Half Stairs, the ladder, and one piece of furniture
+func _audit(sample := false) -> void:
 	var specs := {}
+	var picked := {"beam_2": true, "beam_diag_45": true, "stairs": true, "half_stairs_tall": true, "ladder": true}
 	for row in AUDIT:
 		for shape in row[0]:
 			specs[shape] = row
+		picked[row[0][0]] = true
+	var furniture_done := false
 	var wrong := []
 	var count := 0
 	for folder in ["res://buildables", "res://buildables/structure", "res://buildables/round", "res://buildables/furniture"]:
@@ -2716,6 +3011,15 @@ func _audit() -> void:
 			var buildable := load(folder.path_join(file)) as Buildable
 			if buildable == null or buildable is PlotType or buildable is TemplateBuildable:
 				continue
+			if sample:
+				var piece_shape: String = (buildable as PieceBuildable).shape if buildable is PieceBuildable else ""
+				var furniture: bool = piece_shape == "" or registry.shape_of(piece_shape).get("furniture", false)
+				if furniture:
+					if furniture_done:
+						continue
+					furniture_done = true
+				elif not picked.has(piece_shape):
+					continue
 			count += 1
 			var line: Array
 			if buildable is PieceBuildable and not registry.shape_of((buildable as PieceBuildable).shape).get("furniture", false):
@@ -2736,7 +3040,7 @@ func _audit() -> void:
 			if not line[2]:
 				wrong.append(buildable.display_name)
 			await _clear()
-	_check("snap audit: every buildable (%d) at its usual target comes out right" % count, wrong.is_empty() and count > 0, "wrong: %s" % ", ".join(wrong) if not wrong.is_empty() else "all %d" % count)
+	_check("snap audit: %s (%d) at its usual target comes out right" % ["one buildable of each family" if sample else "every buildable", count], wrong.is_empty() and count > 0, "wrong: %s" % ", ".join(wrong) if not wrong.is_empty() else "all %d" % count)
 
 
 # One building piece at its usual target: [snapped, corners met, right, note]

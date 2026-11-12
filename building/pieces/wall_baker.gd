@@ -1,6 +1,9 @@
 class_name WallBaker
 extends Node
-## The far look of the hybrid wood walls (see PieceRegistry.is_hybrid), baked from their own
+## The far looks of the hybrid pieces (see PieceRegistry.is_hybrid): walls (below), roofs (ROOFS) and
+## floors and foundations (FLOORS), each baked from its own close-up look.
+##
+## The far look of the hybrid wood walls, baked from their own
 ## close-up look: each shape's DETAIL_VARIANTS close-up meshes are drawn straight on, unlit, by an
 ## orthographic camera in a viewport of their own (wall_bake.gdshader), once for their colour and
 ## once for their surface (the normal, close-up normal map included, and how deep each face sits).
@@ -19,6 +22,7 @@ extends Node
 const BAKE_SHADER := preload("res://building/pieces/wall_bake.gdshader")
 const FAR_SHADER := preload("res://building/pieces/wall_far.gdshader")
 const ROOF_FAR_SHADER := preload("res://building/pieces/roof_far.gdshader")
+const FLOOR_FAR_SHADER := preload("res://building/pieces/floor_far.gdshader")
 ## The roof pieces with a hybrid look, at both pitches: roof panels, eaves, gable overhangs, inner
 ## and outer corners, hip ends, toppers and topper overhangs. Each shaked facet of their close-up look
 ## is baked straight on in its own plane, from above and from below (see _roof_layout), and their far
@@ -28,6 +32,13 @@ const ROOF_FAR_SHADER := preload("res://building/pieces/roof_far.gdshader")
 const ROOFS := ["roof", "roof_45", "eave_26", "eave_45", "gable_overhang_26", "gable_overhang_45",
 	"roof_inner_26", "roof_inner_45", "roof_outer_26", "roof_outer_45", "hip_end_26", "hip_end_45",
 	"topper_26", "topper_45", "topper_overhang_26", "topper_overhang_45"]
+## The floors and foundations with a hybrid look, wood and stone: square, 1 m (floor only), both
+## triangles and the round wedges, 45° and 22.5°. Their close-up look is baked from straight above (one
+## top facet, see PieceDetail) and their far look is a thin slab over the top with the close-up look's
+## sides kept as real geometry, drawn as up close (see far_mesh, floor_far.gdshader)
+const FLOORS := ["floor", "floor_1", "floor_rtri", "floor_tri45", "round_floor", "round_floor_22",
+	"foundation_wood", "foundation_wood_rtri", "foundation_wood_tri45", "round_foundation_wood", "round_foundation_wood_22",
+	"foundation_stone", "foundation_stone_rtri", "foundation_stone_tri45", "round_foundation_stone", "round_foundation_stone_22"]
 ## A roof's far slab: how far its top lies out from the deck's underside along the facet (level with
 ## the fascia boards' tops; the shakes' tops average about this), and the margin baked round each facet
 const ROOF_TOP := 0.135
@@ -97,7 +108,12 @@ func far_material(shape: String, variant: int) -> ShaderMaterial:
 	if not _materials.has(key):
 		for v in PieceRegistry.DETAIL_VARIANTS:
 			var material := ShaderMaterial.new()
-			material.shader = ROOF_FAR_SHADER if is_roof(shape) else FAR_SHADER
+			material.shader = ROOF_FAR_SHADER if is_roof(shape) else (FLOOR_FAR_SHADER if is_floor(shape) else FAR_SHADER)
+			# (a floor's far look draws its sides as the close-up look does, with the same textures)
+			if is_floor(shape):
+				var detail := registry.detail_material()
+				for param in ["wood_albedo", "wood_normal", "wood_rough", "stone_albedo", "stone_normal", "stone_rough"]:
+					material.set_shader_parameter(param, detail.get_shader_parameter(param))
 			_materials[_key(shape, v)] = material
 		if not _load_cached(shape):
 			_queue.append(shape)
@@ -111,14 +127,24 @@ func prepare_all() -> void:
 		far_material(shape, 0)
 
 
-## Every hybrid wall and roof shape (see PieceRegistry.is_hybrid)
+## Every hybrid wall, roof and floor shape (see PieceRegistry.is_hybrid)
 static func all_shapes() -> Array:
-	return SnapEdges.WALLS + SnapEdges.TRIANGLES + ROOFS
+	return SnapEdges.WALLS + SnapEdges.TRIANGLES + ROOFS + FLOORS
 
 
 ## A hybrid roof shape (see ROOFS)
 static func is_roof(shape: String) -> bool:
 	return shape in ROOFS
+
+
+## A hybrid floor or foundation shape (see FLOORS)
+static func is_floor(shape: String) -> bool:
+	return shape in FLOORS
+
+
+## A shape baked by its facets, with a far mesh of its own (a roof or a floor), not a wall's slab
+static func is_faceted(shape: String) -> bool:
+	return shape in ROOFS or shape in FLOORS
 
 
 ## True once this far look has its bake
@@ -173,7 +199,7 @@ func _bake_queued() -> void:
 	_baking = true
 	while not _queue.is_empty():
 		var shape: String = _queue.pop_front()
-		if is_roof(shape):
+		if is_faceted(shape):
 			await _bake_roof(shape)
 		else:
 			await _bake(shape)
@@ -253,6 +279,11 @@ func _bake(shape: String) -> void:
 ## the bake's frame; and the variant's trim (fascia and barge boards, rafters, logs: PieceRegistry
 ## roof_parts) as real geometry in plain colours (TRIM_COLORS), so the roof's edges don't change at
 ## the switch. Vertex colour alpha says which is which (see roof_far.gdshader). Made once.
+## A floor's or foundation's (FLOORS) is the same with one facet, its top (baked from above only: the
+## slab's underside, inside the piece, takes the top's colours unmapped), and its trim (a floor's base,
+## a foundation's core, logs and stone courses) kept exactly as the close-up look draws it: its texture
+## coordinates, what each part is made of and its tangents (see floor_far.gdshader), so its sides don't
+## change at the switch.
 func far_mesh(shape: String, variant: int) -> ArrayMesh:
 	var key := _key(shape, variant)
 	if _far_meshes.has(key):
@@ -262,12 +293,14 @@ func far_mesh(shape: String, variant: int) -> ArrayMesh:
 	var atlas := Vector2(layout["pixels"])
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for i in range(0, tiles.size(), 2):
+	for i in tiles.size():
 		var top: Dictionary = tiles[i]
-		var bottom: Dictionary = tiles[i + 1]
+		if not top["top"]:
+			continue
 		var f: Dictionary = top["facet"]
+		var bottom: Dictionary = tiles[i + 1] if i + 1 < tiles.size() and not tiles[i + 1]["top"] and tiles[i + 1]["facet"] == f else {}
 		var n: Vector3 = f["n"]
-		var lift := n * ROOF_TOP
+		var lift := n * float(f.get("lift", ROOF_TOP))
 		var poly: PackedVector2Array = f["poly"]
 		var pts: Array[Vector3] = []
 		for p in poly:
@@ -276,7 +309,10 @@ func far_mesh(shape: String, variant: int) -> ArrayMesh:
 		for k in range(0, tris.size(), 3):
 			var corners: Array[Vector3] = [pts[tris[k]], pts[tris[k + 1]], pts[tris[k + 2]]]
 			_far_tri(st, corners.map(func(p): return p + lift), corners.map(func(p): return _tile_uv(top, p, atlas)), n, top["basis"].x, true)
-			_far_tri(st, corners, corners.map(func(p): return _tile_uv(bottom, p, atlas)), -n, bottom["basis"].x, true)
+			if bottom.is_empty():
+				_far_tri(st, corners, corners.map(func(p): return _tile_uv(top, p, atlas)), -n, top["basis"].x, false)
+			else:
+				_far_tri(st, corners, corners.map(func(p): return _tile_uv(bottom, p, atlas)), -n, bottom["basis"].x, true)
 		# The narrow faces round its edges, coloured as the top's edge
 		var middle := Vector3.ZERO
 		for p in pts:
@@ -292,10 +328,43 @@ func far_mesh(shape: String, variant: int) -> ArrayMesh:
 			var uv_b := _tile_uv(top, b, atlas)
 			_far_tri(st, [a, b, b + lift], [uv_a, uv_b, uv_b], out, along, false)
 			_far_tri(st, [a, b + lift, a + lift], [uv_a, uv_b, uv_a], out, along, false)
-	_append_trim(st, registry.roof_parts(shape, variant)["trim"])
+	if is_floor(shape):
+		_append_trim_as_drawn(st, registry.roof_parts(shape, variant)["trim"])
+	else:
+		_append_trim(st, registry.roof_parts(shape, variant)["trim"])
 	var mesh := st.commit()
 	_far_meshes[key] = mesh
 	return mesh
+
+
+# A close-up trim mesh's triangles added to a far look exactly as drawn up close: the same winding,
+# normals, tangents, texture coordinates, shades and what each part is made of (UV2.x), with vertex
+# colour alpha 0 so floor_far.gdshader draws them as piece_detail.gdshader does
+static func _append_trim_as_drawn(st: SurfaceTool, trim: Mesh) -> void:
+	if trim == null:
+		return
+	for s in trim.get_surface_count():
+		var arrays := trim.surface_get_arrays(s)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		var tangents: PackedFloat32Array = arrays[Mesh.ARRAY_TANGENT] if arrays[Mesh.ARRAY_TANGENT] != null else PackedFloat32Array()
+		var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR] if arrays[Mesh.ARRAY_COLOR] != null else PackedColorArray()
+		var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV] if arrays[Mesh.ARRAY_TEX_UV] != null else PackedVector2Array()
+		var kinds: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV2] if arrays[Mesh.ARRAY_TEX_UV2] != null else PackedVector2Array()
+		var order: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		if order.is_empty():
+			order = PackedInt32Array(range(verts.size()))
+		for i in order:
+			var shade: Color = colors[i] if i < colors.size() else Color.WHITE
+			st.set_normal(normals[i])
+			if tangents.size() >= (i + 1) * 4:
+				st.set_tangent(Plane(tangents[i * 4], tangents[i * 4 + 1], tangents[i * 4 + 2], tangents[i * 4 + 3]))
+			else:
+				st.set_tangent(Plane(Vector3.RIGHT, 1.0))
+			st.set_color(Color(shade.r, shade.g, shade.b, 0.0))
+			st.set_uv(uvs[i] if i < uvs.size() else Vector2.ZERO)
+			st.set_uv2(kinds[i] if i < kinds.size() else Vector2.ZERO)
+			st.add_vertex(verts[i])
 
 
 # A close-up trim mesh's triangles added to a far look, as they are (the same winding), each in its
@@ -320,6 +389,7 @@ static func _append_trim(st: SurfaceTool, trim: Mesh) -> void:
 			st.set_tangent(Plane(Vector3.RIGHT, 1.0))
 			st.set_color(Color(plain.r * shade.r, plain.g * shade.g, plain.b * shade.b, 0.0))
 			st.set_uv(Vector2.ZERO)
+			st.set_uv2(Vector2.ZERO)
 			st.add_vertex(verts[i])
 
 
@@ -334,6 +404,8 @@ static func _far_tri(st: SurfaceTool, points: Array, uvs: Array, normal: Vector3
 		st.set_tangent(Plane(tangent, 1.0))
 		st.set_color(Color(1.0, 1.0, 1.0, 1.0 if mapped else 0.5))
 		st.set_uv(uvs[i])
+		# (every vertex of a far mesh has a UV2, so a floor's trim can carry what its parts are made of)
+		st.set_uv2(Vector2.ZERO)
 		st.add_vertex(points[i])
 
 
@@ -357,7 +429,8 @@ func _roof_layout(shape: String) -> Dictionary:
 	var x := 0
 	var height := 1
 	for f in registry.roof_parts(shape, 0)["facets"]:
-		for side in [1.0, -1.0]:
+		# (a floor's top is baked from above only)
+		for side in ([1.0] if f.get("top_only", false) else [1.0, -1.0]):
 			var n: Vector3 = (f["n"] as Vector3) * side
 			var s: Vector3 = f["s"]
 			var basis := Basis(s.cross(n).normalized(), s, n)
@@ -387,7 +460,9 @@ func _bake_roof(shape: String) -> void:
 	var meshes: Array = []
 	var atlases: Array = []
 	for v in count:
-		meshes.append(registry.roof_parts(shape, v)["surface"])
+		# (a floor bakes its whole close-up look from above: the base or deck seen between its planks or
+		# flagstones is trim, and what's under the top is hidden from the camera anyway)
+		meshes.append(registry.detail_mesh(shape, v)["mesh"] if is_floor(shape) else registry.roof_parts(shape, v)["surface"])
 		var colour := Image.create(atlas.x, atlas.y, false, Image.FORMAT_RGB8)
 		colour.fill(BACKGROUND_COLOR.linear_to_srgb())
 		var surface := Image.create(atlas.x, atlas.y, false, Image.FORMAT_RGB8)
@@ -448,9 +523,10 @@ func _render_tile(meshes: Array, tile: Dictionary) -> Array[Image]:
 	material.set_shader_parameter("camera_z", CAMERA_Z)
 	# From above, the deck seen between shakes is the gaps' depth; from below, it's all one depth
 	var from_above: bool = tile["top"]
-	material.set_shader_parameter("core_depth", ROOF_CORE_DEPTH if from_above else -2.0)
-	material.set_shader_parameter("face_depth", ROOF_FACE_DEPTH if from_above else -1.0)
 	var f: Dictionary = tile["facet"]
+	# (a floor's facet says how deep its gaps and its faces sit, measured up from the facet's plane)
+	material.set_shader_parameter("core_depth", float(f.get("core", ROOF_CORE_DEPTH)) if from_above else -2.0)
+	material.set_shader_parameter("face_depth", float(f.get("face", ROOF_FACE_DEPTH)) if from_above else -1.0)
 	var flat := (tile["basis"] as Basis).transposed()
 	var lo: Vector2 = tile["min"]
 	for v in count:
@@ -542,7 +618,7 @@ func _load_cached(shape: String) -> bool:
 				return false
 			images.append(image)
 		found.append(images)
-	var layout: Dictionary = _roof_layout(shape) if is_roof(shape) else _layout(shape)
+	var layout: Dictionary = _roof_layout(shape) if is_faceted(shape) else _layout(shape)
 	for v in found.size():
 		_apply(shape, v, found[v], layout)
 		loaded += 1

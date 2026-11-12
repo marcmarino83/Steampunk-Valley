@@ -22,6 +22,9 @@ const DETAIL_VARIANTS := 4
 ## slab wearing textures baked from those planks (see WallBaker), no middle look. Off: those pieces
 ## get the three looks every other piece has (for comparing).
 static var hybrid_walls := true
+## The same for the floors and foundations alone (WallBaker.FLOORS): off, they get the three looks
+## again (for comparing, tests/floor_pass.gd)
+static var hybrid_floors := true
 
 ## Where pieces are added (the world). Set by the build placer.
 var world: Node
@@ -136,7 +139,7 @@ func material_for(shape: String) -> Material:
 	var kind := "wood"
 	if def.get("furniture", false):
 		return wood_material()
-	if is_hybrid(shape) and not WallBaker.is_roof(shape):
+	if is_hybrid(shape) and not WallBaker.is_faceted(shape):
 		# (its first variant's far look: each piece wears its own variant's, see mid_mesh; a roof keeps
 		# its plain surface until it's dressed, when its far slab takes the plain box's place)
 		return baker.far_material(shape, 0)
@@ -173,15 +176,20 @@ func _make_surface(kind: String) -> ShaderMaterial:
 
 
 ## A wood wall, Standard or Tall (walls, half walls, strips, doorways, windows, gables and triangle
-## walls), or a roof piece in WallBaker.ROOFS, while hybrid_walls is on: modelled planks or shakes up
-## close, a slab baked from them from afar (see BuildPiece.dress, WallBaker)
+## walls), a roof piece in WallBaker.ROOFS, or a floor or foundation in WallBaker.FLOORS, while
+## hybrid_walls is on: modelled planks, shakes or stones up close, a slab baked from them from afar
+## (see BuildPiece.dress, WallBaker)
 static func is_hybrid(shape: String) -> bool:
-	return hybrid_walls and (shape in SnapEdges.WALLS or shape in SnapEdges.TRIANGLES or WallBaker.is_roof(shape))
+	if WallBaker.is_floor(shape) and not hybrid_floors:
+		return false
+	return hybrid_walls and (shape in SnapEdges.WALLS or shape in SnapEdges.TRIANGLES or WallBaker.is_faceted(shape))
 
 
-## A hybrid roof's close-up look in its two layers (see PieceDetail.layer), for the variant this
-## piece id picks: {"surface": the deck and shakes (baked for its far look), "trim": its fascia,
-## barge boards, rafters and logs (real geometry in its far look), "facets": its shaked facets}
+## A hybrid roof's, floor's or foundation's close-up look in its two layers (see PieceDetail.layer),
+## for the variant this piece id picks: {"surface": a roof's deck and shakes, a floor's planks or
+## flagstones (baked for its far look), "trim": a roof's fascia, barge boards, rafters and logs, a
+## floor's base, a foundation's core, logs and stone courses (real geometry in its far look),
+## "facets": the faces baked (a roof's shaked facets, a floor's top)}
 func roof_parts(shape: String, piece_id: int) -> Dictionary:
 	var variant := posmod(piece_id, DETAIL_VARIANTS)
 	var key := "%s#%d#roof" % [shape, variant]
@@ -210,14 +218,15 @@ func detail_mesh(shape: String, piece_id: int) -> Dictionary:
 ## The same variant's simplified look, for the middle distance (see PieceDetail.build: simple).
 ## "shadow_from_mid" is set when it has fewer triangles than the shape's plain box (a foundation's
 ## box reaches far underground), so its shadow is cast with it instead (see BuildPiece.dress).
-## A hybrid wall or roof (see is_hybrid) has none: instead {"hybrid": true, "far": its variant's
+## A hybrid wall, roof or floor (see is_hybrid) has none: instead {"hybrid": true, "far": its variant's
 ## baked far look, "baker": the WallBaker, which says when a far look still baking is ready}, and for
-## a roof "far_mesh" (its slab and trim in one mesh, in the plain box's place: WallBaker.far_mesh).
+## a roof or floor "far_mesh" (its slab and trim in one mesh, in the plain box's place:
+## WallBaker.far_mesh).
 func mid_mesh(shape: String, piece_id: int) -> Dictionary:
 	if is_hybrid(shape):
 		var variant := posmod(piece_id, DETAIL_VARIANTS)
 		var hybrid := {"hybrid": true, "far": baker.far_material(shape, variant), "baker": baker}
-		if WallBaker.is_roof(shape):
+		if WallBaker.is_faceted(shape):
 			hybrid["far_mesh"] = baker.far_mesh(shape, variant)
 		return hybrid
 	var variant := posmod(piece_id, DETAIL_VARIANTS)
@@ -379,11 +388,33 @@ func pieces_owned_by(plot: String) -> Array:
 	return all_pieces().filter(func(p): return p.owner_plot == plot)
 
 
-## Pieces whose origin is within `reach` meters of a spot
+## Pieces whose origin is within `reach` meters of a spot (one pass, no copy of the whole list: the
+## placer asks every frame)
 func pieces_near(spot: Vector3, reach: float) -> Array:
 	var found := []
-	for piece in all_pieces():
-		if piece.global_position.distance_to(spot) <= reach:
+	var reach_squared := reach * reach
+	for piece in _pieces.values():
+		if is_instance_valid(piece) and not piece.is_queued_for_deletion() and (piece as Node3D).global_position.distance_squared_to(spot) <= reach_squared:
+			found.append(piece)
+	return found
+
+
+## Pieces whose origin is within `reach` meters of the line from `from` to `to` (one pass)
+func pieces_along(from: Vector3, to: Vector3, reach: float) -> Array:
+	var found := []
+	var lo := from.min(to) - Vector3.ONE * reach
+	var hi := from.max(to) + Vector3.ONE * reach
+	var line := to - from
+	var length_squared := maxf(line.length_squared(), 1e-9)
+	var reach_squared := reach * reach
+	for piece in _pieces.values():
+		if not is_instance_valid(piece) or piece.is_queued_for_deletion():
+			continue
+		var p: Vector3 = (piece as Node3D).global_position
+		if p.x < lo.x or p.y < lo.y or p.z < lo.z or p.x > hi.x or p.y > hi.y or p.z > hi.z:
+			continue
+		var t := clampf((p - from).dot(line) / length_squared, 0.0, 1.0)
+		if p.distance_squared_to(from + line * t) <= reach_squared:
 			found.append(piece)
 	return found
 

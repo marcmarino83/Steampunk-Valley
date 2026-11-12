@@ -59,6 +59,13 @@ const BODY_REACH := 0.5
 ## A flight aimed at a side face this close to the seam with the next piece's face (in line with it)
 ## counts as aimed at either piece's edge
 const SEAM := 0.02
+## Fits are measured against the crosshair's line from this far past the eye, and none may surround
+## the eye (see _round_eye)
+const EYE_CLEAR := 0.5
+## Fits otherwise equal rank by how near their joint is to where the crosshair hits, in these steps
+const UNDER_STEP := 0.5
+## A fit whose body is this close to where the crosshair hits comes first (see _edge_fit)
+const AT_HIT := 0.15
 ## How far round each point along the crosshair's line to look for pieces (by their origin): the
 ## line reach plus the farthest a piece's edge is from its origin
 const NEAR_PIECES := 5.0
@@ -81,6 +88,7 @@ var turn := 0.0
 var snap_on := true
 ## Its middle, as aimed at (see _set_shape), in its own space
 var _middle := Vector3.ZERO
+var _core := AABB()
 ## For the tests: the top-ranked point or edge fits of the last frame, with their ranking keys
 var last_ranking := []
 
@@ -114,6 +122,12 @@ var _bar: MeshInstance3D
 # (world yaws) that fit at the spot it's snapped to, sorted; the yaw it's shown at; the yaw the
 # player's turn is measured from (the aimed piece's, or the world's); and the panel's note
 var _edge_cache := {}
+# What the last snap search was for (see _physics_process), how many times pieces have changed, and
+# when it's looked at again regardless
+var _last_inputs := []
+var _revision := 0
+var _recheck_in := 0.0
+const RECHECK_SECONDS := 0.25
 var _fit_yaws: Array[float] = []
 var _shown_yaw := 0.0
 var _turn_ref := 0.0
@@ -132,7 +146,7 @@ func _ready() -> void:
 	_furniture = FurnitureSpot.new(_player)
 	set_physics_process(false)
 	if registry:
-		registry.changed.connect(func(): _edge_cache.clear())
+		registry.changed.connect(_drop_stale_edges)
 
 
 func is_placing() -> bool:
@@ -171,6 +185,7 @@ func begin(piece: PieceBuildable, _keep := false) -> void:
 	_problem = "Point at the ground or a piece"
 	_make_ghost()
 	_make_markers()
+	_last_inputs = []
 	set_physics_process(true)
 
 
@@ -185,17 +200,33 @@ func _set_shape(shape: String) -> void:
 	_middle = _bounds.get_center()
 	if _shape.get("floor", false):
 		_middle.y = _bounds.end.y - 0.1
+	# (its middle, see _edge_fit: the middle half of its box along each side half a metre or more,
+	# all of a thinner one (a wall's thickness); for a floor or foundation, of the metre under its top,
+	# where it shows, not the part underground)
+	var lo := _bounds.position
+	var hi := _bounds.end
+	var floor_like: bool = _shape.get("floor", false)
+	if floor_like:
+		lo.y = maxf(lo.y, hi.y - 1.0)
+	for axis in 3:
+		if hi[axis] - lo[axis] >= 0.5:
+			var quarter: float = (hi[axis] - lo[axis]) * 0.25
+			lo[axis] += quarter
+			# (up to a floor's top: aimed at the middle of its top is aimed into it)
+			if not (floor_like and axis == 1):
+				hi[axis] -= quarter
+	_core = AABB(lo, hi - lo)
 
 
 func cancel() -> void:
 	if _preview:
 		_preview.queue_free()
-	if _marker_root:
-		_marker_root.queue_free()
 	_preview = null
-	_marker_root = null
-	_dots.clear()
-	_bar = null
+	# (the dots and bar are kept, hidden, for the next piece: made once, not every time a piece is
+	# picked)
+	if is_instance_valid(_marker_root):
+		_marker_root.visible = false
+	_last_inputs = []
 	_looks.clear()
 	_red = false
 	_buildable = null
@@ -311,7 +342,16 @@ static func turned(where: Transform3D, pivot: Vector3, angle: float) -> Transfor
 	return Transform3D(Basis(Vector3.UP, angle), pivot) * Transform3D(Basis.IDENTITY, -pivot) * where
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
+	# (nothing it depends on has changed since the last search: the camera, the turn, snapping, the
+	# piece's height, the piece and the pieces placed; it's looked at again at least every
+	# RECHECK_SECONDS anyway, for what it doesn't watch: the materials in hand, say)
+	_recheck_in -= delta
+	var inputs := [_player.camera.global_transform, turn, snap_on, _lift, _shape_name, _revision]
+	if inputs == _last_inputs and _recheck_in > 0.0:
+		return
+	_last_inputs = inputs
+	_recheck_in = RECHECK_SECONDS
 	var timing := SpikeLog.begin()
 	_follow_crosshair()
 	SpikeLog.end("placing: following the crosshair (snap search)", timing)
@@ -405,6 +445,8 @@ func _follow_crosshair() -> void:
 # player's. Sets _fit_yaws (the turns that fit there) and _shown_yaw.
 # {"where", "piece", "own_mid", "at_mid"}, or empty for none.
 func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3) -> Dictionary:
+	# (its stages timed for the spike logger: nothing is timed while it's off)
+	var stage := SpikeLog.begin()
 	var pieces: Dictionary = _pieces_along(from, to, aimed)
 	var all_edges := []
 	var sources := []
@@ -425,12 +467,21 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 				if p["type"] == "post_top" and _near_aim(p["p"], piece == aimed, from, to, hit_point):
 					post_tops.append(p)
 	var extra: Array = _post_top_fits(post_tops)
+	SpikeLog.end("snap search: pieces and edges round the line", stage)
 	if sources.is_empty() and extra.is_empty():
 		return {}
+	stage = SpikeLog.begin()
+	# (every fit's body is within BODY_REACH of the line, so only edges within that plus the piece's
+	# own size of it can touch one: those alone are counted for edges matched, not every piece's)
+	var reach_edges := BODY_REACH + _bounds.size.length() + 0.05
+	var round_line := all_edges.filter(func(e): return SnapEdges.segment_segment(from, to, e["a"], e["b"]) <= reach_edges)
 	var step_up: float = SnapEdges.vertical_step(_buildable.display_name)
 	var scored := []
 	var seen := {}
-	for c in SnapEdges.placements(_shape_name, _shape, step_up, sources) + extra:
+	# (measured from a little past the eye: a fit round the player's own head, which the crosshair's
+	# line starts inside, would otherwise always count as nearest it)
+	var sight := _sight_from(from, to)
+	for c in _placements_along(sources, step_up) + extra:
 		var candidate: Transform3D = c["where"]
 		var key := _place_key(candidate)
 		if seen.has(key):
@@ -438,17 +489,36 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 		seen[key] = true
 		# (far from the line by its middle: no need to measure its body)
 		var middle := candidate * _middle
-		if SnapEdges.point_segment(middle, from, to) > BODY_REACH + _bounds.size.length() / 2.0:
+		if SnapEdges.point_segment(middle, sight, to) > BODY_REACH + _bounds.size.length() / 2.0:
 			continue
-		var body: float = SnapEdges.box_distance(candidate, _bounds, from, to)
+		if _round_eye(candidate, from):
+			continue
+		var body: float = SnapEdges.box_distance(candidate, _bounds, sight, to)
 		if body > BODY_REACH:
 			continue
-		scored.append({"c": c, "body": roundf(body / BODY_TIE), "middle": middle, "line": SnapEdges.point_segment(middle, from, to), "near": from.distance_to(middle)})
+		scored.append({"c": c, "body": roundf(body / BODY_TIE), "middle": middle, "line": SnapEdges.point_segment(middle, sight, to), "near": from.distance_to(middle)})
+	SpikeLog.end("snap search: fits worked out", stage)
 	if scored.is_empty():
 		return {}
+	stage = SpikeLog.begin()
 	var want := _turn_ref + turn
+	var walled: bool = _shape_name in SnapEdges.WALLS
+	# (each fit is measured only against the edges within reach of its own body: each edge's middle
+	# and half length worked out once, a cheap distance first, then the edge-by-edge checks)
+	var reach := _bounds.size.length() / 2.0 + 0.05
+	var edge_mids := []
+	var edge_halves := []
+	for e in round_line:
+		edge_mids.append(((e["a"] as Vector3) + (e["b"] as Vector3)) / 2.0)
+		edge_halves.append((e["a"] as Vector3).distance_to(e["b"]) / 2.0)
+	var centre := _bounds.get_center()
 	for s in scored:
-		s["matched"] = SnapEdges.matched(_shape_name, _shape, s["c"]["where"], all_edges)
+		var fit_middle: Vector3 = (s["c"]["where"] as Transform3D) * centre
+		var near_fit := []
+		for i in round_line.size():
+			if fit_middle.distance_to(edge_mids[i]) <= reach + float(edge_halves[i]):
+				near_fit.append(round_line[i])
+		s["matched"] = SnapEdges.matched(_shape_name, _shape, s["c"]["where"], near_fit)
 		# (a flight keeps the player's turn, as pillars and beams do: the wheel says which way it
 		# climbs, and it snaps where it fits that way round; only with no fit that way round does it
 		# take another turn)
@@ -465,10 +535,43 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 				and SnapEdges.point_segment(Vector3(hit_point.x, (at["a"] as Vector3).y, hit_point.z), at["a"], at["b"]) < SEAM
 			at_face = at.get("piece") == aimed or seam
 		s["face"] = 0 if at_face or not flight else 1
-		s["standing"] = 0 if not flight or _flight_stands(s["c"]["where"], all_edges) else 1
+		s["standing"] = 0 if not flight or _flight_stands(s["c"]["where"], near_fit) else 1
+		var at_hit := hit_point != Vector3.INF and SnapEdges.box_distance(s["c"]["where"], _bounds, hit_point, hit_point + (hit_point - from).normalized() * 0.001) <= AT_HIT
+		# (of the fits right at the crosshair's hit, aimed at a top face, a floor's or a wall's, the
+		# piece goes on top of it: nothing of it below that face; at an underside, under it: nothing
+		# of it above. A wall aimed at a floor's top just inside its edge stands on the edge, not
+		# hanging under it or slid down a neighbour's end into the floor, though there it might match
+		# more edges. The face of something behind a gap says nothing about the fits in it.)
+		# (walls only: a floor or foundation put beside the one aimed at reaches below its top too;
+		# level faces only: under a sloped face, a triangle's box pokes above the slope it sits under;
+		# and not furniture's: a shelf's top says nothing about the wall behind it)
+		var on_side := true
+		if walled and at_hit and absf(_hit_normal.y) > 0.95 and aimed != null and not aimed.is_furniture():
+			var box := (s["c"]["where"] as Transform3D) * _bounds
+			on_side = box.position.y > hit_point.y - 0.05 if _hit_normal.y > 0.0 else box.end.y < hit_point.y + 0.05
+		s["side"] = 0 if on_side else 1
+		# (for diagnostics: how near its joint is to where the crosshair hits, in half metres)
+		s["under"] = roundf(SnapEdges.point_segment(hit_point, at["a"], at["b"]) / UNDER_STEP) if hit_point != Vector3.INF else 0.0
+		# (what the player points at comes first: a fit the crosshair's line goes into the middle of
+		# (the middle half of its body: aimed through a gap at the spot where a piece was, the line runs
+		# through that spot's middle and hits something behind it), or a fit whose body is right where
+		# the crosshair hits (aimed steeply down at a floor just inside its far edge, the wall on that
+		# edge); then any other: one nearer the eye whose top the line clips on its way down. Between
+		# fits the player points at, the keys after decide.)
+		var into_middle := SnapEdges.box_distance(s["c"]["where"], _core, sight, to) < 0.001
+		s["at_hit"] = 0 if into_middle or at_hit else 1
+		# (a wall held by its foot or its top, standing on an edge or fitted up under one, before one
+		# hung only by its upright end on a neighbour's end, in mid-air)
+		s["held"] = 0 if not walled or _held(s["c"]["where"], near_fit) else 1
 	scored.sort_custom(func(a, b):
 		if a["turned"] != b["turned"]:
 			return a["turned"] < b["turned"]
+		if a["side"] != b["side"]:
+			return a["side"] < b["side"]
+		if a["at_hit"] != b["at_hit"]:
+			return a["at_hit"] < b["at_hit"]
+		if a["held"] != b["held"]:
+			return a["held"] < b["held"]
 		if a["body"] != b["body"]:
 			return a["body"] < b["body"]
 		if a["face"] != b["face"]:
@@ -481,14 +584,18 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 		if absf(a["line"] - b["line"]) > 0.001:
 			return a["line"] < b["line"]
 		return a["near"] < b["near"])
-	last_ranking = scored.map(func(s): return {"origin": (s["c"]["where"] as Transform3D).origin, "turned": s["turned"], "body": s["body"], "face": s["face"], "standing": s["standing"], "matched": s["matched"], "line": s["line"]})
+	last_ranking = scored.map(func(s): return {"origin": (s["c"]["where"] as Transform3D).origin, "turned": s["turned"], "at_hit": s["at_hit"], "held": s["held"], "body": s["body"], "side": s["side"], "face": s["face"], "standing": s["standing"], "matched": s["matched"], "under": s["under"], "line": s["line"]})
+	SpikeLog.end("snap search: fits ranked", stage)
+	stage = SpikeLog.begin()
 	var best := {}
 	for s in scored:
 		if not _taken(s["c"]["where"], pieces):
 			best = s
 			break
+	SpikeLog.end("snap search: taken checks", stage)
 	if best.is_empty():
 		return {}
+	stage = SpikeLog.begin()
 	# The turns that fit at that spot (from every edge round it, not only those near the line), and
 	# the one nearest the player's
 	var spot: Vector3 = best["middle"]
@@ -507,7 +614,7 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 	# the post top on the same corner)
 	var around_post: bool = best["c"].has("pivot")
 	var turns: Array = extra.filter(func(c): return (c["pivot"] as Vector3).distance_to(best["c"]["pivot"]) < 0.001 and c["corner"] == best["c"]["corner"]) if around_post \
-		else SnapEdges.placements(_shape_name, _shape, step_up, round_spot)
+		else _placements_along(round_spot, step_up)
 	for c in turns:
 		var candidate: Transform3D = c["where"]
 		var key := _place_key(candidate)
@@ -521,7 +628,7 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 		# (every turn there keeps its body near the crosshair's line too: a triangle turned about its
 		# middle lies over the other half of its square, and a floor swung round a post top swings
 		# away from where it's aimed)
-		if c != best["c"] and SnapEdges.box_distance(candidate, _bounds, from, to) > BODY_REACH:
+		if c != best["c"] and (SnapEdges.box_distance(candidate, _bounds, sight, to) > BODY_REACH or _round_eye(candidate, from)):
 			continue
 		if _taken(candidate, pieces):
 			continue
@@ -533,6 +640,7 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 			nearest = off
 			chosen = c
 	_fit_yaws.sort()
+	SpikeLog.end("snap search: turns at the spot", stage)
 	var fit: Dictionary = chosen
 	var where: Transform3D = fit["where"]
 	_shown_yaw = _yaw(where.basis)
@@ -540,6 +648,34 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 	var at: Dictionary = fit["at"]
 	return {"where": where, "piece": fit["piece"], "own_mid": where * (((own["a"] as Vector3) + (own["b"] as Vector3)) / 2.0),
 		"at_mid": ((at["a"] as Vector3) + (at["b"] as Vector3)) / 2.0}
+
+
+# Where the crosshair's line is measured from for fits: EYE_CLEAR past the eye (never past `to`)
+static func _sight_from(from: Vector3, to: Vector3) -> Vector3:
+	var length := from.distance_to(to)
+	return from.lerp(to, minf(EYE_CLEAR / maxf(length, 0.001), 0.9))
+
+
+# True if a piece put at `where` would surround the player's eye (its box grown by EYE_CLEAR / 2
+# round it): never a fit, whatever the crosshair (standing in a crowded corner, the wall that would go
+# round your own head is no one's aim)
+func _round_eye(where: Transform3D, eye: Vector3) -> bool:
+	return _bounds.grow(EYE_CLEAR / 2.0).has_point(where.affine_inverse() * eye)
+
+
+# True if a wall put at `where` is held by its foot or its top: its bottom or top edge along a placed
+# edge it may meet (see SnapEdges.RULES), not only an upright end
+func _held(where: Transform3D, edges: Array) -> bool:
+	for g in SnapEdges.of(_shape_name, _shape):
+		if g["type"] != "wall_base" and g["type"] != "wall_top":
+			continue
+		var rule: Dictionary = SnapEdges.RULES.get(g["type"], {})
+		var a: Vector3 = where * (g["a"] as Vector3)
+		var b: Vector3 = where * (g["b"] as Vector3)
+		for t in edges:
+			if rule.has(t["type"]) and (SnapEdges.along(a, b, t["a"], t["b"]) or SnapEdges.along(t["a"], t["b"], a, b)):
+				return true
+	return false
 
 
 # True if a flight put at `where` stands on something: its bottom edge along a placed edge it may
@@ -560,17 +696,12 @@ func _flight_stands(where: Transform3D, edges: Array) -> bool:
 # The pieces round the crosshair's line from `from` to `to` (and the aimed piece), as keys
 func _pieces_along(from: Vector3, to: Vector3, aimed: BuildPiece) -> Dictionary:
 	var pieces := {}
-	if aimed:
+	if aimed and is_instance_valid(aimed) and not aimed.is_queued_for_deletion():
 		pieces[aimed] = true
-	var samples := int(ceil(from.distance_to(to) / 1.5)) + 1
-	# (pieces are found by their origin, which can be 2.5 m from their far edge: a Tall wall's foot)
-	for i in samples + 1:
-		var p := from.lerp(to, float(i) / samples)
-		for piece in registry.pieces_near(p, NEAR_PIECES):
-			pieces[piece] = true
-	for piece in pieces.keys():
-		if not is_instance_valid(piece) or (piece as BuildPiece).is_queued_for_deletion():
-			pieces.erase(piece)
+	# (pieces are found by their origin, which can be 2.5 m from their far edge: a Tall wall's foot;
+	# one pass over the pieces, each measured against the whole line)
+	for piece in registry.pieces_along(from, to, NEAR_PIECES):
+		pieces[piece] = true
 	return pieces
 
 
@@ -655,8 +786,8 @@ func _point_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector
 		var middle := where * _bounds.get_center()
 		if SnapEdges.point_segment(middle, from, to) > BODY_REACH + half_size:
 			continue
-		var body: float = SnapEdges.box_distance(where, _bounds, from, to)
-		if body > BODY_REACH or registry.duplicate_of(_shape_name, where) != null:
+		var body: float = SnapEdges.box_distance(where, _bounds, _sight_from(from, to), to)
+		if body > BODY_REACH or _round_eye(where, from) or _twin_among(where, pieces):
 			continue
 		var held := 0
 		for m in mine:
@@ -708,17 +839,56 @@ func _point_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector
 
 # True if a fit at `where` is taken: an identical piece already there, or it would sink into a piece
 # of its own kind among `pieces` (floors and foundations; walls and triangle walls; roof pieces: see
-# SnapEdges.kind) by more than PieceOverlap.MARGIN (touching, stacking, side by side and walls meeting
-# in an L don't count). Pieces of other kinds may overlap it, as designs have them do (a 45° gable
-# into a 26° eave, say).
+# SnapEdges.kind): more than a quarter of either one's volume inside the other (PieceOverlap). Normal
+# joins never count: touching, stacking, side by side, and walls of any heights meeting in an L, a T
+# or a cross (their ends share 2 to 10% of a wall). Pieces of other kinds may overlap it, as designs
+# have them do (a 45° gable into a 26° eave, say).
 func _taken(where: Transform3D, pieces: Dictionary) -> bool:
-	if registry.duplicate_of(_shape_name, where) != null:
-		return true
 	var mine := SnapEdges.kind(_shape_name)
+	# (only pieces whose box meets this one's are measured: their boxes are kept with their edges; an
+	# identical piece in its place is one of them, so it's looked for among them, not in the whole
+	# world: the fits round the crosshair are always among the pieces along its line)
+	var box := where * _bounds
 	for piece in pieces:
-		if is_instance_valid(piece) and SnapEdges.kind((piece as BuildPiece).shape_name) == mine and PieceOverlap.overlaps(_shape_name, _shape, where, piece):
+		if not is_instance_valid(piece) or piece.is_queued_for_deletion():
+			continue
+		var other := piece as BuildPiece
+		if _twin(other, where):
+			return true
+		if SnapEdges.kind(other.shape_name) != mine or not box.intersects(_box_of(other)):
+			continue
+		if PieceOverlap.overlaps(_shape_name, _shape, where, other):
 			return true
 	return false
+
+
+# True if `other` is the piece being placed, put at `where`, already there (as
+# PieceRegistry.duplicate_of: the same shape, as near and as nearly the same way round)
+func _twin(other: BuildPiece, where: Transform3D) -> bool:
+	if other.shape_name != _shape_name or other.global_position.distance_to(where.origin) > PieceRegistry.DUPLICATE_DISTANCE:
+		return false
+	var step: float = _shape.get("symmetry", 0.0)
+	if step <= 0.0:
+		step = TAU
+	var apart := wrapf(_yaw(where.basis) - _yaw(other.global_basis) + step / 2.0, 0.0, step) - step / 2.0
+	return absf(apart) <= PieceRegistry.DUPLICATE_TURN
+
+
+# True if a piece among `pieces` is the piece being placed, put at `where`, already there
+func _twin_among(where: Transform3D, pieces: Dictionary) -> bool:
+	for piece in pieces:
+		if is_instance_valid(piece) and not piece.is_queued_for_deletion() and _twin(piece, where):
+			return true
+	return false
+
+
+# A placed piece's box in the world (kept with its edges, see _edges_of)
+func _box_of(piece: BuildPiece) -> AABB:
+	_edges_of(piece)
+	var kept: Dictionary = _edge_cache[piece.get_instance_id()]
+	if not kept.has("box"):
+		kept["box"] = piece.global_transform * PieceShapes.bounds_of(piece.shape_def())
+	return kept["box"]
 
 
 # Where a fit's own edge lies in the world (the join): [a, b]
@@ -733,12 +903,41 @@ static func _same_joint(a: Array, b: Array) -> bool:
 		or ((a[0] as Vector3).distance_to(b[1]) < near and (a[1] as Vector3).distance_to(b[0]) < near)
 
 
-# A placed piece's typed edges in the world (worked out once until pieces change)
+# A placed piece's typed edges in the world, worked out once and kept while it stays where it is
+# (moved, by a plot moving, say: worked out again). Placing or taking away a piece doesn't change any
+# other piece's edges, so nothing else is worked out again then (see _drop_stale_edges).
 func _edges_of(piece: BuildPiece) -> Array:
 	var key := piece.get_instance_id()
-	if not _edge_cache.has(key):
-		_edge_cache[key] = SnapEdges.in_world(piece)
-	return _edge_cache[key]
+	var kept: Dictionary = _edge_cache.get(key, {})
+	if kept.is_empty() or kept["at"] != piece.global_transform:
+		kept = {"at": piece.global_transform, "edges": SnapEdges.in_world(piece)}
+		_edge_cache[key] = kept
+	return kept["edges"]
+
+
+# The fits of the piece being placed along these placed edges (SnapEdges.placements), each edge's
+# kept on the edge itself for the piece's shape: a placed piece's edges stay the same while it stays
+# where it is (moved, its edges are worked out again, and their fits with them), so frame after frame
+# only the edges new to the search are worked out
+func _placements_along(edges: Array, step_up: float) -> Array:
+	var found := []
+	var key := "%s@%.3f" % [_shape_name, step_up]
+	for e in edges:
+		var kept: Dictionary = e.get_or_add("fits", {})
+		if not kept.has(key):
+			kept[key] = SnapEdges.placements(_shape_name, _shape, step_up, [e])
+		found.append_array(kept[key])
+	return found
+
+
+# Pieces were placed or taken away: the edges of those taken away are let go (and the next frame
+# searches again)
+func _drop_stale_edges() -> void:
+	_revision += 1
+	for key in _edge_cache.keys():
+		var piece := instance_from_id(key) as BuildPiece
+		if piece == null or piece.is_queued_for_deletion():
+			_edge_cache.erase(key)
 
 
 static func _place_key(where: Transform3D) -> String:
@@ -916,6 +1115,13 @@ func _set_target(target: BuildPiece) -> void:
 
 
 func _make_markers() -> void:
+	if is_instance_valid(_marker_root):
+		_marker_root.visible = true
+		for dot in _dots:
+			dot.visible = false
+		_bar.visible = false
+		return
+	_dots.clear()
 	_marker_root = Node3D.new()
 	_player.get_parent().add_child(_marker_root)
 	var look := StandardMaterial3D.new()
@@ -951,7 +1157,7 @@ func _make_markers() -> void:
 
 # The target's snap points as dots (while snapping), and the bar on the pair in use
 func _show_markers() -> void:
-	if _marker_root == null:
+	if not is_instance_valid(_marker_root) or not _marker_root.visible:
 		return
 	var points: Array = SnapCorners.in_world(_target) if is_instance_valid(_target) and snapping_now() else []
 	# (a pillar, pole or beam also shows the target's 1 m spots it may take)
@@ -972,10 +1178,11 @@ func _show_markers() -> void:
 ## none): for tests and measuring
 func shown_markers() -> Dictionary:
 	var dots := []
+	var shown := is_instance_valid(_marker_root) and _marker_root.visible
 	for dot in _dots:
-		if dot.visible:
+		if shown and dot.visible:
 			dots.append(dot.global_position)
-	return {"dots": dots, "bar": _bar.global_position if _bar and _bar.visible else Vector3.INF}
+	return {"dots": dots, "bar": _bar.global_position if shown and _bar and _bar.visible else Vector3.INF}
 
 
 func _cast_ray(from: Vector3, to: Vector3) -> Dictionary:

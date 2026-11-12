@@ -3,13 +3,18 @@
 - Read DESIGN.md before making changes.
 - Testing: don't launch the game window or run scripted play-throughs unless I ask. After changes, run one quick headless check (godot --headless --quit) to catch script errors, fix any that show up, and stop there. I'll play-test by hand.
 - If something can only be confirmed by playing, list what I should check instead.
-- After any change to building, snapping or placement code, run tests/snap_regression.gd (headless: `godot --headless --path . res://tests/snap_regression.tscn --quit-after 40000`, under a hard time limit of 180 seconds) and fix any failure before reporting.
+- Building tests come in two suites, both run by `tests/run_suite.ps1` (headless, each chunk under its own hard 180-second limit, so nothing is skipped):
+  - Quick suite (`powershell -File tests/run_suite.ps1 quick`, under a minute): after every change to building, snapping or placement code. Fix any failure before reporting.
+  - Full suite (`powershell -File tests/run_suite.ps1 full`: every regression case, remove-and-replace on every template, the aim check on every template): only when I ask, or before a commit.
+  - Report which suite ran, its time, and whether anything failed or was skipped (the last line says). Don't raise the time limits: if a chunk gets near its limit, split it.
 - Don't commit; I'll commit myself after testing.
 - Edit files only with the editor tools, never with shell commands (sed, echo, PowerShell redirects). If a file gets corrupted, stop and tell me instead of repairing it line by line.
 - Never use orange for highlights, indicators, warnings or status colours (previews, outlines, glows, selection, alerts). Exceptions: brass and gold interface materials, fire and light, sunlight, and object icons and markers.
 - New panels must be built on the standard panel builder (ui/brass_panel.gd: header, sections, action row, key-hint row) and use only BrassStyle's palette, type sizes, spacing and button kinds (DESIGN.md, Interface style). Never hard-code an interface colour, and never write instruction paragraphs into a panel: key hints go in the hint row, longer explanations in tooltips. Follow the trimming rules in DESIGN.md's Interface style (nothing twice, no hints for buttons, collapsed checklists, details on demand). E only closes panels and interacts; tabs switch with Q and R.
 
 ## Building pieces
+
+- Snapping rules are kept to the absolute minimum. A "rule" is any code that rejects, skips, prefers or limits a snap position or rotation. Fix problems with typed pairings (data) wherever possible, never with piece-specific special cases. Before adding a rule: explain why no pairing can solve it, which existing rules it could interact with, and get my OK first. Prefer removing or simplifying a rule over adding one. Keep a numbered list of every active snapping rule in DESIGN.md.
 
 - Every building piece has fixed dimensions. Never build pieces that stretch, resize or regenerate to fit where they're placed. When a new size is needed, add a new fixed piece. (Raising or lowering a free piece with PgUp/PgDn is fine: that moves it, it doesn't reshape it.)
 - Every piece follows the building grid standard (details in DESIGN.md, Building system):

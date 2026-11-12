@@ -63,10 +63,17 @@ static var hybrid_range := 15.0
 ## The same for hybrid roofs: 25 m. Of 12, 15, 20 and 25 m (tests/roof_pass.gd, from the ground), the
 ## switch shows least there, and the shakes just inside it shimmer little more than the far look.
 static var roof_range := 25.0
+## The same for hybrid floors and foundations (see WallBaker.FLOORS): 10 m. Of 10, 15, 20 and 25 m
+## (tests/floor_pass.gd: standing on a floor, from the ground beside raised ones, from a raised spot,
+## and stone foundations' sides from outside), the switch shows least there (15 m within 0.3% of it),
+## and from 20 m out the planks seen from standing height shimmer over twice as much as the far look.
+static var floor_range := 10.0
 var _hybrid := false
-# A hybrid roof: its far look (its slab with its trim merged in, so its edges don't change at the
-# switch) takes its plain box's place
+# A hybrid roof or floor: its far look (its slab with its trim merged in, so its edges don't change at
+# the switch) takes its plain box's place
 var _roof := false
+# Where a hybrid piece switches to its far look: hybrid_range, roof_range or floor_range
+var _far_range := 15.0
 # Each plain look's own mesh (setup's), worn again if it's dressed as an ordinary piece
 var _plain_meshes: Array[Mesh] = []
 # Whether its far look has its bake yet (until then its planks show at every distance), whether it
@@ -312,10 +319,12 @@ func _dress_looks(detail: Dictionary, material: Material, mid: Dictionary) -> vo
 # Its shadow comes from its far mesh at every distance (see far_shadows), so it doesn't change at the
 # switch. While its far look is still baking, its planks show at every distance, and it switches over
 # when `baker` says the bake is in. A roof's far look is `far_mesh` (its slab with its trim merged in,
-# see WallBaker.far_mesh), in the plain box's place, switching at roof_range.
+# see WallBaker.far_mesh), in the plain box's place, switching at roof_range; a floor's or
+# foundation's the same (its top slab and its close-up sides), switching at floor_range.
 func _dress_hybrid(near_mesh: Mesh, material: Material, far: Material, baker: WallBaker, far_mesh: Mesh = null) -> void:
 	_hybrid = true
 	_roof = far_mesh != null
+	_far_range = floor_range if WallBaker.is_floor(shape_name) else (roof_range if _roof else hybrid_range)
 	_far_ready = WallBaker.is_ready(far)
 	if far_mesh:
 		for plain in _plain_looks:
@@ -360,7 +369,7 @@ func _far_shadow() -> void:
 # Where a hybrid wall's planks end and its slab begins: at hybrid_range, or (its bake not in yet)
 # planks everywhere
 func _hybrid_ranges() -> void:
-	var switch := roof_range if _roof else hybrid_range
+	var switch := _far_range
 	for far in _plain_looks:
 		_switch_at(far, switch if _far_ready else NEVER, 0.0)
 	for near in _detail_looks:
@@ -415,7 +424,7 @@ func show_simple_look(on: bool) -> void:
 		for look in _detail_looks:
 			look.visible = not on
 		for look in _plain_looks:
-			look.visibility_range_begin = 0.0 if on else (roof_range if _roof else hybrid_range)
+			look.visibility_range_begin = 0.0 if on else _far_range
 		return
 	if _mid_looks.is_empty():
 		return

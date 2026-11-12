@@ -177,6 +177,7 @@ func _build_chest_panel(row: HBoxContainer) -> void:
 	_chest_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_chest_title.add_theme_font_size_override("font_size", 20)
 	_chest_title.add_theme_color_override("font_color", BrassStyle.HEADING)
+	_chest_title.add_theme_font_override("font", BrassStyle.title_font())
 	_chest_title.custom_minimum_size = Vector2(0, 36)
 	column.add_child(_chest_title)
 	# Town storage: "Food 34 · Materials 210 · Tools 2 · Other 0" (the slots in use go in the title)

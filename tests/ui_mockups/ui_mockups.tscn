@@ -1,9 +1,0 @@
-[gd_scene load_steps=2 format=3]
-
-[ext_resource type="Script" path="res://tests/ui_mockups/ui_mockups.gd" id="1_mock"]
-
-[node name="UiMockups" type="Control"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-script = ExtResource("1_mock")

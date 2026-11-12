@@ -53,6 +53,24 @@ const MID_RANGE := 40.0
 const LEVEL_FADE := 2.0
 var _detail_looks: Array[MeshInstance3D] = []
 var _mid_looks: Array[MeshInstance3D] = []
+## A hybrid wall's looks (see PieceRegistry.is_hybrid): its modelled planks within hybrid_range, its
+## slab (the plain box wearing textures baked from those planks, see WallBaker) beyond. The switch is
+## instant: no fade, no dithering, no margin; both share one box, so exactly one shows at any distance.
+## 15 m: of 8, 12 and 15 m, the switch shows least there, and the planks just inside it shimmer
+## little more than the slab (tests/look_pass.gd). (A variable only so tests can compare distances;
+## pieces read it when they're dressed.)
+static var hybrid_range := 15.0
+var _hybrid := false
+# Whether its far look has its bake yet (until then its planks show at every distance), whether it
+# shows only its full close-up look (an icon, a template's picture) and whether its simplified look
+# is on (a ghost, a preview), so a bake arriving later leaves those as they are
+var _far_ready := false
+var _full_detail := false
+var _simple_on := false
+## Where a hybrid wall's slab begins while its bake isn't ready: never
+const NEVER := 1.0e9
+# The plain look's own material (setup's), worn again if it's dressed as an ordinary piece
+var _plain_material: Material
 # Shadow-only copies of the plain box, casting its shadow while a close look shows
 var _shadow_looks: Array[MeshInstance3D] = []
 
@@ -62,6 +80,7 @@ func setup(piece: PieceBuildable, def: Dictionary, material: Material) -> void:
 	buildable = piece
 	shape_name = piece.shape
 	_def = def
+	_plain_material = material
 	name = "Piece"
 	add_to_group("build_pieces")
 	if piece.model_scene:
@@ -99,7 +118,8 @@ func setup(piece: PieceBuildable, def: Dictionary, material: Material) -> void:
 ## Each fades into the next over LEVEL_FADE (Godot's visibility ranges). Neither close look casts
 ## shadows: a shadow-only copy of the plain box does, out to MID_RANGE, and the plain box itself
 ## beyond. A door's panel gets its own looks, which swing with it. Nothing changes for a shape
-## without a close-up look.
+## without a close-up look. A hybrid wall (`mid` says "hybrid") gets two looks instead, switching
+## at hybrid_range (see _dress_hybrid).
 func dress(detail: Dictionary, material: Material, mid: Dictionary = {}) -> void:
 	_dress_looks(detail, material, mid)
 	_nudge_looks()
@@ -155,9 +175,13 @@ func redress(detail: Dictionary, material: Material, mid: Dictionary = {}) -> vo
 	_detail_looks.clear()
 	_mid_looks.clear()
 	_shadow_looks.clear()
+	_hybrid = false
+	_far_ready = false
 	for plain in _plain_looks:
 		plain.visibility_range_begin = 0.0
 		plain.visibility_range_begin_margin = 0.0
+		plain.custom_aabb = AABB()
+		plain.material_override = _plain_material
 	var before := get_children()
 	var parts_before := _door_parts.size()
 	_dress_looks(detail, material, mid)
@@ -186,6 +210,9 @@ func _dress_looks(detail: Dictionary, material: Material, mid: Dictionary) -> vo
 		logs.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(logs)
 	if detail.is_empty() or detail.get("mesh") == null and detail.get("door_mesh") == null:
+		return
+	if mid.get("hybrid", false):
+		_dress_hybrid(detail["mesh"], material, mid.get("far"), mid.get("baker"))
 		return
 	var has_mid := not mid.is_empty() and (mid.get("mesh") != null or mid.get("door_mesh") != null)
 	var plain_from := MID_RANGE if has_mid else NEAR_RANGE
@@ -246,11 +273,70 @@ func _dress_looks(detail: Dictionary, material: Material, mid: Dictionary) -> vo
 			_door_parts.append({"node": middle, "rest": Transform3D.IDENTITY})
 
 
+# A hybrid wall's looks (see hybrid_range): its modelled planks, casting their own shadow, within
+# hybrid_range; its plain box wearing its variant's baked far look (`far`, see WallBaker), casting its
+# own, beyond. Both get the same box, so the switch falls at the same distance for both, and neither
+# fades: no dithered patches. No shadow-only copy and no middle look. While its far look is still
+# baking, its planks show at every distance, and it switches over when `baker` says the bake is in.
+func _dress_hybrid(near_mesh: Mesh, material: Material, far: Material, baker: WallBaker) -> void:
+	_hybrid = true
+	_far_ready = WallBaker.is_ready(far)
+	var box := near_mesh.get_aabb()
+	for plain in _plain_looks:
+		box = box.merge(plain.mesh.get_aabb())
+	for plain in _plain_looks:
+		plain.custom_aabb = box
+		if far:
+			plain.material_override = far
+	var near := MeshInstance3D.new()
+	near.name = "Detail"
+	near.mesh = near_mesh
+	near.material_override = material
+	near.custom_aabb = box
+	add_child(near)
+	_detail_looks.append(near)
+	_hybrid_ranges()
+	if not _far_ready and baker and not baker.shape_ready.is_connected(_on_far_ready):
+		baker.shape_ready.connect(_on_far_ready)
+
+
+# Where a hybrid wall's planks end and its slab begins: at hybrid_range, or (its bake not in yet)
+# planks everywhere
+func _hybrid_ranges() -> void:
+	for plain in _plain_looks:
+		_switch_at(plain, hybrid_range if _far_ready else NEVER, 0.0)
+	for near in _detail_looks:
+		_switch_at(near, 0.0, hybrid_range if _far_ready else 0.0)
+
+
+# A shape's bake is in (see WallBaker.shape_ready): this wall switches to its slab from afar, unless
+# it shows only its full detail (an icon), and keeps its simplified look if that's on
+func _on_far_ready(shape: String) -> void:
+	if shape != shape_name or _far_ready or not _hybrid:
+		return
+	_far_ready = true
+	if _full_detail:
+		return
+	_hybrid_ranges()
+	if _simple_on:
+		show_simple_look(true)
+
+
+# Shows a look from `begin` to `end` meters away (0: no limit), switching at once
+static func _switch_at(look: GeometryInstance3D, begin: float, end: float) -> void:
+	look.visibility_range_begin = begin
+	look.visibility_range_begin_margin = 0.0
+	look.visibility_range_end = end
+	look.visibility_range_end_margin = 0.0
+	look.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+
+
 ## Shows only its full close-up look, at any distance (a template's picture, an icon): the other
 ## looks hidden
 func show_full_detail() -> void:
 	if _detail_looks.is_empty():
 		return
+	_full_detail = true
 	for look in _detail_looks:
 		look.visible = true
 		look.visibility_range_end = 0.0
@@ -261,8 +347,18 @@ func show_full_detail() -> void:
 
 
 ## Shows its simplified look up close too, never the full one (a template's placement preview, a
-## ghost not under the crosshair), or back to normal
+## ghost not under the crosshair), or back to normal. A hybrid wall's simplified look is its baked
+## slab (its planks while the bake isn't in).
 func show_simple_look(on: bool) -> void:
+	if _hybrid:
+		_simple_on = on
+		if not _far_ready or _full_detail:
+			return
+		for look in _detail_looks:
+			look.visible = not on
+		for look in _plain_looks:
+			look.visibility_range_begin = 0.0 if on else hybrid_range
+		return
 	if _mid_looks.is_empty():
 		return
 	for look in _detail_looks:
@@ -426,7 +522,7 @@ func _fade_looks(fade: float, targeted: bool) -> void:
 		if not is_instance_valid(shown):
 			continue
 		var g := shown as GeometryInstance3D
-		var own_fade := g.material_override is ShaderMaterial and (g.material_override as ShaderMaterial).shader in [PieceRegistry.DETAIL_SHADER, PieceRegistry.SURFACE_SHADER]
+		var own_fade := g.material_override is ShaderMaterial and (g.material_override as ShaderMaterial).shader in [PieceRegistry.DETAIL_SHADER, PieceRegistry.SURFACE_SHADER, WallBaker.FAR_SHADER]
 		if own_fade:
 			g.set_instance_shader_parameter("ghost_fade", fade)
 		if targeted:

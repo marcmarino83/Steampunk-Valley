@@ -81,9 +81,12 @@ void fragment() {
 	METALLIC = metal;
 	// Faces turned down (eaves, overhang and porch-roof undersides, floors and beams seen from
 	// below) pick up no sky reflection: at a glancing angle they'd mirror the pale horizon, which
-	// the building itself hides from them
+	// the building itself hides from them. Nor does any face seen almost edge-on (a roof's verge
+	// board from beside the gable): rough weathered wood mirrors nothing, but the reflection's
+	// glancing-angle boost would light it as a pale sky-blue strip.
 	float down = smoothstep(0.1, 0.5, -(INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).y);
-	SPECULAR = 0.5 * (1.0 - down);
+	float glancing = smoothstep(0.05, 0.4, abs(dot(normalize(NORMAL), VIEW)));
+	SPECULAR = 0.5 * (1.0 - down) * glancing;
 	NORMAL_MAP = nm;
 	NORMAL_MAP_DEPTH = 0.8;
 }

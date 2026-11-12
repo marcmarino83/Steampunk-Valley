@@ -213,7 +213,11 @@ void fragment() {
 	ROUGHNESS = clamp(rough + grime * 0.15, 0.0, 1.0);
 	// Faces turned down (eaves, overhang and porch-roof undersides, floors and beams seen from
 	// below) pick up no sky reflection: at a glancing angle they'd mirror the pale horizon, which
-	// the building itself hides from them
-	SPECULAR = 0.5 * (1.0 - smoothstep(0.1, 0.5, -normalize(N).y));
+	// the building itself hides from them. Nor does any face seen almost edge-on (a roof's verge
+	// board from beside the gable): rough weathered wood mirrors nothing, but the reflection's
+	// glancing-angle boost would light it as a pale sky-blue strip.
+	vec3 view_n = normalize((VIEW_MATRIX * vec4(N, 0.0)).xyz);
+	float glancing = smoothstep(0.05, 0.4, abs(dot(view_n, VIEW)));
+	SPECULAR = 0.5 * (1.0 - smoothstep(0.1, 0.5, -normalize(N).y)) * glancing;
 	NORMAL = normalize((VIEW_MATRIX * vec4(bent, 0.0)).xyz);
 }

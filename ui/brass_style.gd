@@ -226,9 +226,123 @@ static func draw_slot_gear(canvas: CanvasItem, rect: Rect2) -> void:
 	draw_gear(canvas, rect.get_center(), minf(rect.size.x, rect.size.y) * 0.3, Color(BRASS.r, BRASS.g, BRASS.b, GEAR_ALPHA), 10)
 
 
-## The text font for dials (the project's default)
+## The text font for dials: the body font
 static func font() -> Font:
-	return ThemeDB.fallback_font
+	return body_font()
+
+
+# ---- Fonts: every interface font comes from here (DESIGN.md, Interface style) ----
+
+const FONT_FOLDER := "res://assets/fonts/"
+## Panel and screen titles (names, "Village", menu titles), and the title screen's logo
+const FONT_TITLE := "cinzel_decorative/CinzelDecorative-Bold.ttf"
+const FONT_LOGO := "cinzel_decorative/CinzelDecorative-Black.ttf"
+## Section headings and table column titles: Alegreya bold in small capitals
+const FONT_HEADING := "alegreya/static/Alegreya-Bold.ttf"
+## Everything else: body text, tables, buttons, tooltips, the HUD, hint rows, the build menu
+const FONT_BODY := "alegreya/static/Alegreya-Regular.ttf"
+const FONT_BODY_ITALIC := "alegreya/static/Alegreya-Italic.ttf"
+## Event banners (a visitor arrived, a building working, an era unlocked)
+const FONT_BANNER := "rye/Rye-Regular.ttf"
+## In-world text: notes, letters, the quest journal
+const FONT_INWORLD := "im_fell_english/IMFellEnglish-Regular.ttf"
+const FONT_INWORLD_ITALIC := "im_fell_english/IMFellEnglish-Italic.ttf"
+
+static var _fonts := {}
+
+
+## Makes the body font every control's default (labels, buttons, tooltips, line edits, the HUD...)
+## Called once, first thing (the SaveGame autoload). The dev console keeps its own monospace font.
+static func install_fonts() -> void:
+	var body := body_font()
+	if body == null:
+		return
+	ThemeDB.fallback_font = body
+	var theme := ThemeDB.get_default_theme()
+	if theme:
+		theme.default_font = body
+
+
+static func title_font() -> Font:
+	return _font(FONT_TITLE)
+
+
+static func logo_font() -> Font:
+	return _font(FONT_LOGO)
+
+
+static func body_font() -> Font:
+	return _font(FONT_BODY)
+
+
+static func body_italic_font() -> Font:
+	return _font(FONT_BODY_ITALIC)
+
+
+static func banner_font() -> Font:
+	return _font(FONT_BANNER)
+
+
+static func inworld_font() -> Font:
+	return _font(FONT_INWORLD)
+
+
+static func inworld_italic_font() -> Font:
+	return _font(FONT_INWORLD_ITALIC)
+
+
+## Alegreya bold in small capitals (lower case as small caps, capitals made small caps too, a little
+## spaced), for section headings and table column titles
+static func heading_font() -> Font:
+	if not _fonts.has("heading"):
+		var bold := _font(FONT_HEADING)
+		if bold == null:
+			return null
+		var small_caps := FontVariation.new()
+		small_caps.base_font = bold
+		var ts := TextServerManager.get_primary_interface()
+		small_caps.opentype_features = {ts.name_to_tag("smcp"): 1, ts.name_to_tag("c2sc"): 1}
+		small_caps.spacing_glyph = 1
+		_fonts["heading"] = small_caps
+	return _fonts["heading"]
+
+
+# A font file, loaded once, drawn as a multichannel signed distance field so it stays sharp at every
+# UI scale and the menus' enlargement (null if it's missing)
+static func _font(file: String) -> Font:
+	if not _fonts.has(file):
+		var loaded: FontFile = load(FONT_FOLDER + file) if ResourceLoader.exists(FONT_FOLDER + file) else null
+		if loaded:
+			loaded.multichannel_signed_distance_field = true
+		_fonts[file] = loaded
+	return _fonts[file]
+
+
+## A panel or screen title (a name, "Village", a menu's title) in the title font
+static func title(text: String, size := SIZE_HEADER, color := TEXT) -> Label:
+	var l := label(text, size, color)
+	l.add_theme_font_override("font", title_font())
+	return l
+
+
+## A section heading or table column title: small capitals, brass
+static func heading(text: String) -> Label:
+	var l := label(text.to_upper(), SIZE_SECTION, HEADING)
+	l.add_theme_font_override("font", heading_font())
+	return l
+
+
+## In-world text (a note, a letter, the quest journal) on parchment: the in-world font, dark ink.
+## Ready for anything readable.
+const INK := Color(0.2, 0.13, 0.07)
+const INK_FAINT := Color(0.45, 0.33, 0.2)
+
+
+static func inworld(text: String, size := 22, italic := false, color := INK) -> Label:
+	var l := label(text, size, color)
+	l.add_theme_font_override("font", inworld_italic_font() if italic else inworld_font())
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return l
 
 
 # ---- The standard pieces every panel is built from (see BrassPanel) ----

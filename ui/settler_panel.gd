@@ -3,8 +3,7 @@ extends Control
 ## A settler's or visitor's panel, opened with E aimed at them, built on the standard panel
 ## (BrassPanel), kept up to date while it's open.
 ##
-## A settler: their name, a status pill (Working, On the way, Idle, Can't work...), "Settler", a
-## Permanent badge for a quest villager; their home, job, food ("Fed", "Hungry (2 days)") and what
+## A settler: their name, a status pill (Working, On the way, Idle, Can't work...); their home, job, food ("Fed", "Hungry (2 days)") and what
 ## they're doing; Assign home and Assign job. Each lists the working plots with a free place (and
 ## "No home" / "No job" to move them out); picking one assigns it. Homes are only villager housing
 ## (never a Player home).
@@ -142,13 +141,7 @@ func _refresh() -> void:
 	_panel.set_status(state[0], state[1])
 	# (no subtitle: the name, pill and facts say who they are)
 	_panel.set_subtitle("")
-	var permanent: bool = _settler.quest
-	if permanent != (_panel.badges.get_child_count() > 0):
-		_panel.set_badges([["Permanent  ·  quest villager", BrassStyle.INFO]] if permanent else [])
-		if permanent:
-			var badge := _panel.badges.get_child(0) as Control
-			badge.tooltip_text = "Never leaves: when their needs aren't met, they stop working until it's fixed"
-			badge.mouse_filter = Control.MOUSE_FILTER_PASS
+	# (quest villagers aren't marked: they never leave, but nothing says so)
 	var home := manager.plot(_settler.home_id)
 	var job := manager.plot(_settler.job_id)
 	_panel.set_facts(_facts, [

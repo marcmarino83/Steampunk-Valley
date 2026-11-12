@@ -1,6 +1,7 @@
 class_name GameSettings
 extends RefCounted
-## The player's settings: volumes, window mode, resolution, V-Sync, render scale, mouse sensitivity, invert Y,
+## The player's settings: volumes, window mode, resolution, V-Sync, render scale, anti-aliasing,
+## texture filtering, mouse sensitivity, invert Y,
 ## field of view and which snap points show while building. Kept in user://settings.cfg (in Godot's user folder, beside the saves),
 ## applied as soon as they're read and whenever one changes (see SettingsPanel). The title screen
 ## and the player read them in (ensure_loaded); the player uses the mouse ones and the field of
@@ -25,6 +26,16 @@ static var vsync := true
 ## How much of the screen's resolution the 3D world is drawn at, 50 to 100 (%); below 100 it's
 ## scaled up to the screen with AMD FSR (the HUD and menus stay sharp at full resolution)
 static var render_scale := 100.0
+## How the 3D world's edges are smoothed (see ANTI_ALIASING), and how sharp textures stay when seen
+## at a slant (anisotropic filtering: 0 off, or 2, 4, 8 or 16 samples). TAA is the default: it
+## shimmers least while moving and costs about what MSAA 2× does (tests/look_pass.gd).
+static var anti_aliasing := "taa"
+static var texture_filtering := 16
+## The anti-aliasing choices, as the Settings menu lists them: MSAA smooths the edges of shapes
+## (2× or 4× the samples on edges), FXAA blurs high-contrast edges slightly after drawing, TAA blends
+## each frame with the ones before (smoothest, softest, and quiet while moving)
+const ANTI_ALIASING := ["off", "fxaa", "msaa_2x", "msaa_4x", "taa", "taa_msaa_2x"]
+const TEXTURE_FILTERING := [0, 2, 4, 8, 16]
 ## How fast the mouse turns the view (1 = normal), whether up and down are swapped, and the field
 ## of view in degrees
 static var mouse_sensitivity := 1.0
@@ -59,6 +70,8 @@ static func ensure_loaded() -> void:
 		resolution = file.get_value("display", "resolution", resolution)
 		vsync = bool(file.get_value("display", "vsync", vsync))
 		render_scale = clampf(float(file.get_value("display", "render_scale", render_scale)), 50.0, 100.0)
+		anti_aliasing = str(file.get_value("display", "anti_aliasing", anti_aliasing))
+		texture_filtering = int(file.get_value("display", "texture_filtering", texture_filtering))
 		mouse_sensitivity = float(file.get_value("controls", "mouse_sensitivity", mouse_sensitivity))
 		invert_y = bool(file.get_value("controls", "invert_y", invert_y))
 		fov = float(file.get_value("controls", "fov", fov))
@@ -66,6 +79,10 @@ static func ensure_loaded() -> void:
 	SpikeLog.enabled = spike_log and OS.is_debug_build()
 	if not WINDOW_MODES.has(window_mode):
 		window_mode = "windowed"
+	if not ANTI_ALIASING.has(anti_aliasing):
+		anti_aliasing = "taa"
+	if not TEXTURE_FILTERING.has(texture_filtering):
+		texture_filtering = 16
 	apply_audio()
 	apply_display()
 
@@ -124,6 +141,8 @@ static func save() -> void:
 	file.set_value("display", "resolution", resolution)
 	file.set_value("display", "vsync", vsync)
 	file.set_value("display", "render_scale", render_scale)
+	file.set_value("display", "anti_aliasing", anti_aliasing)
+	file.set_value("display", "texture_filtering", texture_filtering)
 	file.set_value("display", "ui_scale", ui_scale)
 	file.set_value("controls", "mouse_sensitivity", mouse_sensitivity)
 	file.set_value("controls", "invert_y", invert_y)
@@ -153,6 +172,7 @@ static func apply_display() -> void:
 		return
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
 	apply_render_scale()
+	apply_quality()
 	apply_ui_scale()
 	match window_mode:
 		"fullscreen":
@@ -182,6 +202,22 @@ static func apply_render_scale() -> void:
 	else:
 		root.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
 		root.scaling_3d_scale = render_scale / 100.0
+
+
+## Anti-aliasing and texture filtering, on the window's 3D world
+static func apply_quality() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return
+	apply_anti_aliasing(tree.root, anti_aliasing)
+	tree.root.anisotropic_filtering_level = {0: Viewport.ANISOTROPY_DISABLED, 2: Viewport.ANISOTROPY_2X, 4: Viewport.ANISOTROPY_4X, 8: Viewport.ANISOTROPY_8X}.get(texture_filtering, Viewport.ANISOTROPY_16X)
+
+
+## One of the ANTI_ALIASING choices on a viewport
+static func apply_anti_aliasing(viewport: Viewport, choice: String) -> void:
+	viewport.msaa_3d = {"msaa_2x": Viewport.MSAA_2X, "msaa_4x": Viewport.MSAA_4X, "taa_msaa_2x": Viewport.MSAA_2X}.get(choice, Viewport.MSAA_DISABLED)
+	viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if choice == "fxaa" else Viewport.SCREEN_SPACE_AA_DISABLED
+	viewport.use_taa = choice.begins_with("taa")
 
 
 ## Sizes every menu, panel and HUD element: the window's 2D content is drawn ui_scale % of its

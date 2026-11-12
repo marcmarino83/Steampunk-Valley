@@ -9,7 +9,8 @@ extends Node3D
 ## Each look is drawn the way the game draws it (the same meshes, so the same vertex layout; the same
 ## shaders and settings): plain, close-up and simplified looks with their shadows, a look fading
 ## between distances, the template preview's glow overlay, the placement preview's and the ghosts'
-## tints and outlines (PreviewLook) and the red take-down glow.
+## tints and outlines (PreviewLook) and the red take-down glow. The hybrid walls' baked far looks are
+## prepared under the same cover (see _prepare_walls).
 
 ## Shapes covering every kind of piece surface (wood, roof, beam, post, stone) and a door
 const SHAPES := ["wall", "floor", "roof", "beam_2", "pillar_wood", "foundation_stone", "door"]
@@ -67,7 +68,37 @@ func _start(registry: PieceRegistry) -> void:
 	SpikeLog.end("shader warm-up set up", timing)
 	for i in FRAMES:
 		await get_tree().process_frame
+	await _prepare_walls(registry, words)
 	queue_free()
+
+
+## Every hybrid wall's far look made while the cover's up (see WallBaker): one shape a frame, read
+## from the bake cache or queued to bake, then the cover waits for the baking to finish (only on the
+## first run, or after the look code changes), counting down the shapes left
+const BAKE_WAIT_LIMIT := 120.0
+
+
+func _prepare_walls(registry: PieceRegistry, words: Label) -> void:
+	var baker := registry.baker
+	# (the player stays where they are while the cover's up: it can be several seconds)
+	var player := get_tree().get_first_node_in_group("player")
+	var held := {}
+	if player:
+		held = {"physics": player.is_physics_processing(), "input": player.is_processing_input(), "unhandled": player.is_processing_unhandled_input()}
+		player.set_physics_process(false)
+		player.set_process_input(false)
+		player.set_process_unhandled_input(false)
+	for shape in WallBaker.all_shapes():
+		baker.far_material(shape, 0)
+		await get_tree().process_frame
+	var started := Time.get_ticks_msec()
+	while not baker.is_idle() and Time.get_ticks_msec() - started < BAKE_WAIT_LIMIT * 1000.0:
+		words.text = "Getting the valley ready…\nPreparing walls: %d left" % baker.remaining()
+		await get_tree().process_frame
+	if is_instance_valid(player):
+		player.set_physics_process(held["physics"])
+		player.set_process_input(held["input"])
+		player.set_process_unhandled_input(held["unhandled"])
 
 
 func _looks(registry: PieceRegistry) -> Array:

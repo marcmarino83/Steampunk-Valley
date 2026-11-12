@@ -90,6 +90,7 @@ func _ready() -> void:
 	hint_label.text = "[Q] / [R] Change tab   [E], [Tab] or [Esc] Close"
 	# The palette (see BrassStyle)
 	(column.get_node("Title") as Label).add_theme_color_override("font_color", BrassStyle.HEADING)
+	(column.get_node("Title") as Label).add_theme_font_override("font", BrassStyle.title_font())
 	detail_label.add_theme_color_override("font_color", BrassStyle.TEXT_DIM)
 	hint_label.add_theme_color_override("font_color", BrassStyle.TEXT_DIM)
 	_actions = TemplateActions.new()
@@ -167,10 +168,8 @@ func _fill_buildings_tab() -> void:
 		if not buildable is PlotType:
 			continue
 		var type := buildable as PlotType
-		var heading := Label.new()
-		heading.text = type.display_name
+		var heading := BrassStyle.heading(type.display_name)
 		heading.add_theme_font_size_override("font_size", 17)
-		heading.add_theme_color_override("font_color", BrassStyle.TEXT)
 		page.add_child(heading)
 		var row := HFlowContainer.new()
 		row.add_theme_constant_override("h_separation", 8)

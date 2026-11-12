@@ -2,7 +2,7 @@ class_name SettingsPanel
 extends Control
 ## The settings, over whatever's behind (the title screen, or the paused game): the ornate frame
 ## with Audio (master, music and effects volume), Display (window mode, resolution, V-Sync, render
-## scale, UI scale) and
+## scale, anti-aliasing, texture filtering, UI scale) and
 ## Controls (mouse sensitivity, invert Y, field of view). Every change applies at once and is saved
 ## (see GameSettings). Back or Esc closes it. Works while the game is paused.
 
@@ -76,6 +76,18 @@ func _ready() -> void:
 		GameSettings.save())
 	var render_slider := _slider_row(column, "Render scale", "render_scale", 50, 100, 5, "%d%%")
 	render_slider.tooltip_text = "Draws the world at this share of the resolution, sharpened back up with AMD FSR.\nLower is faster; the HUD stays sharp."
+	var smoothing := _option_row(column, "Anti-aliasing", ["Off", "FXAA", "MSAA 2×", "MSAA 4×", "TAA", "TAA + MSAA 2×"], GameSettings.ANTI_ALIASING.find(GameSettings.anti_aliasing))
+	smoothing.tooltip_text = "How edges are smoothed. MSAA: sharp, cheap at 2×.\nTAA: steadiest while moving, slightly soft. FXAA: cheapest, blurs a little."
+	smoothing.item_selected.connect(func(i):
+		GameSettings.anti_aliasing = GameSettings.ANTI_ALIASING[i]
+		GameSettings.apply_quality()
+		GameSettings.save())
+	var filtering := _option_row(column, "Texture filtering", ["Off", "2×", "4×", "8×", "16×"], GameSettings.TEXTURE_FILTERING.find(GameSettings.texture_filtering))
+	filtering.tooltip_text = "Keeps ground, walls and roofs sharp when seen at a slant (anisotropic filtering)"
+	filtering.item_selected.connect(func(i):
+		GameSettings.texture_filtering = GameSettings.TEXTURE_FILTERING[i]
+		GameSettings.apply_quality()
+		GameSettings.save())
 	var ui_slider := _slider_row(column, "UI scale", "ui_scale", GameSettings.UI_SCALE_MIN, GameSettings.UI_SCALE_MAX, GameSettings.UI_SCALE_STEP, "%d%%", true)
 	ui_slider.tooltip_text = "The size of every menu, panel and the HUD (applied when you let go of the slider)"
 
@@ -146,6 +158,7 @@ func _heading(text: String) -> Label:
 	label.text = text
 	label.add_theme_font_size_override("font_size", 22)
 	label.add_theme_color_override("font_color", BrassStyle.HEADING)
+	label.add_theme_font_override("font", BrassStyle.heading_font())
 	return label
 
 

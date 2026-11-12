@@ -17,6 +17,11 @@ const STONE_FOLDER := "res://assets/textures/rock_wall_13/rock_wall_13"
 ## The close-up look (see PieceDetail) and how many versions of it each shape has
 const DETAIL_SHADER := preload("res://building/pieces/piece_detail.gdshader")
 const DETAIL_VARIANTS := 4
+## Hybrid detail for the wood wall family, Standard and Tall (walls, half walls, strips, doorways,
+## windows, gables and triangle walls): modelled planks up close, beyond BuildPiece.hybrid_range a
+## slab wearing textures baked from those planks (see WallBaker), no middle look. Off: those pieces
+## get the three looks every other piece has (for comparing).
+static var hybrid_walls := true
 
 ## Where pieces are added (the world). Set by the build placer.
 var world: Node
@@ -34,6 +39,8 @@ var _surfaces := {}
 var _details := {}
 var _detail_material: ShaderMaterial
 var _joints: JointDetails
+## The hybrid walls' far looks, baked from their close-up looks
+var baker: WallBaker
 
 ## Debug runs from the project only: the close-up look code, checked every LOOK_CHECK_SECONDS for a
 ## change on disk while the game runs. The looks made once per shape and shared by every piece of
@@ -44,6 +51,16 @@ const LOOK_CODE := "res://building/pieces/piece_detail.gd"
 const LOOK_CHECK_SECONDS := 2.0
 var _look_stamp := 0
 var _look_check := 0.0
+
+
+func _init() -> void:
+	# Made with the registry itself, not when it enters the tree: a registry used outside the world
+	# (the icon updater's, the title screen's) still builds pieces, and every wall asks the baker for
+	# its far look (it bakes once it's in the tree; until then those walls show their planks)
+	baker = WallBaker.new()
+	baker.name = "WallBaker"
+	baker.registry = self
+	add_child(baker)
 
 
 func _ready() -> void:
@@ -81,6 +98,7 @@ func _process(delta: float) -> void:
 ## the corner posts and ridge logs with them; the looks made before are let go
 func remake_looks() -> void:
 	_details.clear()
+	baker.clear()
 	for piece in all_pieces():
 		var ghost: bool = piece.is_ghost()
 		if ghost:
@@ -118,6 +136,9 @@ func material_for(shape: String) -> Material:
 	var kind := "wood"
 	if def.get("furniture", false):
 		return wood_material()
+	if is_hybrid(shape):
+		# (its first variant's far look: each piece wears its own variant's, see mid_mesh)
+		return baker.far_material(shape, 0)
 	if shape.contains("stone"):
 		kind = "stone_round" if shape.begins_with("round") else "stone"
 	elif shape == "cone_roof":
@@ -150,6 +171,13 @@ func _make_surface(kind: String) -> ShaderMaterial:
 	return material
 
 
+## A wood wall, Standard or Tall (walls, half walls, strips, doorways, windows, gables and triangle
+## walls), while hybrid_walls is on: modelled planks up close, the baked slab from afar (see
+## BuildPiece.dress, WallBaker)
+static func is_hybrid(shape: String) -> bool:
+	return hybrid_walls and (shape in SnapEdges.WALLS or shape in SnapEdges.TRIANGLES)
+
+
 ## A piece's close-up look (see PieceDetail): one of DETAIL_VARIANTS made once per shape, picked
 ## by the piece's id, so neighbours differ and a piece always looks the same. Pieces with the same
 ## variant share its mesh, so Godot draws them together; each piece's own slight colour comes
@@ -167,7 +195,11 @@ func detail_mesh(shape: String, piece_id: int) -> Dictionary:
 ## The same variant's simplified look, for the middle distance (see PieceDetail.build: simple).
 ## "shadow_from_mid" is set when it has fewer triangles than the shape's plain box (a foundation's
 ## box reaches far underground), so its shadow is cast with it instead (see BuildPiece.dress).
+## A hybrid wall (see is_hybrid) has none: instead {"hybrid": true, "far": its variant's baked far
+## look, "baker": the WallBaker, which says when a far look still baking is ready}.
 func mid_mesh(shape: String, piece_id: int) -> Dictionary:
+	if is_hybrid(shape):
+		return {"hybrid": true, "far": baker.far_material(shape, posmod(piece_id, DETAIL_VARIANTS)), "baker": baker}
 	var variant := posmod(piece_id, DETAIL_VARIANTS)
 	var key := "%s#%d#mid" % [shape, variant]
 	if not _details.has(key):

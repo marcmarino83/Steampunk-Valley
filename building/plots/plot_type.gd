@@ -35,6 +35,10 @@ extends Buildable
 @export var town_storage_slots := 0
 ## Only one plot of this type in the village (the Village Center)
 @export var one_per_village := false
+## A plain plot for the player's own building (Free build): no requirements, no workers, no beds
+## for villagers; it never needs attention (the Village screen) and isn't announced as working. It
+## moves like any plot, its pieces with it.
+@export var free_build := false
 ## While it's working, visitors come to it and linger around its `work_at` item (the Village
 ## Center's Bell Mast), to be recruited as settlers (see SettlerManager)
 @export var draws_visitors := false
@@ -105,7 +109,7 @@ func requirements_text() -> String:
 		parts.append("door")
 	for need in furniture:
 		parts.append(str(need.get("summary", str(need.get("label", "")).to_lower())))
-	return ", ".join(parts)
+	return ", ".join(parts) if not parts.is_empty() else "nothing"
 
 
 ## Every furniture name that counts toward any of its needs

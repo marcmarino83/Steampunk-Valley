@@ -441,7 +441,7 @@ func _tend_visitors() -> void:
 		if not visitor.announced and mast and (visitor.global_position.distance_to(mast.global_position) < BELL_REACH or visitor.travel_time > BELL_LATE):
 			visitor.announced = true
 			ring_bell(mast.global_position + Vector3.UP * 6.0)
-			notice.emit("The bell rings: %s has come to the Village Center." % visitor.settler_name)
+			# (the player shows it as an event banner: "A visitor has arrived")
 			visitor_arrived.emit(visitor)
 		if center == null or (at >= visitor.stay_until and daytime):
 			if visitor.announced and center:

@@ -26,6 +26,7 @@ static func title(text: String, size := 30) -> Label:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_color_override("font_color", BrassStyle.HEADING)
+	label.add_theme_font_override("font", BrassStyle.title_font())
 	return label
 
 

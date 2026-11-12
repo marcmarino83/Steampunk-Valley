@@ -122,6 +122,10 @@ func _refresh() -> void:
 	_type.visible = not parts.is_empty()
 	_status.text = "Working" if _plot.working else ("Under construction" if not build.is_empty() else ("Missing requirements" if _plot.checked else "Checking..."))
 	_status.add_theme_color_override("font_color", WORKING if _plot.working else (BUILDING if not build.is_empty() else MISSING))
+	# (a Free build plot has nothing to work at)
+	if _plot.plot_type.free_build and build.is_empty():
+		_status.text = "Free build"
+		_status.add_theme_color_override("font_color", BrassStyle.NEUTRAL)
 	while _lines.get_child_count() < lines.size():
 		_lines.add_child(_label(15, BrassStyle.TEXT, true))
 	for i in _lines.get_child_count():

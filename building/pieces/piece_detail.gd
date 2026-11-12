@@ -404,9 +404,14 @@ func _wall(width: float, height: float, holes: Array) -> void:
 				_wall_plank(span[0], span[1], y, y + h, t, course, y <= 0.0001, y + h >= height - 0.0001)
 			y += h
 			course += 1
-	# Chunky frames round the holes. A hole running out to the wall's edge (a split-window wall's)
-	# has no jamb on that side, and its lintel and sill run right to the edge, so two such walls
-	# joined there read as one window with a continuous sill and header.
+	_hole_frames(x0, x1, height, holes)
+
+
+# Chunky frames round a wall's holes. A hole running out to the wall's edge (a split-window wall's)
+# has no jamb on that side, and its lintel and sill run right to the edge, so two such walls joined
+# there read as one window with a continuous sill and header.
+func _hole_frames(x0: float, x1: float, height: float, holes: Array) -> void:
+	var t := PieceShapes.WALL_THICKNESS
 	for hole in holes:
 		var hr: Rect2 = hole
 		var jamb := 0.12

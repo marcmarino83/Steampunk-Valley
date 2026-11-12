@@ -63,6 +63,8 @@ var _test_note: Label
 
 
 func _ready() -> void:
+	# (the first thing that runs: the interface's fonts, before any screen is built)
+	BrassStyle.install_fonts()
 	# Saves are made while the game is paused (from the pause menu), and the sign shows then too
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	DirAccess.make_dir_recursive_absolute(SAVES_DIR)

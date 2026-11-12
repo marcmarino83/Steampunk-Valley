@@ -176,6 +176,41 @@ func ghost_buildings() -> Array:
 	return get_tree().get_nodes_in_group("ghost_buildings").filter(func(b): return is_instance_valid(b) and not b.is_queued_for_deletion())
 
 
+## Changes a plot's type, keeping everything it owns (a House plot used to move a big building of
+## the player's own becomes a Free build plot). Its name follows if it still had its old type's
+## (name), a Storehouse's share of town storage moves to the rest, and its requirements are
+## checked again for the new type. Who lives or works there is seen to by the plot panel.
+func change_type(plot: Plot, type: PlotType) -> void:
+	var old := plot.plot_type
+	if type == null or type == old:
+		return
+	var base := old.display_name
+	var rest := plot.plot_name.trim_prefix(base + " ")
+	var had_type_name := plot.plot_name == base or (rest != plot.plot_name and rest.is_valid_int())
+	plot.plot_type = type
+	plot.production = {}
+	plot.checked = false
+	if had_type_name:
+		plot.rename(_free_name(type.display_name))
+	plot.rebuild()
+	if old.town_storage_slots > 0:
+		town.reconcile(plot.global_position)
+	check(plot)
+	mark_dirty()
+
+
+## Every plot type there is (buildables/plots), in the build menu's order
+static func all_types() -> Array:
+	var found := []
+	for file in ResourceLoader.list_directory("res://buildables/plots"):
+		if file.ends_with(".tres"):
+			var type := load("res://buildables/plots/" + file) as PlotType
+			if type:
+				found.append(type)
+	found.sort_custom(func(a, b): return a.menu_order < b.menu_order if a.menu_order != b.menu_order else a.display_name < b.display_name)
+	return found
+
+
 ## Every piece and building, owned or not
 func all_items() -> Array:
 	return pieces.all_pieces() + _buildings()
@@ -301,7 +336,8 @@ func check(plot: Plot) -> void:
 			short.append(line.get("short", ""))
 	plot.missing = short
 	plot.update_status()
-	if plot.checked and not was_working and plot.working:
+	# (a Free build plot has nothing to work at: it isn't announced)
+	if plot.checked and not was_working and plot.working and not type.free_build:
 		became_working.emit(plot)
 	plot.checked = true
 	# A working plot of a type counts toward unlocks ("Plot:Storehouse" unlocks the Village Center)

@@ -186,6 +186,10 @@ var _bug_snapshot: BugSnapshot
 # The settlers, and a settler's panel (E aimed at one)
 var _settlers: SettlerManager
 var _settler_panel: SettlerPanel
+var _village_screen: VillageScreen
+var _banner: EventBanner
+# A settler's or plot's panel was opened from the Village screen: closing it goes back there
+var _back_to_village := false
 # Under a roof you've built, and shut in a room (see _check_shelter), and when to check again
 var _under_roof := false
 var _enclosed := false
@@ -259,8 +263,10 @@ func _ready() -> void:
 	# Above the HUD and menus, under the black of sleep
 	_plot_panel = PlotPanel.new()
 	$HUD.add_child(_plot_panel)
-	_plot_panel.closed.connect(func(): Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
+	_plot_panel.closed.connect(_after_child_panel)
 	_plot_panel.move_requested.connect(func(plot):
+		# (moving it goes straight to the hammer, not back to the Village screen)
+		_back_to_village = false
 		_plot_panel.close()
 		_placer.move_plot(plot))
 	_plot_panel.remove_confirmed.connect(func(plot):
@@ -275,7 +281,10 @@ func _ready() -> void:
 	add_child(_placer)
 	# Every building look drawn once behind a brief cover, so no shader compiles mid-game
 	_warm_up_shaders.call_deferred()
-	_placer.plots.became_working.connect(func(plot): _announce("%s is now working" % plot.plot_name))
+	# Event banners (see EventBanner): above the HUD
+	_banner = EventBanner.new()
+	$HUD.add_child(_banner)
+	_placer.plots.became_working.connect(func(plot): show_banner("%s is working" % plot.plot_name))
 	_placer.plots.notice.connect(_announce)
 	_settlers = SettlerManager.new()
 	_settlers.world = get_parent()
@@ -283,8 +292,10 @@ func _ready() -> void:
 	add_child(_settlers)
 	_settlers.arrived.connect(func(settler): _announce("A refugee named %s has arrived." % settler.settler_name))
 	_settlers.notice.connect(_announce)
+	_settlers.visitor_arrived.connect(func(visitor): show_banner("A visitor has arrived", "%s is waiting at the Village Center" % visitor.settler_name))
 	_placer.plots.town.notice.connect(_announce)
 	_plot_panel.settlers = _settlers
+	_plot_panel.is_unlocked = is_unlocked
 	_plot_tracker.settlers = _settlers
 	_plot_tracker.plots = _placer.plots
 	_plot_tracker.carrying = func(): return inventory
@@ -293,7 +304,26 @@ func _ready() -> void:
 	_settler_panel.manager = _settlers
 	$HUD.add_child(_settler_panel)
 	$HUD.move_child(_settler_panel, _fade.get_index())
-	_settler_panel.closed.connect(func(): Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
+	_settler_panel.closed.connect(_after_child_panel)
+	# The Village screen (V): a settler's or a plot's panel opened from it comes back to it
+	_village_screen = VillageScreen.new()
+	_village_screen.manager = _settlers
+	_village_screen.plots = _placer.plots
+	$HUD.add_child(_village_screen)
+	$HUD.move_child(_village_screen, _settler_panel.get_index())
+	_village_screen.closed.connect(func(): Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
+	_village_screen.settler_requested.connect(func(settler):
+		_back_to_village = true
+		_village_screen.hide()
+		open_settler_panel(settler))
+	_village_screen.plot_requested.connect(func(plot):
+		_back_to_village = true
+		_village_screen.hide()
+		open_plot_panel(plot))
+	_plot_panel.village_requested.connect(func():
+		_back_to_village = false
+		_plot_panel.close()
+		open_village())
 	if IronTier.ENABLED:
 		_dowsing = load("res://iron_tier/dowsing.gd").new()
 		add_child(_dowsing)
@@ -476,7 +506,7 @@ func _update_hud() -> void:
 	var facing := -global_basis.z
 	var sun = get_tree().get_first_node_in_group("sun")
 	_instruments.update_instruments(atan2(facing.x, -facing.z), sun.time_of_day if sun else 0.5, action_bar.first_slot_rect(), bar.end.y, _hud.row_rect())
-	var covered: bool = _note_panel.is_open() or _plot_panel.is_open() or _settler_panel.is_open() or _sleeping or inventory_screen.visible or build_menu.visible
+	var covered: bool = _note_panel.is_open() or _plot_panel.is_open() or _settler_panel.is_open() or _village_screen.is_open() or _sleeping or inventory_screen.visible or build_menu.visible
 	_instruments.show_crosshair(not covered)
 	_plot_tracker.show_plot(null if covered else _tracked_plot())
 	if covered:
@@ -558,6 +588,31 @@ func open_settler_panel(settler: Settler) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
+## An event banner (a visitor arrived, a building working, and later an era unlocked): its title in
+## the banner font, and a line beneath (see EventBanner)
+func show_banner(title: String, line := "") -> void:
+	_banner.show_event(title, line)
+
+
+## Opens the Village screen (V, or the Village Center's Village button)
+func open_village() -> void:
+	if inventory_screen.visible:
+		_toggle_inventory()
+	_placer.cancel()
+	_village_screen.open()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+# A settler's or plot's panel closed: back to the Village screen if it was opened from there,
+# otherwise back to looking around
+func _after_child_panel() -> void:
+	if _back_to_village:
+		_back_to_village = false
+		open_village()
+	else:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
 ## Asks a yes/no question on the plot panel (shrinking a plot that would lose pieces); one of the
 ## two is called after
 func ask_confirm(question: String, on_yes: Callable, on_no: Callable) -> void:
@@ -584,7 +639,7 @@ func _input(event: InputEvent) -> void:
 		return
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED or _sleeping or _console_open() or not _placer.is_placing():
 		return
-	if build_menu.visible or inventory_screen.visible or _plot_panel.is_open() or _settler_panel.is_open() or _note_panel.is_open():
+	if build_menu.visible or inventory_screen.visible or _plot_panel.is_open() or _settler_panel.is_open() or _village_screen.is_open() or _note_panel.is_open():
 		return
 	if _placer.handle_input(event):
 		get_viewport().set_input_as_handled()
@@ -609,6 +664,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		if (key and event.keycode == KEY_E) or event.is_action_pressed("ui_cancel"):
 			get_viewport().set_input_as_handled()
 			_settler_panel.dismiss()
+		return
+
+	# The Village screen: E, V or Esc closes it, Q and R switch tabs, and nothing else happens
+	if _village_screen.is_open():
+		var key: bool = event is InputEventKey and event.pressed and not event.echo
+		if key and event.keycode == KEY_Q:
+			_village_screen.cycle_tab(-1)
+		elif key and event.keycode == KEY_R:
+			_village_screen.cycle_tab(1)
+		elif (key and event.keycode in [KEY_E, KEY_V]) or event.is_action_pressed("ui_cancel"):
+			get_viewport().set_input_as_handled()
+			_village_screen.close()
 		return
 
 	# While reading, E or Esc puts the page away, and nothing else happens
@@ -712,6 +779,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_eat()
 			KEY_TAB:
 				_open_build_menu()
+			KEY_V:
+				open_village()
 			KEY_P:
 				# Plot view on or off (it shows with the hammer out)
 				if held_item == "Hammer":
@@ -762,7 +831,7 @@ func _physics_process(delta: float) -> void:
 
 	# WASD to walk (but stand still while reading, asleep, or typing in the developer console)
 	var input_dir := Vector2.ZERO
-	if not _note_panel.is_open() and not _plot_panel.is_open() and not _settler_panel.is_open() and not _sleeping and not _console_open():
+	if not _note_panel.is_open() and not _plot_panel.is_open() and not _settler_panel.is_open() and not _village_screen.is_open() and not _sleeping and not _console_open():
 		if Input.is_key_pressed(KEY_W): input_dir.y -= 1
 		if Input.is_key_pressed(KEY_S): input_dir.y += 1
 		if Input.is_key_pressed(KEY_A): input_dir.x -= 1
@@ -987,7 +1056,7 @@ func give_or_drop(items: Dictionary, spot: Vector3) -> Dictionary:
 
 # The hammer is out and nothing else is in the way (no menu, page or sleep), so demolishing works
 func _can_demolish() -> bool:
-	return held_item == "Hammer" and not _sleeping and not _note_panel.is_open() and not _plot_panel.is_open() \
+	return held_item == "Hammer" and not _sleeping and not _note_panel.is_open() and not _plot_panel.is_open() and not _village_screen.is_open() \
 			and not _placer.is_plot_mode() and not inventory_screen.visible and not build_menu.visible \
 			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 

@@ -22,12 +22,16 @@ signal remove_confirmed(plot: Plot)
 signal template_requested(plot: Plot, template_name: String, built_in: bool)
 ## It closed (the mouse goes back to looking around)
 signal closed
+## The Village Center's Village button: the player opens the Village screen
+signal village_requested
 
 const WIDTH := 420.0
 const REFRESH_SECONDS := 0.3
 
 ## The settlers (for a House's residents, a workplace's worker and the Village Center's visitors)
 var settlers: SettlerManager
+## Says whether a plot type is unlocked yet (Change type lists only those)
+var is_unlocked: Callable
 
 var _plot: Plot
 var _holding_hammer := false
@@ -59,11 +63,16 @@ var _requirements_open := false
 var _dragging := ""
 var _remove: Button
 var _move: Button
+# The Village Center's way to the Village screen
+var _village: Button
 # A yes/no question (shrinking a plot)
 var _confirm: BrassPanel
 var _question: Label
 var _on_yes: Callable
 var _on_no: Callable
+# Changing its type: the types it could be
+var _type_part: BrassPanel
+var _type_list: VBoxContainer
 # Saving as a template: its name, whether it's built in (debug builds only)
 var _template_part: BrassPanel
 var _template_name: LineEdit
@@ -85,6 +94,7 @@ func _ready() -> void:
 	_main = _build_main(center)
 	_confirm = _build_confirm(center)
 	_template_part = _build_template_part(center)
+	_type_part = _build_type_part(center)
 
 
 ## Opens the panel on a plot. Moving and resizing need the hammer in your hand.
@@ -132,6 +142,8 @@ func is_typing() -> bool:
 func dismiss() -> void:
 	if _confirm.get_parent().visible:
 		_answer(false)
+	elif _type_part.get_parent().visible:
+		_back_to_main()
 	elif _template_part.get_parent().visible:
 		_back_from_template()
 	else:
@@ -165,12 +177,15 @@ func _refresh() -> void:
 	# can be shows only while resizing it in plot view
 	var size_text := "%d × %d m" % [roundi(_plot.size.x), roundi(_plot.size.y)]
 	_main.set_subtitle(("%s  ·  %s" % [type.display_name, size_text]) if _renamed(_plot) else size_text)
-	if _plot.working:
+	if type.free_build:
+		_main.set_status("Free build", BrassStyle.NEUTRAL)
+	elif _plot.working:
 		_main.set_status("Working", BrassStyle.GOOD)
 	elif not _plot.missing.is_empty():
 		_main.set_status("Missing %s" % ", ".join(_plot.missing), BrassStyle.WARN)
 	else:
 		_main.set_status("Not working", BrassStyle.WARN)
+	_village.visible = type.draws_visitors
 	_thumb.visible = type.icon != null
 	if type.icon and _thumb.texture != type.icon:
 		_thumb.texture = type.icon
@@ -193,6 +208,8 @@ func _refresh() -> void:
 # anything missing, the whole list, missing ones first
 func _refresh_requirements() -> void:
 	var lines: Array = _plot.checklist
+	# (a type with no requirements, like Free build, has no section for them)
+	_requirements_part.visible = not lines.is_empty()
 	var missing := lines.filter(func(l): return not l["ok"])
 	var met := lines.filter(func(l): return l["ok"])
 	BrassPanel.set_heading(_requirements_part, "Requirements  %d/%d" % [met.size(), lines.size()])
@@ -401,6 +418,7 @@ func _show_part(part: Control) -> void:
 	_main.get_parent().visible = part == _main
 	_confirm.get_parent().visible = part == _confirm
 	_template_part.get_parent().visible = part == _template_part
+	_type_part.get_parent().visible = part == _type_part
 
 
 # ---- Building it ----
@@ -462,9 +480,30 @@ func _build_main(center: CenterContainer) -> BrassPanel:
 	_remove = p.add_action(BrassStyle.button("Remove", "danger"), true)
 	_remove.tooltip_text = "Removes only the plot: its pieces stay standing, belonging to no plot"
 	BrassStyle.arm_confirm(_remove, _confirm_remove, "Click again to remove")
-	var save_template := p.add_action(BrassStyle.button("Save as template"))
-	save_template.tooltip_text = "Saves everything in the plot as a template, to lay out again as ghosts to build"
-	save_template.pressed.connect(_open_template)
+	_village = p.add_action(BrassStyle.button("Village"))
+	_village.tooltip_text = "The Village screen: every settler, visitor and building [V]"
+	_village.pressed.connect(func(): village_requested.emit())
+	# The less used actions in one menu, so the row fits the panel: Change type, Save as template
+	var more := MenuButton.new()
+	more.text = "More  ▾"
+	more.flat = false
+	more.focus_mode = Control.FOCUS_NONE
+	BrassStyle.style_button(more)
+	more.custom_minimum_size = Vector2(BrassStyle.BUTTON_MIN_W, BrassStyle.BUTTON_H)
+	more.add_theme_font_size_override("font_size", BrassStyle.SIZE_BODY)
+	var menu := more.get_popup()
+	# (the popup isn't enlarged with the panel: its text is drawn at the enlarged size)
+	menu.add_theme_font_size_override("font_size", roundi(BrassStyle.SIZE_BODY * MenuStyle.MENU_SCALE))
+	menu.add_item("Change type…", 0)
+	menu.set_item_tooltip(0, "Make it another kind of plot: its pieces stay, and its requirements are checked again")
+	menu.add_item("Save as template…", 1)
+	menu.set_item_tooltip(1, "Saves everything in the plot as a template, to lay out again as ghosts to build")
+	menu.id_pressed.connect(func(id):
+		if id == 0:
+			_open_types()
+		else:
+			_open_template())
+	p.add_action(more)
 	_move = p.add_action(BrassStyle.button("Move", "primary"))
 	_move.pressed.connect(func(): if _plot: move_requested.emit(_plot))
 	return p
@@ -519,6 +558,77 @@ func _build_template_part(center: CenterContainer) -> BrassPanel:
 	save.pressed.connect(_save_template)
 	p.set_hints([["Enter", "Save"], ["Esc", "Back"]])
 	return p
+
+
+# Change type: the unlocked plot types it could become (one too small for it, or one the village
+# already has its one of, is listed but disabled, saying why); Back
+func _build_type_part(center: CenterContainer) -> BrassPanel:
+	var p := BrassPanel.create(center, WIDTH)
+	p.set_title("Change type")
+	_type_list = VBoxContainer.new()
+	_type_list.add_theme_constant_override("separation", BrassStyle.GAP_XS)
+	p.body.add_child(_type_list)
+	var back := p.add_action(BrassStyle.button("Back"))
+	back.pressed.connect(_back_to_main)
+	p.set_hints([["E", "Back"]])
+	return p
+
+
+func _open_types() -> void:
+	if _plot == null:
+		return
+	_apply_name()
+	var plot := _plot
+	_type_part.set_subtitle("From %s  ·  its pieces stay" % plot.plot_type.display_name)
+	for child in _type_list.get_children():
+		_type_list.remove_child(child)
+		child.queue_free()
+	for type: PlotType in PlotRegistry.all_types():
+		if type == plot.plot_type or (is_unlocked.is_valid() and not is_unlocked.call(type)):
+			continue
+		var b := BrassStyle.button(type.display_name)
+		b.custom_minimum_size.x = WIDTH
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var reason := ""
+		if plot.size.x < type.min_size.x or plot.size.y < type.min_size.y:
+			reason = "Needs at least %s m" % PlotType.size_text(type.min_size)
+		elif type.one_per_village and settlers and not settlers.plots.plots_of(type.display_name).is_empty():
+			reason = "One per village: there's one already"
+		BrassStyle.set_disabled_reason(b, reason)
+		if reason.is_empty():
+			b.tooltip_text = "Needs %s" % type.requirements_text()
+		b.pressed.connect(_change_type.bind(type))
+		_type_list.add_child(b)
+	_show_part(_type_part)
+
+
+# Its new type: who lives or works there and no longer can moves out, and its requirements are
+# checked again
+func _change_type(type: PlotType) -> void:
+	var plot := _plot
+	if plot == null or settlers == null:
+		return
+	for settler in settlers.residents(plot):
+		if type.houses_per.is_empty():
+			settlers.assign_home(settler, null)
+	var crew := settlers.workers(plot)
+	for i in crew.size():
+		if i >= type.workers:
+			settlers.assign_job(crew[i], null)
+	settlers.plots.change_type(plot, type)
+	_main.set_title(plot.plot_name)
+	_back_to_main()
+
+
+func _back_to_main() -> void:
+	_people_key = ""
+	_production_key = ""
+	_requirements_open = false
+	if _plot and is_instance_valid(_plot):
+		_show_part(_main)
+		_refresh()
+	else:
+		close()
 
 
 func _open_template() -> void:

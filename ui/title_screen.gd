@@ -18,6 +18,9 @@ const PANEL_BOTTOM := 54.0
 const REFUGEE_ROOM := 40.0
 const BUTTON_SIZE := Vector2(330, 58)
 const BUTTON_FONT := 24
+## The logo's size, made smaller if its widest word is wider than this (the buttons' width and a little)
+const LOGO_SIZE := 52
+const LOGO_WIDTH := 350.0
 ## How the lit button (hovered or focused) is tinted: warmer and brighter
 const HIGHLIGHT := Color(1.55, 1.3, 0.95)
 ## The dark gradient behind the menu: how far it reaches across the screen, and how dark it starts
@@ -58,8 +61,15 @@ func _ready() -> void:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 0)
 	panel.add_child(column)
-	var title := MenuStyle.title("Steampunk Valley", 52)
-	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# The logo: Cinzel Decorative Black (see BrassStyle's fonts), a word to a line, as big as fits the
+	# panel (it's wide: a word is never broken)
+	var title := MenuStyle.title("Steampunk\nValley", LOGO_SIZE)
+	title.add_theme_font_override("font", BrassStyle.logo_font())
+	var logo_font: Font = BrassStyle.logo_font()
+	if logo_font:
+		var widest: float = logo_font.get_string_size("STEAMPUNK", HORIZONTAL_ALIGNMENT_LEFT, -1, LOGO_SIZE).x
+		if widest > LOGO_WIDTH:
+			title.add_theme_font_size_override("font_size", floori(LOGO_SIZE * LOGO_WIDTH / widest))
 	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
 	title.add_theme_constant_override("shadow_offset_x", 2)
 	title.add_theme_constant_override("shadow_offset_y", 3)

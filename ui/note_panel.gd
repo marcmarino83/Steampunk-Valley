@@ -7,6 +7,10 @@ extends Control
 
 
 func _ready() -> void:
+	# In-world text: the page's title and words in the in-world font (see BrassStyle's fonts)
+	title_label.add_theme_font_override("font", BrassStyle.inworld_font())
+	body_label.add_theme_font_override("font", BrassStyle.inworld_font())
+	$Center/Paper/VBox/Hint.add_theme_font_override("font", BrassStyle.inworld_italic_font())
 	MenuStyle.enlarge($Center/Paper)
 
 

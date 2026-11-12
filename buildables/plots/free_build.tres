@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="PlotType" format=3]
+
+[ext_resource type="Script" path="res://building/plots/plot_type.gd" id="1_plot"]
+
+[resource]
+script = ExtResource("1_plot")
+min_size = Vector2i(1, 1)
+needs_roof = false
+needs_door = false
+furniture = Array[Dictionary]([])
+houses_per = ""
+free_build = true
+display_name = "Free build"
+starts_locked = true
+unlocked_by = "Craft"
+unlock_item = "Hammer"
+unlock_hint = "Craft a hammer to unlock"
+section = "Plots"
+menu_order = 0
+icon_color = Color(0.62, 0.6, 0.55, 1)

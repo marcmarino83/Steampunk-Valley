@@ -21,15 +21,6 @@ shadow_color = Color(0, 0, 0, 0.45)
 shadow_size = 14
 shadow_offset = Vector2(4, 6)
 
-[sub_resource type="SystemFont" id="SystemFont_serif"]
-font_names = PackedStringArray("Georgia", "Palatino Linotype", "Book Antiqua", "Times New Roman", "serif")
-multichannel_signed_distance_field = true
-
-[sub_resource type="SystemFont" id="SystemFont_serif_italic"]
-font_names = PackedStringArray("Georgia", "Palatino Linotype", "Book Antiqua", "Times New Roman", "serif")
-font_italic = true
-multichannel_signed_distance_field = true
-
 [sub_resource type="StyleBoxLine" id="StyleBoxLine_rule"]
 color = Color(0.55, 0.4, 0.22, 0.6)
 thickness = 2
@@ -76,7 +67,6 @@ theme_override_constants/separation = 14
 [node name="Title" type="Label" parent="Center/Paper/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.28, 0.17, 0.08, 1)
-theme_override_fonts/font = SubResource("SystemFont_serif")
 theme_override_font_sizes/font_size = 28
 text = "Note"
 horizontal_alignment = 1
@@ -90,14 +80,12 @@ custom_minimum_size = Vector2(600, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.2, 0.13, 0.07, 1)
 theme_override_constants/line_spacing = 6
-theme_override_fonts/font = SubResource("SystemFont_serif_italic")
-theme_override_font_sizes/font_size = 19
+theme_override_font_sizes/font_size = 21
 autowrap_mode = 3
 
 [node name="Hint" type="Label" parent="Center/Paper/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.45, 0.33, 0.2, 1)
-theme_override_fonts/font = SubResource("SystemFont_serif")
 theme_override_font_sizes/font_size = 14
 text = "[E] or [Esc] to close"
 horizontal_alignment = 2

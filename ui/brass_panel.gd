@@ -4,7 +4,7 @@ extends PanelContainer
 ## plaque frame and the palette (BrassStyle):
 ##
 ##   header:  the subject's name (or an editable name), a status pill on the right, a subtitle
-##            under it, and any badges ("Permanent · quest villager")
+##            under it, and any badges
 ##   ─────
 ##   body:    sections, each with a small uppercase brass heading (WORKER, REQUIREMENTS 2/3)
 ##   ─────
@@ -57,6 +57,7 @@ static func create(parent: Control, content_width: float, editable_name := false
 		p.name_edit = LineEdit.new()
 		p.name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		p.name_edit.add_theme_font_size_override("font_size", BrassStyle.SIZE_HEADER - 4)
+		p.name_edit.add_theme_font_override("font", BrassStyle.title_font())
 		p.name_edit.add_theme_color_override("font_color", BrassStyle.TEXT)
 		p.name_edit.add_theme_color_override("caret_color", BrassStyle.TEXT)
 		var flat := StyleBoxFlat.new()
@@ -72,7 +73,7 @@ static func create(parent: Control, content_width: float, editable_name := false
 		p.name_edit.tooltip_text = "Click to rename"
 		p.title_row.add_child(p.name_edit)
 	else:
-		p.title = BrassStyle.label("", BrassStyle.SIZE_HEADER, BrassStyle.TEXT)
+		p.title = BrassStyle.title("", BrassStyle.SIZE_HEADER, BrassStyle.TEXT)
 		p.title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		p.title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		p.title_row.add_child(p.title)
@@ -146,7 +147,7 @@ func section(heading: String, into: Control = null) -> VBoxContainer:
 	var part := VBoxContainer.new()
 	part.add_theme_constant_override("separation", BrassStyle.GAP_XS)
 	(into if into else body).add_child(part)
-	part.add_child(BrassStyle.label(heading.to_upper(), BrassStyle.SIZE_SECTION, BrassStyle.HEADING))
+	part.add_child(BrassStyle.heading(heading))
 	return part
 
 

@@ -8,11 +8,13 @@ extends Node
 ## eave along a 0.5 m edge, say).
 ## Run headless:
 ##
-##     godot --headless --path . res://tests/aim_check.tscn --fixed-fps 60 --quit-after 200000
+##     godot --headless --path . res://tests/aim_check.tscn --fixed-fps 60 --quit-after 200000 [-- <template>]
+##
+## (`-- workshop`, say: only the templates whose file name contains it; a full run stops at BUDGET.)
 ##
 ## Prints "AIM FAMILY" lines (per family: tries, passes, hanging from a point, too far from the
-## crosshair) and "AIM FAIL" examples for the converted families. Exit code: converted families'
-## failed tries. `-- --old` runs every piece the old way (corners) to compare against.
+## crosshair) and "AIM FAIL" examples. Exit code: failed tries (every family snaps by typed edges or
+## points now).
 
 const WORLD := "res://world/world.tscn"
 const Family := preload("res://tests/snap_family.gd")
@@ -62,9 +64,6 @@ func _run() -> void:
 	pp = bp._pieces
 	registry = bp.registry
 	pp.set_physics_process(false)
-	if "--old" in OS.get_cmdline_user_args():
-		pp.whole_edges = false
-		print("AIM | the old placer (corners only) for every piece")
 	if not _find_spot():
 		print("AIM | no flat open ground found")
 		get_tree().quit(1)
@@ -72,8 +71,10 @@ func _run() -> void:
 	rng.seed = SEED
 	var types := _piece_types()
 	var stopped := false
+	# (`-- <name>`: only the templates whose file name contains it, to cover ones the budget cuts off)
+	var only: String = OS.get_cmdline_user_args()[0] if not OS.get_cmdline_user_args().is_empty() else ""
 	for file in DirAccess.get_files_at(BuildingTemplate.BUILT_IN_FOLDER):
-		if not file.ends_with(".json") or stopped:
+		if not file.ends_with(".json") or stopped or (only != "" and not file.contains(only)):
 			continue
 		stopped = not await _template(BuildingTemplate.BUILT_IN_FOLDER.path_join(file), types)
 	var families := by_family.keys()
@@ -198,8 +199,8 @@ func _try(b: PieceBuildable, n: int, view: Array) -> void:
 	var far := body > NEAR + EXACT
 	# (a whole-edge piece rests on an edge: one of its edges along a placed one, over at least
 	# EDGE_CONTACT, even where its longer edge reaches past the shorter one's ends)
-	var whole_edge: bool = pp.whole_edges and SnapEdges.edge_shape(b.shape)
-	var on_points: bool = pp.whole_edges and SnapEdges.point_shape(b.shape) and _on_typed_point(b.shape, def, pp._where)
+	var whole_edge: bool = SnapEdges.edge_shape(b.shape)
+	var on_points: bool = SnapEdges.point_shape(b.shape) and _on_typed_point(b.shape, def, pp._where)
 	# (a floor's corner on a post top is a fit too: porches and stilt buildings)
 	var on_post: bool = whole_edge and b.shape in SnapEdges.FLOORS and _corner_on_post_top(b.shape, def, pp._where)
 	var hanging: bool = held < (1 if slender else 2) and not (whole_edge and _edge_contact(b.shape, def, pp._where)) and not on_points and not on_post
@@ -210,7 +211,7 @@ func _try(b: PieceBuildable, n: int, view: Array) -> void:
 	if not far and not hanging:
 		c[1] += 1
 		return
-	if SnapEdges.converted(b.shape) and pp.whole_edges:
+	if SnapEdges.converted(b.shape):
 		converted_failed += 1
 		if examples < 20:
 			examples += 1

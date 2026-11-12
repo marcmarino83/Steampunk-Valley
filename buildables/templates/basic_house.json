@@ -1,11 +1,12 @@
 {
 	"built_in": true,
+	"grid": 4,
 	"items": [
 		{
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				-1.91676759719849,
-				0.731470108032227,
+				1.0,
 				4.01260375976563
 			],
 			"turn": 0.0
@@ -14,7 +15,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				0.0832324028015137,
-				0.731470108032227,
+				1.0,
 				4.01260375976563
 			],
 			"turn": -1.57079637050629
@@ -23,7 +24,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				0.0832324326038361,
-				0.731470108032227,
+				1.0,
 				2.01260375976563
 			],
 			"turn": -0.0000000317865094245917
@@ -32,7 +33,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				-1.91676759719849,
-				0.731470108032227,
+				1.0,
 				2.01260375976563
 			],
 			"turn": 1.570796251297
@@ -41,7 +42,7 @@
 			"buildable": "res://buildables/structure/doorway.tres",
 			"position": [
 				-2.91676759719849,
-				0.731470108032227,
+				1.0,
 				2.01260375976563
 			],
 			"turn": -1.57079637050629
@@ -50,7 +51,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				-2.91676759719849,
-				0.731470108032227,
+				1.0,
 				4.01260375976563
 			],
 			"turn": -1.57079637050629
@@ -59,7 +60,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				-1.91676759719849,
-				0.731470108032227,
+				1.0,
 				5.01260375976563
 			],
 			"turn": 0.0
@@ -68,7 +69,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				0.0832324028015137,
-				3.23147010803223,
+				3.5,
 				5.01260375976563
 			],
 			"turn": -3.14159226417542
@@ -77,16 +78,16 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				-1.91676759719849,
-				3.23147010803223,
+				3.5,
 				5.01260375976563
 			],
 			"turn": 3.14159250259399
 		},
 		{
-			"buildable": "res://buildables/structure/stairs.tres",
+			"buildable": "res://buildables/structure/half_stairs.tres",
 			"position": [
-				-4.91676759719849,
-				-1.76852989196777,
+				-3.91676759719849,
+				0.0,
 				2.01260375976563
 			],
 			"turn": 1.57079637050629
@@ -95,7 +96,7 @@
 			"buildable": "res://buildables/structure/door.tres",
 			"position": [
 				-2.91676759719849,
-				0.731470108032227,
+				1.0,
 				2.01260375976563
 			],
 			"turn": -1.57079637050629
@@ -104,7 +105,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				-2.91676759719849,
-				3.23147010803223,
+				3.5,
 				4.01260375976563
 			],
 			"turn": 1.570796251297
@@ -113,7 +114,7 @@
 			"buildable": "res://buildables/structure/eave_26.tres",
 			"position": [
 				-1.91676759719849,
-				3.23147010803223,
+				3.5,
 				5.01260375976563
 			],
 			"turn": 3.14159250259399
@@ -122,7 +123,7 @@
 			"buildable": "res://buildables/structure/eave_26.tres",
 			"position": [
 				0.0832324028015137,
-				3.23147010803223,
+				3.5,
 				5.01260375976563
 			],
 			"turn": 3.14159250259399
@@ -131,7 +132,7 @@
 			"buildable": "res://buildables/structure/eave_corner_26.tres",
 			"position": [
 				-3.16676759719849,
-				3.23147010803223,
+				3.5,
 				5.01260375976563
 			],
 			"turn": 3.14159250259399
@@ -140,7 +141,7 @@
 			"buildable": "res://buildables/structure/eave_corner_26.tres",
 			"position": [
 				1.33323240280151,
-				3.23147010803223,
+				3.5,
 				5.01260375976563
 			],
 			"turn": 3.14159250259399
@@ -149,7 +150,7 @@
 			"buildable": "res://buildables/structure/gable_overhang_26.tres",
 			"position": [
 				-3.16676735877991,
-				3.23147010803223,
+				3.5,
 				5.01260375976563
 			],
 			"turn": 3.14159250259399
@@ -158,7 +159,7 @@
 			"buildable": "res://buildables/furniture/storage_shelf.tres",
 			"position": [
 				-2.59176778793335,
-				0.731470108032227,
+				1.0,
 				4.01260375976563
 			],
 			"turn": 1.57079637050629
@@ -167,7 +168,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				-1.91676783561707,
-				0.731470108032227,
+				1.0,
 				0.012603759765625
 			],
 			"turn": 0.000000174845553146952
@@ -176,7 +177,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				0.0832321643829346,
-				0.731470108032227,
+				1.0,
 				0.012603759765625
 			],
 			"turn": -1.57079637050629
@@ -185,7 +186,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				2.08323240280151,
-				0.731470108032227,
+				1.0,
 				4.01260375976563
 			],
 			"turn": -1.570796251297
@@ -194,7 +195,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				2.08323240280151,
-				0.731470108032227,
+				1.0,
 				2.01260375976563
 			],
 			"turn": 0.0000000874227765734759
@@ -203,7 +204,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				2.08323192596436,
-				0.731470108032227,
+				1.0,
 				0.012603759765625
 			],
 			"turn": 0.000000174845553146952
@@ -212,7 +213,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				0.0832322239875793,
-				0.731470108032227,
+				1.0,
 				-1.98739624023438
 			],
 			"turn": -0.0000000317865094245917
@@ -221,7 +222,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				-1.91676783561707,
-				0.731470108032227,
+				1.0,
 				-1.98739624023438
 			],
 			"turn": 1.570796251297
@@ -230,7 +231,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				2.08323216438293,
-				0.731470108032227,
+				1.0,
 				-1.98739624023438
 			],
 			"turn": -1.57079637050629
@@ -239,7 +240,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				4.08323192596436,
-				0.731470108032227,
+				1.0,
 				-1.98739624023438
 			],
 			"turn": -1.570796251297
@@ -248,7 +249,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				4.08323240280151,
-				0.731470108032227,
+				1.0,
 				0.012603759765625
 			],
 			"turn": -3.14159250259399
@@ -257,7 +258,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				4.08323287963867,
-				0.731470108032227,
+				1.0,
 				2.01260375976563
 			],
 			"turn": -3.14159250259399
@@ -266,7 +267,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				4.08323335647583,
-				0.731470108032227,
+				1.0,
 				4.01260375976563
 			],
 			"turn": -3.14159250259399
@@ -275,7 +276,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				0.0832321047782898,
-				0.731470108032227,
+				1.0,
 				-3.98739624023438
 			],
 			"turn": 0.0000000556362671488841
@@ -284,7 +285,7 @@
 			"buildable": "res://buildables/structure/foundation_stone.tres",
 			"position": [
 				2.08323216438293,
-				0.731470108032227,
+				1.0,
 				-3.98739624023438
 			],
 			"turn": -1.57079637050629
@@ -293,7 +294,7 @@
 			"buildable": "res://buildables/structure/window.tres",
 			"position": [
 				0.0832324028015137,
-				0.731470108032227,
+				1.0,
 				5.01260375976563
 			],
 			"turn": -0.00000000000000175000003281789
@@ -302,7 +303,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				2.08323240280151,
-				0.731470108032227,
+				1.0,
 				5.01260375976563
 			],
 			"turn": 0.000000119209289550781
@@ -311,7 +312,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				4.08323383331299,
-				0.731470108032227,
+				1.0,
 				5.01260375976563
 			],
 			"turn": 0.000000301991605056173
@@ -320,7 +321,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				5.08323335647583,
-				0.731470108032227,
+				1.0,
 				4.01260375976563
 			],
 			"turn": 1.57079637050629
@@ -329,7 +330,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				5.08323287963867,
-				0.731470108032227,
+				1.0,
 				2.01260375976563
 			],
 			"turn": 1.57079637050629
@@ -338,7 +339,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				5.08323240280151,
-				0.731470108032227,
+				1.0,
 				0.012603759765625
 			],
 			"turn": 1.57079637050629
@@ -347,7 +348,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				5.08323240280151,
-				0.731470108032227,
+				1.0,
 				-1.98739624023438
 			],
 			"turn": 1.57079637050629
@@ -356,7 +357,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				4.08323192596436,
-				0.731470108032227,
+				1.0,
 				-2.98739624023438
 			],
 			"turn": -3.14159250259399
@@ -365,7 +366,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				0.0832319557666779,
-				0.731470108032227,
+				1.0,
 				-4.98739624023438
 			],
 			"turn": -3.14159250259399
@@ -374,7 +375,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				-0.916767835617065,
-				0.731470108032227,
+				1.0,
 				-3.98739624023438
 			],
 			"turn": -1.570796251297
@@ -383,7 +384,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				2.08323216438293,
-				0.731470108032227,
+				1.0,
 				-4.98739624023438
 			],
 			"turn": 3.14159250259399
@@ -392,7 +393,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				3.08323216438293,
-				0.731470108032227,
+				1.0,
 				-3.98739624023438
 			],
 			"turn": 1.57079637050629
@@ -401,7 +402,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				-1.91676783561707,
-				0.731470108032227,
+				1.0,
 				-2.98739624023438
 			],
 			"turn": 3.14159250259399
@@ -410,7 +411,7 @@
 			"buildable": "res://buildables/structure/wall.tres",
 			"position": [
 				-2.91676783561707,
-				0.731470108032227,
+				1.0,
 				-1.98739624023438
 			],
 			"turn": -1.57079637050629
@@ -419,7 +420,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				4.08323383331299,
-				3.23147010803223,
+				3.5,
 				5.01260375976563
 			],
 			"turn": -3.14159226417542
@@ -428,7 +429,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				2.08323240280151,
-				3.23147010803223,
+				3.5,
 				5.01260375976563
 			],
 			"turn": -3.14159226417542
@@ -437,7 +438,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				-1.91676735877991,
-				4.23146820068359,
+				4.49999809265137,
 				3.01260375976563
 			],
 			"turn": 3.14159250259399
@@ -446,7 +447,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				0.083232581615448,
-				4.23146820068359,
+				4.49999809265137,
 				3.01260375976563
 			],
 			"turn": 3.14159250259399
@@ -455,7 +456,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				2.0832314491272,
-				4.23146820068359,
+				4.49999809265137,
 				3.01260375976563
 			],
 			"turn": -3.14159226417542
@@ -464,7 +465,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				4.08323287963867,
-				4.23146820068359,
+				4.49999809265137,
 				3.01260375976563
 			],
 			"turn": -3.14159226417542
@@ -473,7 +474,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				-1.91676783561707,
-				3.23147010803223,
+				3.5,
 				-2.98739624023438
 			],
 			"turn": -0.000000150995802528087
@@ -482,7 +483,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				-1.91676807403564,
-				4.23146820068359,
+				4.49999809265137,
 				-0.987396240234375
 			],
 			"turn": -0.000000150995802528087
@@ -491,7 +492,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				4.08323192596436,
-				3.23147010803223,
+				3.5,
 				-2.98739624023438
 			],
 			"turn": 0.000000301991605056173
@@ -500,7 +501,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				4.08323287963867,
-				4.23146820068359,
+				4.49999809265137,
 				-0.987396240234375
 			],
 			"turn": 0.000000301991605056173
@@ -509,7 +510,7 @@
 			"buildable": "res://buildables/structure/roof_inner_26.tres",
 			"position": [
 				-0.916768074035645,
-				3.23147010803223,
+				3.5,
 				-1.98739624023438
 			],
 			"turn": 1.57079613208771
@@ -518,7 +519,7 @@
 			"buildable": "res://buildables/structure/roof_inner_26.tres",
 			"position": [
 				2.08323192596436,
-				3.23147010803223,
+				3.5,
 				-2.98739624023438
 			],
 			"turn": 0.000000301991605056173
@@ -527,7 +528,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				-0.916767716407776,
-				3.23147010803223,
+				3.5,
 				-3.98739624023438
 			],
 			"turn": 1.57079613208771
@@ -536,7 +537,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				3.08323216438293,
-				3.23147010803223,
+				3.5,
 				-3.98739624023438
 			],
 			"turn": -1.570796251297
@@ -545,7 +546,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				0.0832317471504211,
-				4.23146820068359,
+				4.49999809265137,
 				-0.987396240234375
 			],
 			"turn": -0.000000194707183709397
@@ -554,7 +555,7 @@
 			"buildable": "res://buildables/structure/roof.tres",
 			"position": [
 				2.08323264122009,
-				4.23146820068359,
+				4.49999809265137,
 				-0.987396240234375
 			],
 			"turn": 0.000000301991605056173
@@ -563,7 +564,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				5.08323240280151,
-				3.23147010803223,
+				3.5,
 				-1.98739624023438
 			],
 			"turn": -1.57079637050629
@@ -572,7 +573,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				5.08323335647583,
-				3.23147010803223,
+				3.5,
 				4.01260375976563
 			],
 			"turn": 1.57079637050629
@@ -581,7 +582,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				0.0832319557666779,
-				3.23147010803223,
+				3.5,
 				-4.98739624023438
 			],
 			"turn": 0.000000150995802528087
@@ -590,7 +591,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				2.08323216438293,
-				3.23147010803223,
+				3.5,
 				-4.98739624023438
 			],
 			"turn": 3.14159250259399
@@ -599,7 +600,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				-2.91676783561707,
-				3.23147010803223,
+				3.5,
 				-1.98739624023438
 			],
 			"turn": -1.57079637050629
@@ -608,7 +609,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				-2.91676759719849,
-				3.23147010803223,
+				3.5,
 				2.01260375976563
 			],
 			"turn": 1.57079637050629
@@ -617,7 +618,7 @@
 			"buildable": "res://buildables/structure/inverse_2_26.tres",
 			"position": [
 				-2.91676759719849,
-				3.23147010803223,
+				3.5,
 				2.01260375976563
 			],
 			"turn": 1.57079637050629
@@ -626,7 +627,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				-2.91676759719849,
-				3.23147010803223,
+				3.5,
 				0.012603759765625
 			],
 			"turn": -1.57079637050629
@@ -635,7 +636,7 @@
 			"buildable": "res://buildables/structure/inverse_2_26.tres",
 			"position": [
 				-2.91676759719849,
-				3.23147010803223,
+				3.5,
 				0.012603759765625
 			],
 			"turn": -1.57079637050629
@@ -644,7 +645,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				5.08323287963867,
-				3.23147010803223,
+				3.5,
 				2.01260375976563
 			],
 			"turn": 1.57079637050629
@@ -653,7 +654,7 @@
 			"buildable": "res://buildables/structure/inverse_2_26.tres",
 			"position": [
 				5.08323287963867,
-				3.23147010803223,
+				3.5,
 				2.01260375976563
 			],
 			"turn": 1.57079637050629
@@ -662,7 +663,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				5.08323287963867,
-				4.23146820068359,
+				4.49999809265137,
 				2.01260375976563
 			],
 			"turn": 1.57079637050629
@@ -671,7 +672,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				5.08323240280151,
-				3.23147010803223,
+				3.5,
 				0.012603759765625
 			],
 			"turn": -1.57079637050629
@@ -680,7 +681,7 @@
 			"buildable": "res://buildables/structure/inverse_2_26.tres",
 			"position": [
 				5.08323240280151,
-				3.23147010803223,
+				3.5,
 				0.012603759765625
 			],
 			"turn": -1.57079637050629
@@ -689,7 +690,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				5.08323240280151,
-				4.23146820068359,
+				4.49999809265137,
 				0.012603759765625
 			],
 			"turn": -1.57079637050629
@@ -698,7 +699,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				-2.91676759719849,
-				4.23146820068359,
+				4.49999809265137,
 				0.012603759765625
 			],
 			"turn": -1.57079637050629
@@ -707,7 +708,7 @@
 			"buildable": "res://buildables/structure/gable_26.tres",
 			"position": [
 				-2.91676759719849,
-				4.23146820068359,
+				4.49999809265137,
 				2.01260375976563
 			],
 			"turn": 1.570796251297
@@ -716,7 +717,7 @@
 			"buildable": "res://buildables/structure/eave_26.tres",
 			"position": [
 				-1.91676783561707,
-				3.23147010803223,
+				3.5,
 				-2.98739624023438
 			],
 			"turn": -0.000000301991605056173
@@ -725,7 +726,7 @@
 			"buildable": "res://buildables/structure/ridge_26.tres",
 			"position": [
 				-1.91676831245422,
-				5.23146820068359,
+				5.49999809265137,
 				1.01260375976563
 			],
 			"turn": -0.000000150995802528087
@@ -734,7 +735,7 @@
 			"buildable": "res://buildables/structure/gable_overhang_26.tres",
 			"position": [
 				-3.16676783561707,
-				3.23147010803223,
+				3.5,
 				-2.98739624023438
 			],
 			"turn": -0.000000150995802528087
@@ -743,7 +744,7 @@
 			"buildable": "res://buildables/structure/gable_overhang_26.tres",
 			"position": [
 				-3.16676807403564,
-				4.23146820068359,
+				4.49999809265137,
 				-0.987396240234375
 			],
 			"turn": -0.000000150995802528087
@@ -752,7 +753,7 @@
 			"buildable": "res://buildables/structure/gable_overhang_26.tres",
 			"position": [
 				-3.16676712036133,
-				4.23146820068359,
+				4.49999809265137,
 				3.01260375976563
 			],
 			"turn": 3.14159250259399
@@ -761,7 +762,7 @@
 			"buildable": "res://buildables/structure/eave_corner_26.tres",
 			"position": [
 				-3.16676783561707,
-				3.23147010803223,
+				3.5,
 				-2.98739624023438
 			],
 			"turn": -0.000000301991605056173
@@ -770,7 +771,7 @@
 			"buildable": "res://buildables/structure/eave_26.tres",
 			"position": [
 				2.58323240280151,
-				3.23147010803223,
+				3.5,
 				5.01260375976563
 			],
 			"turn": 3.14159250259399
@@ -779,7 +780,7 @@
 			"buildable": "res://buildables/structure/eave_26.tres",
 			"position": [
 				4.58323240280151,
-				3.23147010803223,
+				3.5,
 				5.01260375976563
 			],
 			"turn": 3.14159250259399
@@ -788,7 +789,7 @@
 			"buildable": "res://buildables/structure/ridge_26.tres",
 			"position": [
 				4.08323383331299,
-				5.23146820068359,
+				5.49999809265137,
 				1.01260375976563
 			],
 			"turn": 0.000000301991605056173
@@ -797,7 +798,7 @@
 			"buildable": "res://buildables/structure/gable_overhang_26.tres",
 			"position": [
 				5.33323383331299,
-				3.23147010803223,
+				3.5,
 				5.01260375976563
 			],
 			"turn": -3.14159226417542
@@ -806,7 +807,7 @@
 			"buildable": "res://buildables/structure/gable_overhang_26.tres",
 			"position": [
 				5.33323287963867,
-				4.23146820068359,
+				4.49999809265137,
 				3.01260375976563
 			],
 			"turn": -3.14159226417542
@@ -815,7 +816,7 @@
 			"buildable": "res://buildables/structure/gable_overhang_26.tres",
 			"position": [
 				5.33323335647583,
-				4.23146820068359,
+				4.49999809265137,
 				-0.987396240234375
 			],
 			"turn": 0.000000174845553146952
@@ -824,7 +825,7 @@
 			"buildable": "res://buildables/structure/gable_overhang_26.tres",
 			"position": [
 				5.33323287963867,
-				3.23146820068359,
+				3.49999809265137,
 				-2.98739624023438
 			],
 			"turn": 0.000000174845553146952
@@ -833,7 +834,7 @@
 			"buildable": "res://buildables/structure/eave_corner_26.tres",
 			"position": [
 				5.33323287963867,
-				3.23146820068359,
+				3.49999809265137,
 				-2.98739624023438
 			],
 			"turn": 0.000000174845553146952
@@ -842,7 +843,7 @@
 			"buildable": "res://buildables/structure/eave_26.tres",
 			"position": [
 				4.08323192596436,
-				3.23147010803223,
+				3.5,
 				-2.98739624023438
 			],
 			"turn": 0.000000174845553146952
@@ -851,7 +852,7 @@
 			"buildable": "res://buildables/structure/window.tres",
 			"position": [
 				-2.91676783561707,
-				0.731470108032227,
+				1.0,
 				0.012603759765625
 			],
 			"turn": -1.57079613208771
@@ -860,7 +861,7 @@
 			"buildable": "res://buildables/furniture/fireplace.tres",
 			"position": [
 				1.24910831451416,
-				0.731470108032227,
+				1.0,
 				-4.43986511230469
 			],
 			"turn": 0.0
@@ -868,36 +869,36 @@
 		{
 			"buildable": "res://buildables/furniture/chimney_section.tres",
 			"position": [
-				1.09430628,
-				1.98147011,
-				-4.63994936
+				1.12526667118073,
+				2.0,
+				-4.59993267059326
 			],
 			"turn": 0.0
 		},
 		{
 			"buildable": "res://buildables/furniture/chimney_section.tres",
 			"position": [
-				1.09430628,
-				3.23147011,
-				-4.63994936
+				1.12526667118073,
+				3.0,
+				-4.59993267059326
 			],
 			"turn": 0.0
 		},
 		{
 			"buildable": "res://buildables/furniture/chimney_section.tres",
 			"position": [
-				1.09430628,
-				4.48147011,
-				-4.63994936
+				1.12526667118073,
+				4.0,
+				-4.59993267059326
 			],
 			"turn": 0.0
 		},
 		{
 			"buildable": "res://buildables/furniture/chimney_top.tres",
 			"position": [
-				1.09430628,
-				5.73147011,
-				-4.63994936
+				1.12526667118073,
+				5.0,
+				-4.59993267059326
 			],
 			"turn": 0.0
 		},
@@ -905,7 +906,7 @@
 			"buildable": "res://buildables/furniture/bed.tres",
 			"position": [
 				3.97823238372803,
-				0.731470108032227,
+				1.0,
 				-0.487396240234375
 			],
 			"turn": -1.57079613208771
@@ -914,7 +915,7 @@
 			"buildable": "res://buildables/furniture/bed.tres",
 			"position": [
 				3.97823286056519,
-				0.731470108032227,
+				1.0,
 				2.51260375976563
 			],
 			"turn": -1.57079613208771
@@ -923,7 +924,7 @@
 			"buildable": "res://buildables/structure/gable_overhang_26.tres",
 			"position": [
 				3.08323192596436,
-				3.23147010803223,
+				3.5,
 				-5.23739624023438
 			],
 			"turn": -1.570796251297
@@ -932,7 +933,7 @@
 			"buildable": "res://buildables/structure/gable_overhang_26.tres",
 			"position": [
 				-0.916767358779907,
-				3.23147010803223,
+				3.5,
 				-5.23739624023438
 			],
 			"turn": 1.57079613208771
@@ -941,7 +942,7 @@
 			"buildable": "res://buildables/structure/ridge_26.tres",
 			"position": [
 				1.08323192596436,
-				4.23146820068359,
+				4.49999809265137,
 				-1.98739624023438
 			],
 			"turn": 1.57079613208771
@@ -950,7 +951,7 @@
 			"buildable": "res://buildables/structure/eave_26.tres",
 			"position": [
 				-0.916767716407776,
-				3.23147010803223,
+				3.5,
 				-3.98739624023438
 			],
 			"turn": 1.57079613208771
@@ -959,7 +960,7 @@
 			"buildable": "res://buildables/structure/eave_26.tres",
 			"position": [
 				3.08323216438293,
-				3.23147010803223,
+				3.5,
 				-3.98739624023438
 			],
 			"turn": -1.57079637050629
@@ -968,7 +969,7 @@
 			"buildable": "res://buildables/structure/eave_corner_26.tres",
 			"position": [
 				-0.916767597198486,
-				3.23147010803223,
+				3.5,
 				-5.23739624023438
 			],
 			"turn": 1.57079613208771
@@ -977,13 +978,12 @@
 			"buildable": "res://buildables/structure/eave_corner_26.tres",
 			"position": [
 				3.08323216438293,
-				3.23147010803223,
+				3.5,
 				-5.23739624023438
 			],
 			"turn": -1.57079637050629
 		}
 	],
-	"grid": 2,
 	"name": "Basic House",
 	"plot_type": "res://buildables/plots/house.tres",
 	"size": [

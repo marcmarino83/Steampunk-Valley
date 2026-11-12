@@ -70,6 +70,17 @@ var _count := 0
 ## stone in the same places, but planks and stones with plain (unbevelled) edges, each row of
 ## shakes merged into one strip, logs with fewer sides, and no rope lashings
 var simple := false
+## Roofs only, for their hybrid look (see PieceRegistry.is_hybrid): "" for the whole look; "surface"
+## for only the deck and shakes (what the far look is baked from); "trim" for only what shapes the
+## roof's outline (fascia and barge boards, rafters, logs and rope), worn over the far slab. Every
+## part is still worked out (the same random choices in the same order), so each layer is exactly
+## its share of the whole look; only the other layer's triangles are left out.
+var layer := ""
+## Every shaked roof facet made: [{"o": origin, "u": across, "s": up the slope, "n": out, "poly":
+## its outline in (u, s)}]
+var facets: Array = []
+# Whether the part being made goes into the mesh (see layer)
+var _emit := true
 
 
 func _init(seed_value: int) -> void:
@@ -79,9 +90,11 @@ func _init(seed_value: int) -> void:
 
 ## The look of one shape: {"mesh": ArrayMesh, "door_mesh": ArrayMesh or null}, or empty for a
 ## shape drawn some other way (furniture). `simple_look`: its simplified version (see simple).
-static func build(shape: String, seed_value: int, simple_look := false) -> Dictionary:
+## `part`: a roof's layer (see layer); the result also lists its shaked facets ("facets").
+static func build(shape: String, seed_value: int, simple_look := false, part := "") -> Dictionary:
 	var b := PieceDetail.new(seed_value)
 	b.simple = simple_look
+	b.layer = part
 	var door: PieceDetail = null
 	var G := PieceShapes.GRID
 	var H := PieceShapes.WALL_HEIGHT
@@ -198,9 +211,9 @@ static func build(shape: String, seed_value: int, simple_look := false) -> Dicti
 		"hip_end_26", "hip_end_45":
 			b._hip_end(_rise_of(shape))
 		"topper_26", "topper_45":
-			return {"mesh": _topper(_rise_of(shape), seed_value, false, simple_look), "door_mesh": null}
+			return _topper(_rise_of(shape), seed_value, false, simple_look, part)
 		"topper_overhang_26", "topper_overhang_45":
-			return {"mesh": _topper(_rise_of(shape), seed_value, true, simple_look), "door_mesh": null}
+			return _topper(_rise_of(shape), seed_value, true, simple_look, part)
 		"cone_roof":
 			b._cone_roof()
 		"stairs", "half_stairs", "stairs_tall", "half_stairs_tall":
@@ -223,7 +236,7 @@ static func build(shape: String, seed_value: int, simple_look := false) -> Dicti
 			b._fence()
 		_:
 			return {}
-	return {"mesh": b.commit(), "door_mesh": door.commit() if door else null}
+	return {"mesh": b.commit(), "door_mesh": door.commit() if door else null, "facets": b.facets}
 
 
 ## A rough log post standing over a wall joint: from 0 up `height`, with rope lashings
@@ -318,26 +331,35 @@ static func hearth_logs_mesh(seed_value: int) -> ArrayMesh:
 ## roof panel (decking and shakes, as the roofs it continues), the two set back to back over the
 ## gap, and a log with rope ties along the peak
 ## A topper overhang is the same, OVERHANG long, with barge boards down both slopes' sides (`overhang`).
-static func _topper(rise: float, seed_value: int, overhang := false, simple_look := false) -> ArrayMesh:
+## Returns {"mesh", "door_mesh": null, "facets"} as build() does; `part` is a layer (see layer).
+static func _topper(rise: float, seed_value: int, overhang := false, simple_look := false, part := "") -> Dictionary:
 	var G := PieceShapes.GRID
 	var k := rise / G
 	var g := PieceShapes.TOPPER_GAP / 2.0
 	var x := PieceShapes.OVERHANG / 2.0 if overhang else G / 2.0
 	var panel := PieceDetail.new(seed_value)
 	panel.simple = simple_look
+	panel.layer = part
 	panel._roof_panel(rise, -x, x, G - g, G, [])
 	if overhang:
 		panel._fascia(rise, -x, x, G - g, G, false, true)
 	var half := panel.commit()
 	var lift := PieceShapes.ROOF_THICKNESS / cos(atan2(rise, G))
-	var ridge := ridge_mesh(x * 2.0 + 0.04, seed_value + 5, simple_look)
 	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	# The panel's top end (z from G - g to G) moved to the topper's -Z half, its low end at the origin
 	var to_left := Transform3D(Basis.IDENTITY, Vector3(0, -(G - g) * k, -G))
-	st.append_from(half, 0, to_left)
-	st.append_from(half, 0, Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO) * to_left)
-	st.append_from(ridge, 0, Transform3D(Basis.IDENTITY, Vector3(0, g * k + lift + RIDGE_RADIUS * 0.4, 0)))
-	return st.commit()
+	var halves := [to_left, Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO) * to_left]
+	var facets := []
+	for move in halves:
+		if half:
+			st.append_from(half, 0, move)
+		for f in panel.facets:
+			facets.append({"o": move * (f["o"] as Vector3), "u": move.basis * (f["u"] as Vector3), "s": move.basis * (f["s"] as Vector3), "n": move.basis * (f["n"] as Vector3), "poly": f["poly"]})
+	if part != "surface":
+		var ridge := ridge_mesh(x * 2.0 + 0.04, seed_value + 5, simple_look)
+		st.append_from(ridge, 0, Transform3D(Basis.IDENTITY, Vector3(0, g * k + lift + RIDGE_RADIUS * 0.4, 0)))
+	return {"mesh": st.commit(), "door_mesh": null, "facets": facets}
 
 
 ## A log laid along a roof's peak (along X, `length` long, centred), with rope ties
@@ -353,6 +375,12 @@ static func ridge_mesh(length: float, seed_value: int, simple_look := false) -> 
 		b.rope_ring(Vector3(x, 0, 0), Vector3.RIGHT, RIDGE_RADIUS + 0.012, 0.014)
 		b.rope_ring(Vector3(x + 0.043, 0, 0), Vector3.RIGHT, RIDGE_RADIUS + 0.012, 0.014)
 	return b.commit()
+
+
+# The parts made from here on are trim (`trim`) or the deck and shakes: they go into the mesh unless
+# only the other layer is being made (see layer)
+func _part(trim: bool) -> void:
+	_emit = layer.is_empty() or (layer == "trim") == trim
 
 
 func commit() -> ArrayMesh:
@@ -814,6 +842,7 @@ func _roof_panel(rise: float, x0: float, x1: float, z0: float, z1: float, rafter
 	var v0 := z0 / s.z
 	var v1 := z1 / s.z
 	# Deck boards across the slope
+	_part(false)
 	var v := v0
 	while v1 - v > 0.02:
 		var w := rng.randf_range(0.2, 0.3)
@@ -822,17 +851,20 @@ func _roof_panel(rise: float, x0: float, x1: float, z0: float, z1: float, rafter
 		var poly := PackedVector2Array([Vector2(x0, v), Vector2(x1, v), Vector2(x1, v + w), Vector2(x0, v + w)])
 		prism(poly, Vector3.ZERO, u, s, n, 0.0, DECK, 0.006, _wood_shade(0.7), WOOD, _plank_uv(v + w / 2.0, w), 0)
 		v += w
-	# Rafters, under the deck, their tails out past the low end
+	# Rafters, under the deck, their tails out past the low end (trim: their tails shape the outline)
+	_part(true)
 	for x in rafters:
 		var rx: float = x
 		var poly := PackedVector2Array([Vector2(rx - 0.04, v0 - 0.17), Vector2(rx + 0.04, v0 - 0.17), Vector2(rx + 0.04, v1 - 0.02), Vector2(rx - 0.04, v1 - 0.02)])
 		prism(poly, Vector3.ZERO, u, s, n, -0.12, -0.001, 0.01, _wood_shade(0.75), WOOD, _generic_uv(), 1)
+	_part(false)
 	_shakes(Vector3.ZERO, u, s, n, PackedVector2Array([Vector2(x0, v0 - 0.03), Vector2(x1, v0 - 0.03), Vector2(x1, v1), Vector2(x0, v1)]), 1.0)
 
 
 # Fascia boards round an overhang's outer edges: along its low end (`low_end`), and barge boards
 # down both its sides (`sides`; the inner one tucks under the roof beside it)
 func _fascia(rise: float, x0: float, x1: float, z0: float, z1: float, low_end: bool, sides: bool) -> void:
+	_part(true)
 	var k := rise / PieceShapes.GRID
 	var s := Vector3(0, k, 1).normalized()
 	var n := Vector3(0, 1, -k).normalized()
@@ -880,15 +912,18 @@ func _roof_corner(rise: float, inner: bool) -> void:
 		var poly := PackedVector2Array()
 		for p in pts:
 			poly.append(Vector2((p - o).dot(u), (p - o).dot(s)))
+		_part(false)
 		prism(poly, o, u, s, n, 0.0, DECK, 0.0, _wood_shade(0.7), WOOD, _generic_uv(), 1)
 		_shakes(o, u, s, n, poly, 1.0)
 	if not inner:
+		_part(true)
 		var lift := PieceShapes.ROOF_THICKNESS / cos(atan2(rise, PieceShapes.GRID))
 		log_part(Vector3(half, lift + 0.03, 0), Vector3(-half, rise + lift + 0.03, PieceShapes.GRID), 0.075, 7, 0.06, _wood_shade(0.8), WOOD)
 
 
 # A ridge cap: a log along the peak with rope ties
 func _ridge_cap(rise: float) -> void:
+	_part(true)
 	var lift := PieceShapes.ROOF_THICKNESS / cos(atan2(rise, PieceShapes.GRID))
 	var y := lift + RIDGE_RADIUS * 0.4
 	log_part(Vector3(-1.0, y, 0), Vector3(1.0, y, 0), RIDGE_RADIUS, 8, 0.08, _wood_shade(0.85), WOOD)
@@ -924,10 +959,12 @@ func _hip_end(rise: float) -> void:
 			area += poly[i].x * poly[(i + 1) % poly.size()].y - poly[(i + 1) % poly.size()].x * poly[i].y
 		if area < 0.0:
 			poly.reverse()
+		_part(false)
 		prism(poly, o, u, s, n, 0.0, DECK, 0.0, _wood_shade(0.7), WOOD, _generic_uv(), 1)
 		_shakes(o, u, s, n, poly, 1.0)
 	# The hip logs (as the hip corners' logs: 7.5 cm, 3 cm over the top) meeting the ridge log at the
 	# apex
+	_part(true)
 	var apex := Vector3(0, k + lift, 1)
 	for side in [-1.0, 1.0]:
 		log_part(Vector3(side, lift + 0.03, 0), apex + Vector3(0, 0.03, 0), 0.075, 7, 0.06, _wood_shade(0.8), WOOD)
@@ -962,6 +999,7 @@ func _cone_roof() -> void:
 # the polygon (in (u, s) coordinates), each row SHAKE_EXPOSURE above the one below; shakes vary in
 # width, angle and shade, and a few sit out of place
 func _shakes(o: Vector3, u: Vector3, s: Vector3, n: Vector3, poly: PackedVector2Array, wide: float) -> void:
+	facets.append({"o": o, "u": u, "s": s, "n": n, "poly": poly})
 	var lo := INF
 	var hi := -INF
 	var left := INF
@@ -1365,6 +1403,8 @@ func arc_band(r0: float, r1: float, a0: float, a1: float, y0: float, y1: float, 
 # ---- Building blocks ----
 
 func _tri(a: Vector3, b: Vector3, c: Vector3, na: Vector3, nb: Vector3, nc: Vector3, ua: Vector2, ub: Vector2, uc: Vector2, color: Color, kind: int) -> void:
+	if not _emit:
+		return
 	if (b - a).cross(c - a).dot(na + nb + nc) > 0.0:
 		var p := b
 		b = c

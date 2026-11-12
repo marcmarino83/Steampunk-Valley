@@ -60,7 +60,15 @@ var _mid_looks: Array[MeshInstance3D] = []
 ## little more than the slab (tests/look_pass.gd). (A variable only so tests can compare distances;
 ## pieces read it when they're dressed.)
 static var hybrid_range := 15.0
+## The same for hybrid roofs: 25 m. Of 12, 15, 20 and 25 m (tests/roof_pass.gd, from the ground), the
+## switch shows least there, and the shakes just inside it shimmer little more than the far look.
+static var roof_range := 25.0
 var _hybrid := false
+# A hybrid roof: its far look (its slab with its trim merged in, so its edges don't change at the
+# switch) takes its plain box's place
+var _roof := false
+# Each plain look's own mesh (setup's), worn again if it's dressed as an ordinary piece
+var _plain_meshes: Array[Mesh] = []
 # Whether its far look has its bake yet (until then its planks show at every distance), whether it
 # shows only its full close-up look (an icon, a template's picture) and whether its simplified look
 # is on (a ghost, a preview), so a bake arriving later leaves those as they are
@@ -71,8 +79,27 @@ var _simple_on := false
 const NEVER := 1.0e9
 # The plain look's own material (setup's), worn again if it's dressed as an ordinary piece
 var _plain_material: Material
-# Shadow-only copies of the plain box, casting its shadow while a close look shows
+# Shadow-only copies: of the plain box, casting its shadow while a close look shows; or (a piece
+# with a far look) of its far mesh, casting its shadow at every distance (see FAR_SHADOWS)
 var _shadow_looks: Array[MeshInstance3D] = []
+
+## The shadow rule for every piece with a far look (hybrid walls and roofs): its shadow comes from its
+## far mesh at every distance, through a shadow-only copy, and none of its visible looks casts one.
+## (A variable only so tests can compare it with each look casting its own; pieces read it when
+## they're dressed.)
+static var far_shadows := true
+## The far-mesh shadow copies' one shared material: casting from their back faces only, so the
+## caster's surface toward the light lies behind the close-up planks or shakes it stands in for (the
+## far meshes are closed solids), and those can't shadow themselves (no acne); one material for all,
+## so copies of the same mesh draw together
+static var _far_shadow_material: StandardMaterial3D
+
+
+static func far_shadow_material() -> StandardMaterial3D:
+	if _far_shadow_material == null:
+		_far_shadow_material = StandardMaterial3D.new()
+		_far_shadow_material.cull_mode = BaseMaterial3D.CULL_FRONT
+	return _far_shadow_material
 
 
 ## Builds it from its shape. Called before it's added to the world.
@@ -91,6 +118,7 @@ func setup(piece: PieceBuildable, def: Dictionary, material: Material) -> void:
 		look.material_override = material
 		add_child(look)
 		_plain_looks.append(look)
+		_plain_meshes.append(look.mesh)
 	if def["door_mesh"]:
 		var panel := MeshInstance3D.new()
 		panel.mesh = def["door_mesh"]
@@ -98,6 +126,7 @@ func setup(piece: PieceBuildable, def: Dictionary, material: Material) -> void:
 		add_child(panel)
 		_door_parts.append({"node": panel, "rest": Transform3D.IDENTITY})
 		_plain_looks.append(panel)
+		_plain_meshes.append(panel.mesh)
 	if def.get("hearth", false):
 		_make_hearth_fire()
 	for part in def["collision"]:
@@ -176,12 +205,16 @@ func redress(detail: Dictionary, material: Material, mid: Dictionary = {}) -> vo
 	_mid_looks.clear()
 	_shadow_looks.clear()
 	_hybrid = false
+	_roof = false
 	_far_ready = false
-	for plain in _plain_looks:
+	for i in _plain_looks.size():
+		var plain := _plain_looks[i]
 		plain.visibility_range_begin = 0.0
 		plain.visibility_range_begin_margin = 0.0
 		plain.custom_aabb = AABB()
 		plain.material_override = _plain_material
+		plain.mesh = _plain_meshes[i]
+		plain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	var before := get_children()
 	var parts_before := _door_parts.size()
 	_dress_looks(detail, material, mid)
@@ -212,7 +245,7 @@ func _dress_looks(detail: Dictionary, material: Material, mid: Dictionary) -> vo
 	if detail.is_empty() or detail.get("mesh") == null and detail.get("door_mesh") == null:
 		return
 	if mid.get("hybrid", false):
-		_dress_hybrid(detail["mesh"], material, mid.get("far"), mid.get("baker"))
+		_dress_hybrid(detail["mesh"], material, mid.get("far"), mid.get("baker"), mid.get("far_mesh"))
 		return
 	var has_mid := not mid.is_empty() and (mid.get("mesh") != null or mid.get("door_mesh") != null)
 	var plain_from := MID_RANGE if has_mid else NEAR_RANGE
@@ -273,14 +306,20 @@ func _dress_looks(detail: Dictionary, material: Material, mid: Dictionary) -> vo
 			_door_parts.append({"node": middle, "rest": Transform3D.IDENTITY})
 
 
-# A hybrid wall's looks (see hybrid_range): its modelled planks, casting their own shadow, within
-# hybrid_range; its plain box wearing its variant's baked far look (`far`, see WallBaker), casting its
-# own, beyond. Both get the same box, so the switch falls at the same distance for both, and neither
-# fades: no dithered patches. No shadow-only copy and no middle look. While its far look is still
-# baking, its planks show at every distance, and it switches over when `baker` says the bake is in.
-func _dress_hybrid(near_mesh: Mesh, material: Material, far: Material, baker: WallBaker) -> void:
+# A hybrid wall's looks (see hybrid_range): its modelled planks within hybrid_range; its plain box
+# wearing its variant's baked far look (`far`, see WallBaker) beyond. Both get the same box, so the
+# switch falls at the same distance for both, and neither fades: no dithered patches. No middle look.
+# Its shadow comes from its far mesh at every distance (see far_shadows), so it doesn't change at the
+# switch. While its far look is still baking, its planks show at every distance, and it switches over
+# when `baker` says the bake is in. A roof's far look is `far_mesh` (its slab with its trim merged in,
+# see WallBaker.far_mesh), in the plain box's place, switching at roof_range.
+func _dress_hybrid(near_mesh: Mesh, material: Material, far: Material, baker: WallBaker, far_mesh: Mesh = null) -> void:
 	_hybrid = true
+	_roof = far_mesh != null
 	_far_ready = WallBaker.is_ready(far)
+	if far_mesh:
+		for plain in _plain_looks:
+			plain.mesh = far_mesh
 	var box := near_mesh.get_aabb()
 	for plain in _plain_looks:
 		box = box.merge(plain.mesh.get_aabb())
@@ -295,18 +334,37 @@ func _dress_hybrid(near_mesh: Mesh, material: Material, far: Material, baker: Wa
 	near.custom_aabb = box
 	add_child(near)
 	_detail_looks.append(near)
+	if far_shadows:
+		_far_shadow()
 	_hybrid_ranges()
 	if not _far_ready and baker and not baker.shape_ready.is_connected(_on_far_ready):
 		baker.shape_ready.connect(_on_far_ready)
 
 
+# The shadow rule for a piece with a far look (see far_shadows): a shadow-only copy of each far look
+# (the plain looks, wearing their far mesh by now), at every distance, and no visible look casts one
+func _far_shadow() -> void:
+	for plain in _plain_looks:
+		var shadow := MeshInstance3D.new()
+		shadow.name = "FarShadow"
+		shadow.mesh = plain.mesh
+		shadow.material_override = far_shadow_material()
+		shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		add_child(shadow)
+		_shadow_looks.append(shadow)
+		plain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for near in _detail_looks:
+		near.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
 # Where a hybrid wall's planks end and its slab begins: at hybrid_range, or (its bake not in yet)
 # planks everywhere
 func _hybrid_ranges() -> void:
-	for plain in _plain_looks:
-		_switch_at(plain, hybrid_range if _far_ready else NEVER, 0.0)
+	var switch := roof_range if _roof else hybrid_range
+	for far in _plain_looks:
+		_switch_at(far, switch if _far_ready else NEVER, 0.0)
 	for near in _detail_looks:
-		_switch_at(near, 0.0, hybrid_range if _far_ready else 0.0)
+		_switch_at(near, 0.0, switch if _far_ready else 0.0)
 
 
 # A shape's bake is in (see WallBaker.shape_ready): this wall switches to its slab from afar, unless
@@ -357,7 +415,7 @@ func show_simple_look(on: bool) -> void:
 		for look in _detail_looks:
 			look.visible = not on
 		for look in _plain_looks:
-			look.visibility_range_begin = 0.0 if on else hybrid_range
+			look.visibility_range_begin = 0.0 if on else (roof_range if _roof else hybrid_range)
 		return
 	if _mid_looks.is_empty():
 		return
@@ -499,6 +557,7 @@ static func _flattened_model(piece: PieceBuildable, fit: Dictionary) -> Node3D:
 ## Lets go of the shared fitted chimney meshes (when the world closes, so nothing is reported leaked)
 static func clear_fitted_cache() -> void:
 	_fitted_meshes.clear()
+	_far_shadow_material = null
 	PreviewLook.clear_cache()
 
 
@@ -522,7 +581,7 @@ func _fade_looks(fade: float, targeted: bool) -> void:
 		if not is_instance_valid(shown):
 			continue
 		var g := shown as GeometryInstance3D
-		var own_fade := g.material_override is ShaderMaterial and (g.material_override as ShaderMaterial).shader in [PieceRegistry.DETAIL_SHADER, PieceRegistry.SURFACE_SHADER, WallBaker.FAR_SHADER]
+		var own_fade := g.material_override is ShaderMaterial and (g.material_override as ShaderMaterial).shader in [PieceRegistry.DETAIL_SHADER, PieceRegistry.SURFACE_SHADER, WallBaker.FAR_SHADER, WallBaker.ROOF_FAR_SHADER]
 		if own_fade:
 			g.set_instance_shader_parameter("ghost_fade", fade)
 		if targeted:

@@ -8,9 +8,10 @@ class_name SnapEdges
 ## Converted (phases 1 and 2, by whole edges): walls of every kind in both families; floors and
 ## foundations; triangle walls (gables, the Tall 45° gable wall, half gables, inverse triangles,
 ## topper gables) and roofs (panels, gable overhangs, eaves and their corners, ridge caps, toppers and
-## topper overhangs, inner and outer corners, hip ends), both pitches. Phase 3a, by typed points (see
-## POINT_RULES): pillars, poles and beams. Every other piece still snaps the old way (SnapCorners).
-## Flights of stairs only offer edges for converted pieces to fit to.
+## topper overhangs, inner and outer corners, hip ends), both pitches; flights of stairs (all four),
+## doors, round floors and foundations, curved walls, the cone roof, ladders, railings and the fence.
+## By typed points (see POINT_RULES): pillars, poles, beams and chimney sections and tops. Every
+## building piece is converted: nothing snaps by corners any more.
 ##
 ## Edge types (built on PieceShapes' socket types and SNAP_RULES):
 ##   wall_base   an upright panel's bottom edge (a wall's, a gable's), on its centre plane (out: its
@@ -29,6 +30,13 @@ class_name SnapEdges
 ##   ridge_line  the line a ridge cap sits on
 ##   beam_top / beam_bottom   a straight beam's top and bottom middle lines
 ##   stairs_top / stairs_bottom   a flight's top step's outer edge and its bottom step's front
+##   door_slot   a doorway's opening along its foot (the door's width, on its centre plane)
+##   door_base   a door's foot, as wide (a door stands in a doorway either way round)
+##   arc_edge_45 / arc_edge_22   a round floor's or foundation's curved edge, as the chord between its
+##               ends (2 m for the eighth wedge, 1.02 m for the sixteenth; out: away from the middle)
+##   arc_base_45 / arc_base_22, arc_top_45 / arc_top_22   a curved wall's foot and top, likewise
+##   cone_low    the cone roof's low edge on the ring, as a chord; cone_side its sloped sides
+##   ladder_top / ladder_foot   a ladder's back at its top and foot, 1 m wide (centred; out: its back)
 ## Roof pieces' "out" is level, away from the piece seen from above.
 
 ## Converted shapes
@@ -50,10 +58,26 @@ const HIP_ENDS := ["hip_end_26", "hip_end_45"]
 const RIDGES := ["ridge_26", "ridge_45"]
 ## Eave pieces: their lowest edges are eave edges
 const EAVES := ["eave_26", "eave_45", "eave_corner_26", "eave_corner_45", "outer_eave_corner_26", "outer_eave_corner_45"]
-## Straight beams (they offer top and bottom lines to whole-edge pieces) and flights of stairs
-## (unconverted: they offer edges to converted pieces)
+## Straight beams (they offer top and bottom lines to whole-edge pieces), flights of stairs, the
+## doorways that hold doors, and doors
 const BEAMS := ["beam_2", "beam_4"]
 const FLIGHTS := ["stairs", "half_stairs", "stairs_tall", "half_stairs_tall"]
+const DOORWAYS := ["doorway", "doorway_2m"]
+const DOORS := ["door", "door_2m"]
+## Chimney pieces (by typed points: a section or top stands on the fireplace's chimney or a section's
+## top)
+const CHIMNEYS := ["chimney_section", "chimney_top"]
+## The round family (all on the ring round its middle, their origin there): floor and foundation
+## wedges (an eighth, and a sixteenth: "_22"), curved walls on their curved edges, and the cone roof's
+## eighths on the curved walls' tops
+const ROUND_FLOORS := ["round_floor", "round_floor_22", "round_foundation_wood", "round_foundation_stone", "round_foundation_wood_22", "round_foundation_stone_22"]
+const CURVED := ["curved_wall_45", "curved_wall_22"]
+const CONES := ["cone_roof"]
+## Ladders, and railings and the fence (upright on a line like walls: a foot and two ends)
+const LADDERS := ["ladder", "ladder_tall"]
+const RAILINGS := ["railing_2", "railing_1", "fence"]
+## A ladder's typed edges are this wide, centred on it (on a 2 m floor edge it goes at the 1 m points)
+const LADDER_EDGE := 1.0
 
 ## Point pieces (phase 3a): pillars and poles (both families), and beams (straight, diagonal and long
 ## diagonal). They snap by typed points (and a beam by its whole line too), keeping the player's turn:
@@ -68,12 +92,15 @@ const ALL_BEAMS := ["beam_2", "beam_4", "beam_diag_26", "beam_diag_45", "beam_di
 ##               frame, one each way, cross there in an X)
 ##   edge_spot   a floor's or foundation's corners and the 1 m spots along its edges
 ##   top_spot    a wall top's ends and the 1 m spots along it
+##   chimney_foot   a chimney section's or top's bottom middle
+##   chimney_spot   the top middle of the fireplace's chimney, or of a chimney section
 ## A new point piece's point type -> the placed points it may go on
 const POINT_RULES := {
 	"post_foot": ["edge_spot", "top_spot", "post_top", "beam_end"],
 	"post_top": ["beam_end", "edge_spot"],
 	"beam_end": ["post_top", "top_spot", "edge_spot", "beam_end", "post_foot"],
 	"beam_mid": ["beam_mid"],
+	"chimney_foot": ["chimney_spot"],
 }
 ## A beam's line (through its two ends) lies along these edges, its whole length (a beam on a wall
 ## top or floor edge, a diagonal along a triangle's slope)
@@ -86,12 +113,35 @@ static var _point_cache := {}
 ## its outward direction reversed, level): 180 for side by side or carrying on (a floor beside a
 ## floor, a wall on from a wall's end, a roof up from a roof's high edge), ±90 for a corner, 0 or 180
 ## for standing on or lying along (a wall either way round, a roof along a gable's slope either side).
+##
+## Up under a floor: a wall's top and an inverse triangle's flat top fit along a floor's or
+## foundation's edge (both lie on the level the floor's top is on, as a floor laid on them does), and
+## a floor fits on an inverse triangle's flat top as on a wall's top.
+## Flights: a flight's top edge hangs from a floor's edge or a round floor's curved edge (going down
+## away from it), and its bottom edge stands on one at its edge (climbing over that floor); a door
+## stands in a doorway.
+## Round: a curved wall stands on a round floor's curved edge (or a curved wall's top) of its own
+## size, bulging the same way; a round floor lies on curved walls' tops; the cone roof sits on a
+## curved wall's top, its eighths side by side. Wedges go side by side by their straight edges (floor
+## edges). Ladders hang from a floor's edge by their top (their back on the edge's face), stack on
+## another ladder, or stand on a floor at its edge. Railings and the fence stand like walls.
 const RULES := {
 	"wall_base": {"floor_edge": [0.0, 180.0], "wall_top": [0.0, 180.0], "beam_top": [0.0, 180.0], "flat_top": [0.0, 180.0]},
-	"wall_top": {"roof_low": [0.0, 180.0], "eave_edge": [0.0, 180.0]},
+	"wall_top": {"roof_low": [0.0, 180.0], "eave_edge": [0.0, 180.0], "floor_edge": [0.0, 180.0]},
 	"wall_end": {"wall_end": [180.0, 90.0, -90.0]},
-	"floor_edge": {"floor_edge": [180.0], "wall_top": [0.0, 180.0], "beam_top": [0.0, 180.0], "stairs_top": [180.0], "stairs_bottom": [180.0]},
-	"flat_top": {"roof_low": [0.0, 180.0], "eave_edge": [0.0, 180.0], "beam_bottom": [0.0, 180.0], "wall_base": [0.0, 180.0]},
+	"floor_edge": {"floor_edge": [180.0], "wall_top": [0.0, 180.0], "beam_top": [0.0, 180.0], "stairs_top": [180.0], "stairs_bottom": [180.0], "flat_top": [0.0, 180.0]},
+	"flat_top": {"roof_low": [0.0, 180.0], "eave_edge": [0.0, 180.0], "beam_bottom": [0.0, 180.0], "wall_base": [0.0, 180.0], "floor_edge": [0.0, 180.0]},
+	"stairs_top": {"floor_edge": [180.0], "arc_edge_45": [180.0], "arc_edge_22": [180.0]},
+	"stairs_bottom": {"floor_edge": [0.0], "arc_edge_45": [0.0], "arc_edge_22": [0.0]},
+	"door_base": {"door_slot": [0.0, 180.0]},
+	"arc_base_45": {"arc_edge_45": [0.0], "arc_top_45": [0.0]},
+	"arc_base_22": {"arc_edge_22": [0.0], "arc_top_22": [0.0]},
+	"arc_edge_45": {"arc_top_45": [0.0]},
+	"arc_edge_22": {"arc_top_22": [0.0]},
+	"cone_low": {"arc_top_45": [0.0]},
+	"cone_side": {"cone_side": [180.0]},
+	"ladder_top": {"floor_edge": [180.0]},
+	"ladder_foot": {"ladder_top": [0.0], "floor_edge": [0.0]},
 	"slope": {"roof_side": [0.0, 180.0], "slope": [0.0, 180.0], "roof_top_side": [0.0, 180.0]},
 	"roof_side": {"roof_side": [180.0], "slope": [0.0, 180.0]},
 	"roof_low": {"wall_top": [0.0, 180.0], "beam_top": [0.0, 180.0], "roof_high": [180.0], "flat_top": [0.0, 180.0]},
@@ -119,12 +169,13 @@ static func converted(shape: String) -> bool:
 
 ## True for a shape placed by whole edges
 static func edge_shape(shape: String) -> bool:
-	return shape in WALLS or shape in FLOORS or shape in TRIANGLES or shape in ROOFS or shape in TOPPERS or shape in HIP_ENDS or shape in RIDGES
+	return shape in WALLS or shape in FLOORS or shape in TRIANGLES or shape in ROOFS or shape in TOPPERS or shape in HIP_ENDS or shape in RIDGES \
+		or shape in FLIGHTS or shape in DOORS or shape in ROUND_FLOORS or shape in CURVED or shape in CONES or shape in LADDERS or shape in RAILINGS
 
 
-## True for a shape placed by typed points (pillars, poles, beams)
+## True for a shape placed by typed points (pillars, poles, beams, chimney pieces)
 static func point_shape(shape: String) -> bool:
-	return shape in POSTS or shape in ALL_BEAMS
+	return shape in POSTS or shape in ALL_BEAMS or shape in CHIMNEYS
 
 
 ## A shape's typed points in its own space: [{"p", "type"}]
@@ -136,6 +187,10 @@ static func points_of(shape: String, def: Dictionary) -> Array:
 			types = {"post_spot": "edge_spot"}
 		elif shape in WALLS:
 			types = {"top_spot": "top_spot"}
+		elif shape in CHIMNEYS:
+			types = {"chimney_base": "chimney_foot", "chimney_cap_base": "chimney_foot", "chimney_spot": "chimney_spot"}
+		elif shape == "fireplace":
+			types = {"chimney_spot": "chimney_spot"}
 		elif not point_shape(shape):
 			types = {}
 		var ends := []
@@ -201,15 +256,25 @@ static func line_placements(shape: String, def: Dictionary, basis: Basis, t: Dic
 	return found
 
 
-## Which kind of converted piece a shape is ("floor", "panel" (walls and triangle walls), "roof"), or
-## "" for an unconverted one: a converted piece never sinks into one of its own kind
+## Which kind of converted piece a shape is ("floor", "panel" (walls and triangle walls), "roof",
+## "stairs", "door"), or "" for any other: a whole-edge piece's fit is passed over when it would sink
+## into a piece of its own kind (a floor aimed at a floor's middle goes beside it), never into a piece
+## of another kind (see ValheimPlacer._taken)
 static func kind(shape: String) -> String:
-	if shape in FLOORS:
+	if shape in FLOORS or shape in ROUND_FLOORS:
 		return "floor"
-	if shape in WALLS or shape in TRIANGLES:
+	if shape in WALLS or shape in TRIANGLES or shape in CURVED:
 		return "panel"
-	if shape in ROOFS or shape in TOPPERS or shape in HIP_ENDS or shape in RIDGES:
+	if shape in ROOFS or shape in TOPPERS or shape in HIP_ENDS or shape in RIDGES or shape in CONES:
 		return "roof"
+	if shape in FLIGHTS:
+		return "stairs"
+	if shape in DOORS:
+		return "door"
+	if shape in LADDERS:
+		return "ladder"
+	if shape in RAILINGS:
+		return "rail"
 	return ""
 
 
@@ -251,6 +316,25 @@ static func _work_out(shape: String, def: Dictionary) -> Array:
 		edges.append(_edge(Vector3(x0, y1, z), Vector3(x1, y1, z), "wall_top", Vector3.BACK))
 		edges.append(_edge(Vector3(x0, y0, z), Vector3(x0, y1, z), "wall_end", Vector3.LEFT))
 		edges.append(_edge(Vector3(x1, y0, z), Vector3(x1, y1, z), "wall_end", Vector3.RIGHT))
+		if shape in DOORWAYS:
+			var hole := PieceShapes.DOOR_WIDTH / 2.0
+			edges.append(_edge(Vector3(-hole, y0, z), Vector3(hole, y0, z), "door_slot", Vector3.BACK))
+	elif shape in DOORS:
+		var hole := PieceShapes.DOOR_WIDTH / 2.0
+		edges.append(_edge(Vector3(-hole, 0.0, 0.0), Vector3(hole, 0.0, 0.0), "door_base", Vector3.BACK))
+	elif shape in RAILINGS:
+		var z := box.get_center().z
+		edges.append(_edge(Vector3(box.position.x, box.position.y, z), Vector3(box.end.x, box.position.y, z), "wall_base", Vector3.BACK))
+		edges.append(_edge(Vector3(box.position.x, box.position.y, z), Vector3(box.position.x, box.end.y, z), "wall_end", Vector3.LEFT))
+		edges.append(_edge(Vector3(box.end.x, box.position.y, z), Vector3(box.end.x, box.end.y, z), "wall_end", Vector3.RIGHT))
+	elif shape in ROUND_FLOORS or shape in CURVED or shape in CONES:
+		edges = _round_edges(shape)
+	elif shape in LADDERS:
+		var height: float = def["ladder_height"]
+		var back := box.position.z
+		var w := LADDER_EDGE / 2.0
+		edges.append(_edge(Vector3(-w, height, back), Vector3(w, height, back), "ladder_top", Vector3.FORWARD))
+		edges.append(_edge(Vector3(-w, 0.0, back), Vector3(w, 0.0, back), "ladder_foot", Vector3.FORWARD))
 	elif shape in FLOORS:
 		var corners: Array = SnapCorners._outline(def, true)
 		for e in _outline_edges(corners):
@@ -294,6 +378,38 @@ static func _work_out(shape: String, def: Dictionary) -> Array:
 		var height: float = def["stairs_height"]
 		edges.append(_edge(Vector3(-half, height, length / 2.0), Vector3(half, height, length / 2.0), "stairs_top", Vector3.BACK))
 		edges.append(_edge(Vector3(-half, 0.0, -length / 2.0), Vector3(half, 0.0, -length / 2.0), "stairs_bottom", Vector3.FORWARD))
+	return edges
+
+
+# The round family's edges (all round the ring's middle, the piece's origin): an eighth's ("_45") or
+# sixteenth's ("_22") curved edge as the chord between its ends on the ring, out away from the middle;
+# a wedge's straight sides as floor edges; a curved wall's foot and top chords and its two upright
+# ends; the cone roof's low chord and its two sloped sides up to the point
+static func _round_edges(shape: String) -> Array:
+	var small := shape.ends_with("_22")
+	var half := deg_to_rad(11.25 if small else 22.5)
+	var size := "_22" if small else "_45"
+	var r := PieceShapes.RING_RADIUS
+	var a := PieceShapes._arc_point(r, -half, 0.0)
+	var b := PieceShapes._arc_point(r, half, 0.0)
+	var out_a: Vector3 = -PieceShapes._tangent(-half)
+	var out_b: Vector3 = PieceShapes._tangent(half)
+	var edges := []
+	if shape in ROUND_FLOORS:
+		edges.append(_edge(a, b, "arc_edge" + size, Vector3.BACK))
+		edges.append(_edge(Vector3.ZERO, a, "floor_edge", out_a))
+		edges.append(_edge(Vector3.ZERO, b, "floor_edge", out_b))
+	elif shape in CURVED:
+		var up := Vector3.UP * PieceShapes.WALL_HEIGHT
+		edges.append(_edge(a, b, "arc_base" + size, Vector3.BACK))
+		edges.append(_edge(a + up, b + up, "arc_top" + size, Vector3.BACK))
+		edges.append(_edge(a, a + up, "wall_end", out_a))
+		edges.append(_edge(b, b + up, "wall_end", out_b))
+	else:
+		var apex := Vector3(0, PieceShapes.CONE_HEIGHT, 0)
+		edges.append(_edge(a, b, "cone_low", Vector3.BACK))
+		edges.append(_edge(a, apex, "cone_side", out_a))
+		edges.append(_edge(b, apex, "cone_side", out_b))
 	return edges
 
 

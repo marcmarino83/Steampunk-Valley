@@ -133,6 +133,10 @@ func _looks(registry: PieceRegistry) -> Array:
 			for state in PreviewLook.State.values():
 				looks.append_array(_with_fades(mesh, own, PreviewLook.overlay(state)))
 			looks.append_array(_with_fades(mesh, take_down, null))
+		# A hybrid roof's far slab, in its own far look (with and without the ghost's outline)
+		if mid.get("far_mesh"):
+			looks.append(_look(mid["far_mesh"], mid["far"], GeometryInstance3D.SHADOW_CASTING_SETTING_ON))
+			looks.append_array(_with_fades(mid["far_mesh"], mid["far"], PreviewLook.overlay(PreviewLook.State.GHOST_TARGET)))
 		# Furniture and anything else drawn with the plain painted colours
 		looks.append(_look(meshes[0], registry.wood_material(), GeometryInstance3D.SHADOW_CASTING_SETTING_ON))
 	looks.append_array(_template_extras(template_glow))

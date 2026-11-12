@@ -18,6 +18,31 @@ extends Node
 
 const BAKE_SHADER := preload("res://building/pieces/wall_bake.gdshader")
 const FAR_SHADER := preload("res://building/pieces/wall_far.gdshader")
+const ROOF_FAR_SHADER := preload("res://building/pieces/roof_far.gdshader")
+## The roof pieces with a hybrid look, at both pitches: roof panels, eaves, gable overhangs, inner
+## and outer corners, hip ends, toppers and topper overhangs. Each shaked facet of their close-up look
+## is baked straight on in its own plane, from above and from below (see _roof_layout), and their far
+## look is a thin slab over those facets (far_mesh) with their trim (fascia and barge boards, rafters,
+## logs) kept as real geometry. Left out: eave corners (half a metre square), valley and outer eave
+## corners (no close-up look of their own), ridge caps (only a log) and the cone roof (round family).
+const ROOFS := ["roof", "roof_45", "eave_26", "eave_45", "gable_overhang_26", "gable_overhang_45",
+	"roof_inner_26", "roof_inner_45", "roof_outer_26", "roof_outer_45", "hip_end_26", "hip_end_45",
+	"topper_26", "topper_45", "topper_overhang_26", "topper_overhang_45"]
+## A roof's far slab: how far its top lies out from the deck's underside along the facet (level with
+## the fascia boards' tops; the shakes' tops average about this), and the margin baked round each facet
+const ROOF_TOP := 0.135
+const ROOF_MARGIN := 0.03
+## Roofs' bakes are half the walls' resolution (128 pixels a metre): their far look only shows from
+## BuildPiece.roof_range out, where a 2 m roof is under 200 pixels across
+const ROOF_PIXELS_PER_METER := 128
+## The far look's trim (merged into its slab, see far_mesh) in plain colours by what it's made of, as
+## the close-up look's average (piece_detail.gdshader: wood, stone, rope, iron, dark), times each
+## part's own shade
+const TRIM_COLORS := [Color(0.35, 0.266, 0.176), Color(0.38, 0.33, 0.228), Color(0.232, 0.143, 0.058), Color(0.12, 0.115, 0.11), Color(0.06, 0.055, 0.05)]
+## How deep a roof's top faces sit (see wall_bake.gdshader): the deck seen between shakes, and the
+## shakes' faces
+const ROOF_CORE_DEPTH := 0.09
+const ROOF_FACE_DEPTH := 0.13
 ## The bakes' size: 256 pixels a metre (512 across a 2 m wall), drawn at twice that and shrunk
 const PIXELS_PER_METER := 256
 const SUPERSAMPLE := 2
@@ -50,6 +75,11 @@ var memory := 0
 
 # "shape#variant" -> ShaderMaterial (its far look)
 var _materials := {}
+# A roof shape's far slab (shape -> ArrayMesh) and its bake's layout (shape -> Dictionary)
+var _far_meshes := {}
+var _roof_layouts := {}
+# shape -> its bakes' texture memory (bytes)
+var _memory_by_shape := {}
 var _queue: Array[String] = []
 var _baking := false
 var _stamp := ""
@@ -67,7 +97,7 @@ func far_material(shape: String, variant: int) -> ShaderMaterial:
 	if not _materials.has(key):
 		for v in PieceRegistry.DETAIL_VARIANTS:
 			var material := ShaderMaterial.new()
-			material.shader = FAR_SHADER
+			material.shader = ROOF_FAR_SHADER if is_roof(shape) else FAR_SHADER
 			_materials[_key(shape, v)] = material
 		if not _load_cached(shape):
 			_queue.append(shape)
@@ -81,9 +111,14 @@ func prepare_all() -> void:
 		far_material(shape, 0)
 
 
-## Every hybrid wall shape (see PieceRegistry.is_hybrid)
+## Every hybrid wall and roof shape (see PieceRegistry.is_hybrid)
 static func all_shapes() -> Array:
-	return SnapEdges.WALLS + SnapEdges.TRIANGLES
+	return SnapEdges.WALLS + SnapEdges.TRIANGLES + ROOFS
+
+
+## A hybrid roof shape (see ROOFS)
+static func is_roof(shape: String) -> bool:
+	return shape in ROOFS
 
 
 ## True once this far look has its bake
@@ -104,6 +139,8 @@ func remaining() -> int:
 ## The far looks let go of, so they're made again (and baked again if the look code changed)
 func clear() -> void:
 	_materials.clear()
+	_far_meshes.clear()
+	_roof_layouts.clear()
 	_queue.clear()
 	_stamp = ""
 
@@ -135,7 +172,11 @@ func _bake_queued() -> void:
 		return
 	_baking = true
 	while not _queue.is_empty():
-		await _bake(_queue.pop_front())
+		var shape: String = _queue.pop_front()
+		if is_roof(shape):
+			await _bake_roof(shape)
+		else:
+			await _bake(shape)
 	_baking = false
 
 
@@ -204,6 +245,232 @@ func _bake(shape: String) -> void:
 	shape_ready.emit(shape)
 
 
+# ---- Roofs ----
+
+## A hybrid roof's far look for one variant, in one mesh (one draw): a slab over each shaked facet,
+## its top ROOF_TOP out from the deck's underside and its underside on it, with narrow faces round its
+## edges, its texture coordinates pointing into the facet's tiles of the bake and its tangents along
+## the bake's frame; and the variant's trim (fascia and barge boards, rafters, logs: PieceRegistry
+## roof_parts) as real geometry in plain colours (TRIM_COLORS), so the roof's edges don't change at
+## the switch. Vertex colour alpha says which is which (see roof_far.gdshader). Made once.
+func far_mesh(shape: String, variant: int) -> ArrayMesh:
+	var key := _key(shape, variant)
+	if _far_meshes.has(key):
+		return _far_meshes[key]
+	var layout := _roof_layout(shape)
+	var tiles: Array = layout["tiles"]
+	var atlas := Vector2(layout["pixels"])
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in range(0, tiles.size(), 2):
+		var top: Dictionary = tiles[i]
+		var bottom: Dictionary = tiles[i + 1]
+		var f: Dictionary = top["facet"]
+		var n: Vector3 = f["n"]
+		var lift := n * ROOF_TOP
+		var poly: PackedVector2Array = f["poly"]
+		var pts: Array[Vector3] = []
+		for p in poly:
+			pts.append((f["o"] as Vector3) + (f["u"] as Vector3) * p.x + (f["s"] as Vector3) * p.y)
+		var tris := Geometry2D.triangulate_polygon(poly)
+		for k in range(0, tris.size(), 3):
+			var corners: Array[Vector3] = [pts[tris[k]], pts[tris[k + 1]], pts[tris[k + 2]]]
+			_far_tri(st, corners.map(func(p): return p + lift), corners.map(func(p): return _tile_uv(top, p, atlas)), n, top["basis"].x, true)
+			_far_tri(st, corners, corners.map(func(p): return _tile_uv(bottom, p, atlas)), -n, bottom["basis"].x, true)
+		# The narrow faces round its edges, coloured as the top's edge
+		var middle := Vector3.ZERO
+		for p in pts:
+			middle += p / pts.size()
+		for j in pts.size():
+			var a := pts[j]
+			var b := pts[(j + 1) % pts.size()]
+			var along := (b - a).normalized()
+			var out := along.cross(n).normalized()
+			if out.dot((a + b) / 2.0 - middle) < 0.0:
+				out = -out
+			var uv_a := _tile_uv(top, a, atlas)
+			var uv_b := _tile_uv(top, b, atlas)
+			_far_tri(st, [a, b, b + lift], [uv_a, uv_b, uv_b], out, along, false)
+			_far_tri(st, [a, b + lift, a + lift], [uv_a, uv_b, uv_a], out, along, false)
+	_append_trim(st, registry.roof_parts(shape, variant)["trim"])
+	var mesh := st.commit()
+	_far_meshes[key] = mesh
+	return mesh
+
+
+# A close-up trim mesh's triangles added to a far look, as they are (the same winding), each in its
+# plain colour (TRIM_COLORS by what it's made of, times its shade) with vertex colour alpha 0
+static func _append_trim(st: SurfaceTool, trim: Mesh) -> void:
+	if trim == null:
+		return
+	for s in trim.get_surface_count():
+		var arrays := trim.surface_get_arrays(s)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR] if arrays[Mesh.ARRAY_COLOR] != null else PackedColorArray()
+		var kinds: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV2] if arrays[Mesh.ARRAY_TEX_UV2] != null else PackedVector2Array()
+		var order: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		if order.is_empty():
+			order = PackedInt32Array(range(verts.size()))
+		for i in order:
+			var kind := clampi(roundi(kinds[i].x) if i < kinds.size() else 0, 0, TRIM_COLORS.size() - 1)
+			var shade: Color = colors[i] if i < colors.size() else Color.WHITE
+			var plain: Color = TRIM_COLORS[kind]
+			st.set_normal(normals[i])
+			st.set_tangent(Plane(Vector3.RIGHT, 1.0))
+			st.set_color(Color(plain.r * shade.r, plain.g * shade.g, plain.b * shade.b, 0.0))
+			st.set_uv(Vector2.ZERO)
+			st.add_vertex(verts[i])
+
+
+# One triangle of a far slab, wound to face along `normal` (as PieceDetail winds its triangles);
+# `mapped`: its face takes the bake's normals (vertex colour alpha 1; a narrow edge face 0.5)
+static func _far_tri(st: SurfaceTool, points: Array, uvs: Array, normal: Vector3, tangent: Vector3, mapped: bool) -> void:
+	var order := [0, 1, 2]
+	if ((points[1] as Vector3) - (points[0] as Vector3)).cross((points[2] as Vector3) - (points[0] as Vector3)).dot(normal) > 0.0:
+		order = [0, 2, 1]
+	for i in order:
+		st.set_normal(normal)
+		st.set_tangent(Plane(tangent, 1.0))
+		st.set_color(Color(1.0, 1.0, 1.0, 1.0 if mapped else 0.5))
+		st.set_uv(uvs[i])
+		st.add_vertex(points[i])
+
+
+# Where a point on a facet falls in the bake (0 to 1 across the whole atlas), through its tile
+static func _tile_uv(tile: Dictionary, p: Vector3, atlas: Vector2) -> Vector2:
+	var f: Dictionary = tile["facet"]
+	var q: Vector3 = (tile["basis"] as Basis).transposed() * (p - (f["o"] as Vector3))
+	var lo: Vector2 = tile["min"]
+	var px: Vector2i = tile["pixels"]
+	return Vector2(tile["x"] + (q.x - lo.x) * ROOF_PIXELS_PER_METER, px.y - (q.y - lo.y) * ROOF_PIXELS_PER_METER) / atlas
+
+
+# A roof shape's bake layout: each shaked facet twice, from above then from below, as tiles side by
+# side in one atlas a variant. A tile's frame ("basis") is the camera's: x across, y up the slope, z
+# out of the face toward the camera; "min" is its corner in (x, y), "pixels" its size, "x" where it
+# starts in the atlas.
+func _roof_layout(shape: String) -> Dictionary:
+	if _roof_layouts.has(shape):
+		return _roof_layouts[shape]
+	var tiles := []
+	var x := 0
+	var height := 1
+	for f in registry.roof_parts(shape, 0)["facets"]:
+		for side in [1.0, -1.0]:
+			var n: Vector3 = (f["n"] as Vector3) * side
+			var s: Vector3 = f["s"]
+			var basis := Basis(s.cross(n).normalized(), s, n)
+			var lo := Vector2(INF, INF)
+			var hi := Vector2(-INF, -INF)
+			for p in f["poly"]:
+				var point: Vector3 = (f["u"] as Vector3) * p.x + s * p.y
+				var q := Vector2(point.dot(basis.x), point.dot(s))
+				lo = lo.min(q)
+				hi = hi.max(q)
+			lo -= Vector2.ONE * ROOF_MARGIN
+			hi += Vector2.ONE * ROOF_MARGIN
+			var pixels := Vector2i(ceili((hi.x - lo.x) * ROOF_PIXELS_PER_METER), ceili((hi.y - lo.y) * ROOF_PIXELS_PER_METER))
+			tiles.append({"facet": f, "basis": basis, "min": lo, "pixels": pixels, "x": x, "top": side > 0.0})
+			x += pixels.x
+			height = maxi(height, pixels.y)
+	var layout := {"tiles": tiles, "pixels": Vector2i(maxi(x, 1), height)}
+	_roof_layouts[shape] = layout
+	return layout
+
+
+func _bake_roof(shape: String) -> void:
+	var timing := SpikeLog.begin()
+	var layout := _roof_layout(shape)
+	var count := PieceRegistry.DETAIL_VARIANTS
+	var atlas: Vector2i = layout["pixels"]
+	var meshes: Array = []
+	var atlases: Array = []
+	for v in count:
+		meshes.append(registry.roof_parts(shape, v)["surface"])
+		var colour := Image.create(atlas.x, atlas.y, false, Image.FORMAT_RGB8)
+		colour.fill(BACKGROUND_COLOR.linear_to_srgb())
+		var surface := Image.create(atlas.x, atlas.y, false, Image.FORMAT_RGB8)
+		surface.fill(BACKGROUND_SURFACE)
+		atlases.append([colour, surface])
+	for tile in layout["tiles"]:
+		var drawn := await _render_tile(meshes, tile)
+		var px: Vector2i = tile["pixels"] * SUPERSAMPLE
+		for v in count:
+			for bake_pass in 2:
+				var part: Image = drawn[bake_pass].get_region(Rect2i(v * px.x, 0, px.x, px.y))
+				part.convert(Image.FORMAT_RGB8)
+				part.resize(tile["pixels"].x, tile["pixels"].y, Image.INTERPOLATE_LANCZOS)
+				(atlases[v][bake_pass] as Image).blit_rect(part, Rect2i(Vector2i.ZERO, tile["pixels"]), Vector2i(tile["x"], 0))
+	for v in count:
+		if not _materials.has(_key(shape, v)):
+			continue
+		var images: Array[Image] = [atlases[v][0], atlases[v][1]]
+		_finish(images[0], true)
+		_finish(images[1], false)
+		_save(shape, v, images)
+		_apply(shape, v, images, layout)
+		made += 1
+	SpikeLog.end("roof far look baked (first use)", timing)
+	shape_ready.emit(shape)
+
+
+# One tile of a roof's bake, every variant side by side: their surface layers turned so the tile's
+# facet lies flat facing the orthographic camera, drawn for colour, then for the surface
+func _render_tile(meshes: Array, tile: Dictionary) -> Array[Image]:
+	var count := meshes.size()
+	var px: Vector2i = tile["pixels"] * SUPERSAMPLE
+	var size := Vector2(tile["pixels"]) / float(ROOF_PIXELS_PER_METER)
+	var viewport := SubViewport.new()
+	viewport.size = Vector2i(px.x * count, px.y)
+	viewport.own_world_3d = true
+	viewport.msaa_3d = Viewport.MSAA_DISABLED
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(viewport)
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_COLOR
+	environment.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	var camera := Camera3D.new()
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.keep_aspect = Camera3D.KEEP_HEIGHT
+	camera.size = size.y
+	camera.near = 0.05
+	camera.far = CAMERA_Z * 2.0
+	camera.position = Vector3(0.0, size.y / 2.0, CAMERA_Z)
+	camera.environment = environment
+	viewport.add_child(camera)
+	camera.current = true
+	var material := ShaderMaterial.new()
+	material.shader = BAKE_SHADER
+	var detail := registry.detail_material()
+	for param in ["wood_albedo", "wood_normal", "stone_albedo", "stone_normal"]:
+		material.set_shader_parameter(param, detail.get_shader_parameter(param))
+	material.set_shader_parameter("camera_z", CAMERA_Z)
+	# From above, the deck seen between shakes is the gaps' depth; from below, it's all one depth
+	var from_above: bool = tile["top"]
+	material.set_shader_parameter("core_depth", ROOF_CORE_DEPTH if from_above else -2.0)
+	material.set_shader_parameter("face_depth", ROOF_FACE_DEPTH if from_above else -1.0)
+	var f: Dictionary = tile["facet"]
+	var flat := (tile["basis"] as Basis).transposed()
+	var lo: Vector2 = tile["min"]
+	for v in count:
+		var look := MeshInstance3D.new()
+		look.mesh = meshes[v]
+		look.material_override = material
+		var slot := (v - count / 2.0) * size.x
+		look.transform = Transform3D(flat, flat * -(f["o"] as Vector3) + Vector3(slot - lo.x, -lo.y, 0.0))
+		viewport.add_child(look)
+	var drawn: Array[Image] = []
+	for bake_pass in 2:
+		material.set_shader_parameter("bake_pass", bake_pass)
+		environment.background_color = BACKGROUND_COLOR.linear_to_srgb() if bake_pass == 0 else BACKGROUND_SURFACE
+		for i in 3:
+			await RenderingServer.frame_post_draw
+		drawn.append(viewport.get_texture().get_image())
+	viewport.queue_free()
+	return drawn
+
+
 # Mipmapped and compressed (DXT1, half a byte a pixel) where this build can compress
 static func _finish(image: Image, colour: bool) -> void:
 	image.generate_mipmaps()
@@ -214,11 +481,22 @@ func _apply(shape: String, variant: int, images: Array[Image], layout: Dictionar
 	var material: ShaderMaterial = _materials[_key(shape, variant)]
 	material.set_shader_parameter("baked_color", ImageTexture.create_from_image(images[0]))
 	material.set_shader_parameter("baked_surface", ImageTexture.create_from_image(images[1]))
-	material.set_shader_parameter("bake_min", layout["min"])
-	material.set_shader_parameter("bake_size", layout["size"])
+	if layout.has("min"):
+		material.set_shader_parameter("bake_min", layout["min"])
+		material.set_shader_parameter("bake_size", layout["size"])
 	material.set_shader_parameter("baked", true)
 	material.set_meta(&"baked", true)
-	memory += images[0].get_data_size() + images[1].get_data_size()
+	var bytes := images[0].get_data_size() + images[1].get_data_size()
+	memory += bytes
+	_memory_by_shape[shape] = int(_memory_by_shape.get(shape, 0)) + bytes
+
+
+## The bakes' texture memory (bytes) for these shapes
+func memory_of(shapes: Array) -> int:
+	var total := 0
+	for shape in shapes:
+		total += int(_memory_by_shape.get(shape, 0))
+	return total
 
 
 # ---- The cache ----
@@ -264,7 +542,7 @@ func _load_cached(shape: String) -> bool:
 				return false
 			images.append(image)
 		found.append(images)
-	var layout := _layout(shape)
+	var layout: Dictionary = _roof_layout(shape) if is_roof(shape) else _layout(shape)
 	for v in found.size():
 		_apply(shape, v, found[v], layout)
 		loaded += 1

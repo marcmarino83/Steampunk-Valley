@@ -12,16 +12,16 @@ extends Node
 ## of the snap pairs it could pick, and what beat it). When the centre aim fails, a second aim is
 ## tried and reported alongside: at the piece it joined, 0.3 m in from the joint (the Valheim way).
 ## Then "RR SUMMARY" lines per template and overall, "RR SHAPE" lines (results by shape) and
-## "RR FAMILY" lines (by family: see snap_family.gd). `-- --old` runs every piece the old way
-## (corners), to compare; `-- --traces` first builds and traces the four snapping screenshots'
-## situations ("RR TRACE"). The exit code is the number of pieces of the converted families (whole
-## edges) not back exactly by the centre aim.
+## "RR FAMILY" lines (by family: see snap_family.gd). The exit code is the number of pieces not back
+## exactly by the centre aim (every family snaps by typed edges or points).
 
 const WORLD := "res://world/world.tscn"
 const EXACT := 0.001
 const EXACT_TURN := 0.1
 const EYE_DISTANCE := 3.0
 const STEP := 22.5
+## A view's line must clear other pieces by this much (m), not just graze them
+const GRAZE := 0.01
 
 var player: Node
 var pp: ValheimPlacer
@@ -71,14 +71,6 @@ func _run() -> void:
 		print("RR | no flat open ground found")
 		get_tree().quit(1)
 		return
-	# (-- --old: every piece the old way, corners only, to compare against)
-	if "--old" in OS.get_cmdline_user_args():
-		pp.whole_edges = false
-		print("RR | the old placer (corners only) for every piece")
-	# (-- --traces: the four screenshots' situations, traced, first)
-	if "--traces" in OS.get_cmdline_user_args():
-		_dump_shapes()
-		await _traces()
 	var total := [0, 0, 0]
 	for file in DirAccess.get_files_at(BuildingTemplate.BUILT_IN_FOLDER):
 		if file.ends_with(".json"):
@@ -136,7 +128,7 @@ func _template(path: String) -> Array:
 		await _frames(2)
 		# (a point piece standing where no rule puts one: off the grid in the template, after a piece
 		# was resized; listed, not counted)
-		if SnapEdges.point_shape(buildable.shape) and pp.whole_edges and not _point_reachable(buildable, was):
+		if SnapEdges.point_shape(buildable.shape) and not _point_reachable(buildable, was):
 			print("RR OFF GRID | %s | %s at %s turned %.1f° | where it stands, none of its points is on a point the table allows and its line is along no edge it allows (the template needs rebuilding on the current grid)" % [title, piece_name, _local(was.origin).snapped(Vector3.ONE * 0.01), _yaw(was.basis)])
 			off_grid += 1
 			pieces[i] = registry.spawn(buildable, was, {})
@@ -162,7 +154,7 @@ func _template(path: String) -> Array:
 			by_shape[piece_name][1] += 1
 			by_family[family][1] += 1
 		else:
-			if SnapEdges.converted(buildable.shape) and pp.whole_edges:
+			if SnapEdges.converted(buildable.shape):
 				converted_misses += 1
 				print("RR CONVERTED MISS | %s | %s at %s turned %.1f° | %s" % [title, piece_name, _local(was.origin).snapped(Vector3.ONE * 0.01), _yaw(was.basis), _edge_story(buildable, was)])
 			reasons[a["why_short"]] = int(reasons.get(a["why_short"], 0)) + 1
@@ -292,6 +284,11 @@ func _edge_story(buildable: PieceBuildable, was: Transform3D) -> String:
 			return "body %.3f, middle %.3f m from the line, %d points held" % [SnapEdges.box_distance(w, box, _last_eye, _last_end), SnapEdges.point_segment(w * box.get_center(), _last_eye, _last_end), held]
 		var ranking: Array = pp.last_ranking.map(func(r): return "[%s off, body %d axis %d held %d line %.2f%s]" % [str(snappedf((r["origin"] as Vector3).distance_to(was.origin), 0.01)), r["body"], r["axis"], r["held"], r["line"], " point" if r["pivot"] else " line"])
 		did += " (eye %s, line end %s, ground %.2f)" % [_local(_last_eye).snapped(Vector3.ONE * 0.01), _local(_last_end).snapped(Vector3.ONE * 0.01), Plot.ground_at(player, was.origin.x, was.origin.z) - O.y]
+		# (asked again now, from the camera as it stands: what the placer finds)
+		var cam: Camera3D = player.camera
+		var cam_hit := pp._cast_ray(cam.global_position, cam.global_position - cam.global_basis.z * ValheimPlacer.REACH)
+		var again: Dictionary = pp._point_fit(cam.global_position, (cam_hit["position"] as Vector3) + (-cam.global_basis.z) * 0.1 if not cam_hit.is_empty() else cam.global_position - cam.global_basis.z * ValheimPlacer.REACH, cam_hit["collider"] if not cam_hit.is_empty() and cam_hit["collider"] is BuildPiece else null, cam_hit["position"] if not cam_hit.is_empty() else Vector3.INF)
+		did += " (asked again: camera %s, hit %s on %s; fit %s)" % [_local(cam.global_position).snapped(Vector3.ONE * 0.01), _local(cam_hit["position"]).snapped(Vector3.ONE * 0.01) if not cam_hit.is_empty() else "-", _name(cam_hit["collider"]) if not cam_hit.is_empty() and cam_hit["collider"] is BuildPiece else "not a piece", _local((again["where"] as Transform3D).origin).snapped(Vector3.ONE * 0.01) if not again.is_empty() else "none"]
 		return "%s; right fit: %s; chosen: %s; placer's top fits: %s; where it was: %s" % [did, keys.call(was), keys.call(pp._where) if not pp._pair.is_empty() else "-", " ".join(ranking), "; ".join(touches.slice(0, 3)) if not touches.is_empty() else "touching no typed point, corner or edge"]
 	var step: float = SnapEdges.vertical_step(buildable.display_name)
 	for c in SnapEdges.placements(buildable.shape, def, step, edges):
@@ -311,65 +308,14 @@ func _edge_story(buildable: PieceBuildable, was: Transform3D) -> String:
 
 # Why the placer didn't put it back exactly
 func _diagnose(buildable: PieceBuildable, was: Transform3D, hit: Dictionary, eye: Vector3, dir: Vector3, off: float, symmetry: float) -> Dictionary:
-	var def := registry.shape_of(buildable.shape)
 	var target: BuildPiece = pp._target
 	var hit_text := "the crosshair hit %s" % ("nothing" if hit.is_empty() else (_name(hit["collider"]) if hit["collider"] is BuildPiece else "the ground"))
-	var landed := -1
-	var points := []
-	if target:
-		points = pp._slender_points_round(target) if pp._is_slender() else pp._points_round(target)
-		landed = pp._landed(pp._where, points) if not pp._pair.is_empty() else 0
-	var result := "%s; it went %.0f mm and %.1f° off%s" % [hit_text, off * 1000.0, _turn_apart(pp._where.basis, was.basis, symmetry), (", snapped to %s, %d corner%s meeting" % [_name(target), landed, "" if landed == 1 else "s"]) if not pp._pair.is_empty() else ", free (not snapped)"]
-	# Is the old spot one of the turns the wheel reaches against the target?
-	var base := _yaw(target.global_basis) if target else 0.0
-	var need := fposmod(_yaw(was.basis) - base, 360.0)
-	var notch_off := absf(need - roundf(need / STEP) * STEP)
-	if symmetry > 0.0:
-		notch_off = minf(notch_off, absf(fposmod(need, rad_to_deg(symmetry)) - roundf(fposmod(need, rad_to_deg(symmetry)) / STEP) * STEP))
-	if target == null:
-		return {"ok": false, "why": result + "; no piece to snap to", "why_short": "nothing to snap to (aimed through the gap at the ground or sky)"}
-	if notch_off > EXACT_TURN:
-		return {"ok": false, "why": result + "; its turn against %s isn't a wheel step (%.1f° off one)" % [_name(target), notch_off], "why_short": "its turn against the aimed piece isn't a 22.5° step"}
-	# The pairs that would put it exactly back: one of its corners there on one of the snap points
-	var good := []
-	for own in SnapCorners.of(buildable.shape, def):
-		var at: Vector3 = was * (own as Vector3)
-		for p in points:
-			if at.distance_to(p) <= EXACT:
-				good.append([own, p])
-	if good.is_empty():
-		var through := hit.is_empty() or not (hit["collider"] is BuildPiece) or (hit["position"] as Vector3).distance_to(was * PieceShapes.bounds_of(def).get_center()) > 1.5
-		return {"ok": false, "why": result + "; none of its corners back in place meet a snap point of %s or the pieces touching it%s" % [_name(target), " (the crosshair passed through the gap and hit a piece beyond it)" if through else ""],
-			"why_short": "aimed through the gap: the piece hit doesn't border the spot" if through else "the spot isn't on a snap point of the aimed piece or those touching it"}
-	var ghost := pp._ghost_at(hit["position"], target) if not hit.is_empty() and hit["collider"] is BuildPiece else pp._ghost_at(pp._where.origin, target)
-	var best_gap := INF
-	for g in good:
-		best_gap = minf(best_gap, (ghost * (g[0] as Vector3)).distance_to(g[1]))
-	var sinks := ""
-	for piece in pp._pieces_round(target):
-		if PieceOverlap.overlaps(buildable.shape, def, was, piece):
-			sinks = _name(piece)
-			break
-	var kinds_ok := good.any(func(g): return pp._may_meet(pp._point_kind(target, g[1])))
-	var chosen_gap: float = float(pp._pair[2]) if pp._pair.size() > 2 else INF
-	var why := ""
-	var short := ""
-	if not kinds_ok and not pp._is_slender():
-		why = "the pairing rule (stairs) refuses its pair"
-		short = "the stairs pairing rule refuses it"
-	elif sinks != "" and not pp._is_slender():
-		why = "back in place it would sink more than 5 cm into %s, so that pair is skipped (\"never into the target\")" % sinks
-		short = "skipped: back in place it counts as sinking into a neighbour"
-	elif best_gap > ValheimPlacer.MAX_SLIDE:
-		why = "its pair is %.2f m from where the crosshair holds it (more than the %.1f m slide)" % [best_gap, ValheimPlacer.MAX_SLIDE]
-		short = "too far from where the crosshair holds it"
-	elif chosen_gap + ValheimPlacer.CONTACT_PREFERENCE < best_gap or (chosen_gap < best_gap and landed < 2):
-		why = "a closer pair won: %.2f m against its pair's %.2f m (the hold point at the crosshair is nearer another corner)" % [chosen_gap, best_gap]
-		short = "a closer pair won (single point)" if landed < 2 else "a closer pair won (a different whole edge)"
-	else:
-		why = "its pair was in reach (%.2f m) but another was picked (%.2f m; tie, edge preference or sticky corner)" % [best_gap, chosen_gap]
-		short = "another pair picked (tie, edge preference or sticky corner)"
-	return {"ok": false, "why": result + "; " + why, "why_short": short}
+	if not hit.is_empty():
+		hit_text += " at %s (normal %s, eye %s, looking %s)" % [_local(hit["position"]).snapped(Vector3.ONE * 0.01), (hit["normal"] as Vector3).snapped(Vector3.ONE * 0.01), _local(eye).snapped(Vector3.ONE * 0.01), dir.snapped(Vector3.ONE * 0.01)]
+	var result := "%s; it went %.0f mm and %.1f° off%s" % [hit_text, off * 1000.0, _turn_apart(pp._where.basis, was.basis, symmetry), (", snapped to %s" % _name(target)) if not pp._pair.is_empty() else ", free (not snapped)"]
+	# (why the right fit lost, by typed edges or points, is in the RR CONVERTED MISS line: _edge_story)
+	var short := "free: no fit found from this aim" if pp._pair.is_empty() else "another fit ranked first from this aim"
+	return {"ok": false, "why": result, "why_short": short}
 
 
 # The pieces `piece` meets by an exact corner
@@ -445,7 +391,11 @@ func _centre_view(was: Transform3D, def: Dictionary) -> Array:
 		long_axis = (was.basis * Vector3.RIGHT).normalized()
 	elif box.size.z > 3.0 * box.size.x:
 		long_axis = (was.basis * Vector3.BACK).normalized()
+	# (a diagonal view, at 45° to the piece, is kept only if no aim has a straight one hitting a
+	# piece: looking diagonally down a corner, a wall and its twin round the corner both lie on the
+	# crosshair's line, and a player facing a wall looks at it straight)
 	var fallback := []
+	var diagonal := []
 	for aim in aims:
 		var eyes := _eyes(aim, was.basis, shape_name != "")
 		if long_axis != Vector3.ZERO:
@@ -454,8 +404,16 @@ func _centre_view(was: Transform3D, def: Dictionary) -> Array:
 			eyes = across + along
 		for eye in eyes:
 			var to: Vector3 = aim - eye
-			var block := pp._cast_ray(eye, aim - to.normalized() * 0.05)
-			if not block.is_empty():
+			# (clear by a margin: a line grazing another piece's face, along a flight's side say, may
+			# hit it from the camera and miss it from here)
+			var side := to.cross(Vector3.UP).normalized() * GRAZE if absf(to.normalized().y) < 0.99 else Vector3.RIGHT * GRAZE
+			var up := side.cross(to).normalized() * GRAZE
+			var blocked := false
+			for o in [Vector3.ZERO, side, -side, up, -up]:
+				if not pp._cast_ray(eye + o, aim + o - to.normalized() * 0.05).is_empty():
+					blocked = true
+					break
+			if blocked:
 				continue
 			var beyond := pp._cast_ray(eye, eye + to.normalized() * ValheimPlacer.REACH)
 			# (the crosshair must reach the aim: one that's inside a hollow shape, under stairs say,
@@ -463,10 +421,15 @@ func _centre_view(was: Transform3D, def: Dictionary) -> Array:
 			if not beyond.is_empty() and eye.distance_to(beyond["position"]) < to.length() - 0.05:
 				continue
 			if not beyond.is_empty() and beyond["collider"] is BuildPiece:
-				return [eye, aim]
+				var flat := Vector3(to.x, 0, to.z).normalized()
+				var straight := flat == Vector3.ZERO or absf(flat.dot(was.basis.x.normalized())) > 0.9 or absf(flat.dot(was.basis.z.normalized())) > 0.9
+				if straight:
+					return [eye, aim]
+				if diagonal.is_empty():
+					diagonal = [eye, aim]
 			if fallback.is_empty():
 				fallback = [eye, aim]
-	return fallback
+	return diagonal if not diagonal.is_empty() else fallback
 
 
 # The joint aim: at a piece it joined, 0.3 m in from the corner they shared toward that piece's
@@ -513,128 +476,6 @@ func _open_eye(eye: Vector3, space: PhysicsDirectSpaceState3D) -> bool:
 	q.position = eye
 	q.exclude = [player.get_rid()]
 	return space.intersect_point(q, 1).is_empty()
-
-
-# ---- The four screenshots, traced ----
-
-# Each situation built on open ground, the piece aimed as in the screenshot and turned through all
-# 16 wheel steps: per turn, whether it fits whole edges or hangs from one point, and the pairs the
-# placer weighed (gap, corners meeting, sinking into something)
-func _traces() -> void:
-	# 1: a roof panel aimed at the middle of a 45° triangle wall standing on a wall
-	_spawn("structure/foundation_stone", Vector3(0, 1.0, 0))
-	_spawn("structure/wall_2m", Vector3(0, 1.0, 1.0))
-	var tri := _spawn("structure/gable_45", Vector3(0, 3.0, 1.0))
-	await _frames(3)
-	await _trace("1 roof 45° on a 45° triangle wall", "structure/roof_45", tri, Vector3(0.3, 3.6, 1.1))
-	await _clear()
-	# 3: a 45° triangle wall aimed at the middle of a wall's face (a gable end over a room)
-	_spawn("structure/foundation_stone", Vector3(0, 1.0, 0))
-	var wall := _spawn("structure/wall_2m", Vector3(0, 1.0, 1.0))
-	await _frames(3)
-	await _trace("3 triangle wall 45° on a wall top", "structure/gable_45", wall, Vector3(0, 2.0, 1.1))
-	await _clear()
-	# 4: a Wall 2 m aimed at a 2 m doorway's top edge, near its left end, walls either side
-	for x in [-2.0, 0.0, 2.0]:
-		_spawn("structure/foundation_stone", Vector3(x, 1.0, 0))
-	_spawn("structure/wall_2m", Vector3(-2, 1.0, 1.0))
-	var door := _spawn("structure/doorway_2m", Vector3(0, 1.0, 1.0))
-	_spawn("structure/wall_2m", Vector3(2, 1.0, 1.0))
-	await _frames(3)
-	await _trace("4 Wall 2 m on a doorway's top edge", "structure/wall_2m", door, Vector3(-0.6, 2.85, 1.1))
-	await _clear()
-	# 4b: the same with Tall walls (2.5 m) either side of the Standard doorway
-	for x in [-2.0, 0.0, 2.0]:
-		_spawn("structure/foundation_stone", Vector3(x, 1.0, 0))
-	_spawn("structure/wall", Vector3(-2, 1.0, 1.0))
-	door = _spawn("structure/doorway_2m", Vector3(0, 1.0, 1.0))
-	_spawn("structure/wall", Vector3(2, 1.0, 1.0))
-	await _frames(3)
-	await _trace("4b Wall 2 m on a doorway's top edge, Tall walls beside", "structure/wall_2m", door, Vector3(-0.6, 2.85, 1.1))
-	await _clear()
-
-
-func _trace(label: String, path: String, target: BuildPiece, aim_local: Vector3) -> void:
-	var buildable: PieceBuildable = load("res://buildables/%s.tres" % path)
-	var at := O + aim_local
-	var eye := at + Vector3(0.4, -0.6, 3.0)
-	var hanging := []
-	var fitting := []
-	for n in 16:
-		bp.cancel()
-		bp.begin(buildable)
-		await _frames(1)
-		await _turn_to(n)
-		bp.cancel()
-		bp.begin(buildable)
-		await _aim(eye, at)
-		var aimed: BuildPiece = pp._target
-		if pp._pair.is_empty() or aimed == null:
-			hanging.append("%.1f° free" % (n * STEP))
-			continue
-		var points: Array = pp._slender_points_round(aimed) if pp._is_slender() else pp._points_round(aimed)
-		var landed := pp._landed(pp._where, points)
-		var bar: Vector3 = pp._pair[1]
-		var bar_piece := _owner_of(bar, aimed)
-		var text := "%.1f°: %d corner%s on %s (bar on %s at %s)" % [n * STEP, landed, "" if landed == 1 else "s", _name(aimed), bar_piece, _local(bar).snapped(Vector3.ONE * 0.01)]
-		if landed >= 2:
-			fitting.append(text)
-		else:
-			hanging.append(text)
-			# Why: the pairs it weighed, closest first, and whether the whole-edge ones were skipped
-			print("RR TRACE %s | %s | weighed: %s" % [label, text, _weighed(buildable, aimed, at, points)])
-	print("RR TRACE %s | hit %s | whole edges at %d turns: %s | hanging at %d: %s" % [label, _name(pp._target), fitting.size(), "; ".join(fitting), hanging.size(), "; ".join(hanging)])
-
-
-# The pairs the placer weighs for this aim (as ValheimPlacer._pick does), closest first: gap,
-# corners meeting there, and what it would sink into
-func _weighed(buildable: PieceBuildable, target: BuildPiece, spot: Vector3, points: Array) -> String:
-	var def := registry.shape_of(buildable.shape)
-	var hit := pp._cast_ray(player.camera.global_position, spot + (spot - player.camera.global_position).normalized() * 0.2)
-	var at_spot: Vector3 = hit["position"] if not hit.is_empty() else spot
-	var ghost := pp._ghost_at(at_spot, target)
-	var pairs := []
-	for own in SnapCorners.of(buildable.shape, def):
-		var a: Vector3 = ghost * (own as Vector3)
-		for p in points:
-			var gap := a.distance_to(p)
-			if gap <= ValheimPlacer.MAX_SLIDE:
-				pairs.append([gap, a, p])
-	pairs.sort_custom(func(x, y): return x[0] < y[0])
-	var out := []
-	var two_best := INF
-	for pair in pairs:
-		var where := ghost.translated((pair[2] as Vector3) - (pair[1] as Vector3))
-		var landed := pp._landed(where, points)
-		var sinks := ""
-		for piece in pp._pieces_round(target):
-			if PieceOverlap.overlaps(buildable.shape, def, where, piece):
-				sinks = _name(piece)
-				break
-		if landed >= 2 and sinks == "":
-			two_best = minf(two_best, float(pair[0]))
-		if out.size() < 6:
-			out.append("%.2f m, %d meet%s" % [pair[0], landed, (", sinks into " + sinks) if sinks != "" else ""])
-	return "%s | nearest whole-edge pair that doesn't sink in: %s" % ["; ".join(out), ("%.2f m" % two_best) if two_best < INF else "none"]
-
-
-func _owner_of(p: Vector3, target: BuildPiece) -> String:
-	for piece in pp._pieces_round(target):
-		for c in SnapCorners.in_world(piece):
-			if (c as Vector3).distance_to(p) < 0.01:
-				return _name(piece)
-	return "?"
-
-
-# The snap points of the shapes in the screenshots, in their own space
-func _dump_shapes() -> void:
-	for shape in ["roof_45", "roof_inner_45", "roof_inner_26", "gable_wall_45", "gable_45", "wall_2m", "doorway_2m", "doorway"]:
-		var def := registry.shape_of(shape)
-		var pts := []
-		for p in SnapCorners.of(shape, def):
-			pts.append(str((p as Vector3).snapped(Vector3.ONE * 0.01)))
-		var box := PieceShapes.bounds_of(def)
-		print("RR SHAPE-POINTS %s: box %s to %s; hold %s; %d snap points: %s" % [shape, box.position.snapped(Vector3.ONE * 0.01), box.end.snapped(Vector3.ONE * 0.01), ValheimPlacer.hold_point(def).snapped(Vector3.ONE * 0.01), pts.size(), ", ".join(pts)])
 
 
 # ---- Helpers ----

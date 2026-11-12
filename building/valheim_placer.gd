@@ -1,41 +1,24 @@
 class_name ValheimPlacer
 extends Node
-## Placing building pieces (DESIGN.md, "Snapping redesign" and "Placing pieces"). The converted
-## families (walls, floors and foundations: SnapEdges.converted) snap by whole typed edges, chosen by
-## aim (see _edge_fit): no hold point, no sliding, never a single point; snapped, the wheel steps
-## through the turns that fit there; with no fit, free with "No fit here". Every other piece snaps
-## the Valheim way, below:
+## Placing building pieces (DESIGN.md, "Snapping redesign" and "Placing pieces"). Every building
+## piece snaps by typed edges or typed points (SnapEdges), chosen by aim (see _edge_fit, _point_fit):
+## no hold point, no sliding, never a single corner. Snapped, the wheel steps through the turns that
+## fit there (flights of stairs, pillars, poles, beams and chimney pieces keep the player's turn,
+## 22.5° a notch); with no fit, the piece is free at the crosshair with "No fit here".
 ##
-##   1. Target: the building piece under the crosshair is the target, tinted blue. Snapping only
-##      uses its snap points and those of the pieces directly touching it (within TOUCH_GAP).
-##      Aimed at the ground (or nothing, the spot then being the ground below the crosshair's
-##      reach), there's no target and the piece sits free there, unless it's right beside a building
-##      (see _beside).
-##   2. Snap points are corners and ends only (see SnapCorners). The target's show as small yellow
-##      dots, and the pair in use gets a yellow upright bar. No dots on anything else.
-##   3. The ghost is the piece's real look, solid (its own materials and colour; see _make_ghost),
-##      with a light tint and thin outline over it (see PreviewLook): warm, or red only where it can't go (an identical
-##      piece already there, or not enough materials).
-##   4. Turning: the wheel turns it WHEEL_STEP a notch, measured against the target (0° is lined up
-##      with whatever you're pointing at; with no target, with the world). The turn stays until the
-##      player changes it, across pieces too. Nothing else ever turns it. Z turns snapping off (the
-##      piece goes free where the crosshair is, and the wheel turns FINE_WHEEL_STEP a notch) and on
-##      again; it stays as set, across pieces. (Shift is sprint and does nothing here.)
-##   Pillars, poles and beams (slender pieces) snap where the player points and turn freely while
-##   snapped, with no exceptions: none of the pairing limits, edge-to-edge preference or "never into
-##   the target" rule apply to them, and besides corners they take the 1 m spots along floor edges
-##   and wall tops (edge and wall-top middles; see SnapCorners.post_spots_in_world).
-##   5. Snap: the ghost goes at the crosshair's hit, by its origin, at the player's turn, and slides
-##      so the closest pair between its corners and the target's (and the touching pieces') corners
-##      meet exactly (see _best_pair), skipping any pair that would sink it into the target or a
-##      touching piece by more than PieceOverlap.MARGIN (a floor aimed at a floor's middle goes
-##      beside it, on the side the crosshair is nearest), and preferring pairs where the pieces meet
-##      edge to edge or face to face. Aimed at the target, the pair may be up to MAX_SLIDE apart;
-##      aimed at the ground beside a building, up to SNAP_RANGE (see _beside).
-##   6. Sticky corner: once snapped, it keeps the same target corner while the player turns it, only
-##      re-picking which of its own corners meets it; it moves to another target corner only when the
-##      crosshair gets nearer that one by more than STICKY_SWITCH (a pillar, pole or beam: only once
-##      the crosshair has also moved more than STICKY_SWITCH from where it was when it snapped there).
+##   - The target: the piece the crosshair hits (or, aimed at the ground, the piece the fit is on),
+##     tinted blue; its corners show as small yellow dots while snapping, and the joint in use gets a
+##     yellow upright bar.
+##   - The ghost is the piece's real look, solid (its own materials and colour; see _make_ghost),
+##     with a light tint and thin outline over it (see PreviewLook): warm, or red only where it can't
+##     go (an identical piece already there, or not enough materials). Overlapping other pieces never
+##     stops it.
+##   - Turning: the wheel turns it WHEEL_STEP a notch, measured against the target (0° is lined up
+##     with whatever you're pointing at; with no target, with the world). The turn stays until the
+##     player changes it, across pieces too. Z turns snapping off (the piece goes free where the
+##     crosshair is, and the wheel turns FINE_WHEEL_STEP a notch) and on again; it stays as set,
+##     across pieces. (Shift is sprint and does nothing here.) Free, Page Up / Page Down raise and
+##     lower it.
 ##
 ## Left click places, the middle button demolishes (see Demolisher), right click cancels.
 ## Furniture stands on the floor or ground under the crosshair (see FurnitureSpot), turned by the
@@ -44,24 +27,9 @@ extends Node
 ## How far ahead of the camera the crosshair reaches, and how far below that it looks for the ground
 const REACH := 8.0
 const DROP_DISTANCE := 300.0
-## A pair of snap points this close or closer meets
-const SNAP_RANGE := 0.5
-## Pieces this close to the target count as touching it (their snap points take part too)
-const TOUCH_GAP := 0.1
-## Aimed at the ground beside a building: how far round the spot to look for the piece it's beside
-const BESIDE_REACH := 4.0
-## Aimed at the target: how far apart the pair may be (the ghost slides at most this far)
-const MAX_SLIDE := 3.0
-## The sticky corner gives way to another only when the crosshair is this much nearer that one
+## A point piece keeps the placed point it's on while the crosshair stays this close to where it
+## snapped there (it turns in place: see _point_fit); dots this close are one
 const STICKY_SWITCH := 0.3
-## A pair where the pieces only touch at a point wins over one where they meet edge to edge only if
-## it's this much closer
-const CONTACT_PREFERENCE := 0.25
-## Two pairs this nearly as close are a tie (the one on the snap point nearer the crosshair wins,
-## then the one whose corner is nearer the camera, so the piece reaches away from the player: aimed
-## at a pole top, a beam's near end meets it whichever end is a few centimetres nearer); corners
-## this close meet
-const TIE := 0.15
 const MEET := 0.01
 ## Turning: one wheel notch, and with snapping off
 const WHEEL_STEP := PI / 8.0
@@ -82,12 +50,15 @@ const SNAP_OFF_TEXT := "Snapping off (turn 1°)"
 ## Page Up / Page Down raise and lower a free (unsnapped) piece this much a press, with no limit
 ## (that moves it; no piece is ever reshaped to fit where it goes)
 const RAISE_STEP := 0.25
-## Whole-edge pieces (see SnapEdges and _edge_fit): the aimed piece's edges this close to the
+## Whole-edge pieces (see SnapEdges and _edge_fit; flights of stairs and doors among them): the aimed piece's edges this close to the
 ## crosshair's hit, and any piece's edges this close to the crosshair's line before the hit, are
 ## candidates; a fit whose body is farther than BODY_REACH from that line is dropped
 const AIM_EDGE_REACH := 1.0
 const LINE_EDGE_REACH := 1.5
 const BODY_REACH := 0.5
+## A flight aimed at a side face this close to the seam with the next piece's face (in line with it)
+## counts as aimed at either piece's edge
+const SEAM := 0.02
 ## How far round each point along the crosshair's line to look for pieces (by their origin): the
 ## line reach plus the farthest a piece's edge is from its origin
 const NEAR_PIECES := 5.0
@@ -108,10 +79,9 @@ var demolisher: Demolisher
 var turn := 0.0
 ## Snapping on or off (Z): stays as set, across pieces
 var snap_on := true
-## The converted families snap by whole edges (see SnapEdges). Off, every piece snaps the old way
-## (corners): for the tests' comparisons only
-var whole_edges := true
-## For the tests: the top-ranked point fits of the last frame, with their ranking keys
+## Its middle, as aimed at (see _set_shape), in its own space
+var _middle := Vector3.ZERO
+## For the tests: the top-ranked point or edge fits of the last frame, with their ranking keys
 var last_ranking := []
 
 var _player: CharacterBody3D
@@ -140,20 +110,6 @@ var _tint: StandardMaterial3D
 var _marker_root: Node3D
 var _dots: Array[MeshInstance3D] = []
 var _bar: MeshInstance3D
-# Each piece with its touching pieces, and their snap points, worked out once until pieces change
-var _round_cache := {}
-# For each piece's snap points round it, what kind of piece each is a corner of (see _point_kind)
-var _kind_cache := {}
-## Kinds of snap point (see _point_kind): a floor's or foundation's corner (on its top's edge), a
-## flight of stairs' corner, anything else's
-const POINT_FLOOR := 1
-const POINT_STAIRS := 2
-const POINT_OTHER := 4
-# The sticky corner: the piece and the snap point the ghost last met (Vector3.INF: none), and where
-# the crosshair was when it first met it
-var _sticky_target: BuildPiece
-var _sticky_point := Vector3.INF
-var _sticky_spot := Vector3.INF
 # Whole-edge pieces: each placed piece's typed edges in the world (until pieces change); the turns
 # (world yaws) that fit at the spot it's snapped to, sorted; the yaw it's shown at; the yaw the
 # player's turn is measured from (the aimed piece's, or the world's); and the panel's note
@@ -162,6 +118,8 @@ var _fit_yaws: Array[float] = []
 var _shown_yaw := 0.0
 var _turn_ref := 0.0
 var _note := ""
+# The face the crosshair hit: its normal (zero with no hit), for a flight aimed at a floor's edge face
+var _hit_normal := Vector3.ZERO
 # Point pieces: the placed point it's on (Vector3.INF: none), which of its own points, and where the
 # crosshair was when it snapped there (it stays on that point while it turns: see _point_fit)
 var _stick_pivot := Vector3.INF
@@ -174,10 +132,7 @@ func _ready() -> void:
 	_furniture = FurnitureSpot.new(_player)
 	set_physics_process(false)
 	if registry:
-		registry.changed.connect(func():
-			_round_cache.clear()
-			_kind_cache.clear()
-			_edge_cache.clear())
+		registry.changed.connect(func(): _edge_cache.clear())
 
 
 func is_placing() -> bool:
@@ -225,6 +180,11 @@ func _set_shape(shape: String) -> void:
 	_shape = registry.shape_of(shape)
 	_bounds = PieceShapes.bounds_of(_shape)
 	_hold = hold_point(_shape)
+	# (a floor's or foundation's middle as aimed at is the middle of its top: a foundation's block
+	# reaches 2 m into the ground, and its box's middle is underground, where no one aims)
+	_middle = _bounds.get_center()
+	if _shape.get("floor", false):
+		_middle.y = _bounds.end.y - 0.1
 
 
 func cancel() -> void:
@@ -242,8 +202,6 @@ func cancel() -> void:
 	_shape_name = ""
 	_set_target(null)
 	_pair = []
-	_sticky_target = null
-	_sticky_point = Vector3.INF
 	_fit_yaws.clear()
 	_note = ""
 	_stick_pivot = Vector3.INF
@@ -285,8 +243,9 @@ func turn_by_wheel(event: InputEventMouseButton) -> bool:
 	if not button in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
 		return false
 	var up := 1.0 if button in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_LEFT] else -1.0
-	# A whole-edge piece snapped: the next turn that fits at that spot, that way round
-	if snapping_now() and edge_piece() and not _pair.is_empty() and not _fit_yaws.is_empty():
+	# A whole-edge piece snapped: the next turn that fits at that spot, that way round (not a flight of
+	# stairs: it keeps the player's turn, turned freely, and snaps where it fits that way round)
+	if snapping_now() and edge_piece() and not _pair.is_empty() and not _fit_yaws.is_empty() and not _shape_name in SnapEdges.FLIGHTS:
 		var next := _shown_yaw
 		var best := INF
 		for yaw in _fit_yaws:
@@ -300,14 +259,14 @@ func turn_by_wheel(event: InputEventMouseButton) -> bool:
 	return true
 
 
-## True while placing a piece that snaps by whole edges (see SnapEdges): converted families only
+## True while placing a piece that snaps by whole edges (see SnapEdges)
 func edge_piece() -> bool:
-	return whole_edges and _buildable != null and SnapEdges.edge_shape(_shape_name)
+	return _buildable != null and SnapEdges.edge_shape(_shape_name)
 
 
-## True while placing a pillar, pole or beam, which snap by typed points (see _point_fit)
+## True while placing a pillar, pole, beam or chimney piece, which snap by typed points (see _point_fit)
 func point_piece() -> bool:
-	return whole_edges and _buildable != null and SnapEdges.point_shape(_shape_name)
+	return _buildable != null and SnapEdges.point_shape(_shape_name)
 
 
 ## What the on-screen controls show while placing (see HudControls): the controls, and the piece's
@@ -399,8 +358,10 @@ func _follow_crosshair() -> void:
 		# no sliding
 		var line_end: Vector3 = far_point
 		var hit_point := Vector3.INF
+		_hit_normal = Vector3.ZERO
 		if not hit.is_empty():
 			hit_point = hit["position"]
+			_hit_normal = hit.get("normal", Vector3.ZERO)
 			line_end = hit_point + (hit_point - from).normalized() * 0.1
 		var fit: Dictionary = _point_fit(from, line_end, target, hit_point) if point_piece() else _edge_fit(from, line_end, target, hit_point)
 		if fit.is_empty():
@@ -412,20 +373,11 @@ func _follow_crosshair() -> void:
 			_pair = [fit["own_mid"], fit["at_mid"], 0.0]
 			if target == null:
 				target = fit["piece"]
-		_sticky_target = null
-		_sticky_point = Vector3.INF
-	elif target:
+	else:
+		# Snapping off: free at the crosshair, at the player's turn
 		_where = _ghost_at(spot, target)
-		if snapping:
-			var pair := _best_pair(target, spot, MAX_SLIDE)
-			if not pair.is_empty():
-				_use_pair(target, pair, spot)
-	elif snapping:
-		target = _beside(spot)
 	if target == null and _pair.is_empty():
 		_where = _ghost_at(spot, null)
-		_sticky_target = null
-		_sticky_point = Vector3.INF
 	# Free (not snapped): Page Up / Page Down raise and lower it
 	if _pair.is_empty():
 		_where.origin.y += _lift
@@ -444,7 +396,10 @@ func _follow_crosshair() -> void:
 # edges within AIM_EDGE_REACH of the hit, and any piece's edges within LINE_EDGE_REACH of the line;
 # every way the ghost fits them (SnapEdges.placements: whole edges, the table's turns, grid steps).
 # Dropped: fits whose body is more than BODY_REACH from the line, and fits that are taken (see
-# _taken). Ranked: body nearest the line (to BODY_TIE), then most of its edges matching placed ones,
+# _taken). A flight of stairs looks for edges its own length farther off, ranks first the fits at the
+# player's turn (it keeps the turn, as pillars and beams do), and of its fits as near the line, aimed
+# at a piece's side face, one on that piece's edge by the hit, then one standing on something by its
+# bottom edge. Ranked: body nearest the line (to BODY_TIE), then most of its edges matching placed ones,
 # then its middle nearest the line, then (exactly in line, one behind the other) the nearer one. Of the fits at that spot (and,
 # for joins that go either way round, the same join on the other side), the turn nearest the
 # player's. Sets _fit_yaws (the turns that fit there) and _shown_yaw.
@@ -454,11 +409,15 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 	var all_edges := []
 	var sources := []
 	var post_tops := []
+	# (a flight of stairs reaches up to its own length from the edge it fits: aimed at the ground
+	# where its body goes, the floor edge it hangs from is that far off, so it looks that much farther)
+	var flight: bool = _shape_name in SnapEdges.FLIGHTS
+	var extra_reach: float = _bounds.size.length() if flight else 0.0
 	for piece in pieces:
 		for e in _edges_of(piece):
 			all_edges.append(e)
-			var near_hit: bool = piece == aimed and hit_point != Vector3.INF and SnapEdges.point_segment(hit_point, e["a"], e["b"]) <= AIM_EDGE_REACH
-			if near_hit or SnapEdges.segment_segment(from, to, e["a"], e["b"]) <= LINE_EDGE_REACH:
+			var near_hit: bool = piece == aimed and hit_point != Vector3.INF and SnapEdges.point_segment(hit_point, e["a"], e["b"]) <= AIM_EDGE_REACH + extra_reach
+			if near_hit or SnapEdges.segment_segment(from, to, e["a"], e["b"]) <= LINE_EDGE_REACH + extra_reach:
 				sources.append(e)
 		# (a floor also fits a corner on a post top: porches and stilt buildings)
 		if _shape_name in SnapEdges.FLOORS:
@@ -478,7 +437,7 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 			continue
 		seen[key] = true
 		# (far from the line by its middle: no need to measure its body)
-		var middle := candidate * _bounds.get_center()
+		var middle := candidate * _middle
 		if SnapEdges.point_segment(middle, from, to) > BODY_REACH + _bounds.size.length() / 2.0:
 			continue
 		var body: float = SnapEdges.box_distance(candidate, _bounds, from, to)
@@ -487,17 +446,42 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 		scored.append({"c": c, "body": roundf(body / BODY_TIE), "middle": middle, "line": SnapEdges.point_segment(middle, from, to), "near": from.distance_to(middle)})
 	if scored.is_empty():
 		return {}
+	var want := _turn_ref + turn
 	for s in scored:
 		s["matched"] = SnapEdges.matched(_shape_name, _shape, s["c"]["where"], all_edges)
+		# (a flight keeps the player's turn, as pillars and beams do: the wheel says which way it
+		# climbs, and it snaps where it fits that way round; only with no fit that way round does it
+		# take another turn)
+		s["turned"] = 0 if not flight or absf(angle_difference(_yaw((s["c"]["where"] as Transform3D).basis), want)) < 0.01 else 1
+		# (and of a flight's fits as near the line: aimed at a piece's side face (a floor's edge face, not
+		# its top), one on that piece's edge by the hit first, as aiming there means "at this edge"; then
+		# one standing on something by its bottom edge)
+		var at: Dictionary = s["c"]["at"]
+		var at_face: bool = false
+		if flight and aimed != null and hit_point != Vector3.INF and absf(_hit_normal.y) < 0.5 and SnapEdges.point_segment(hit_point, at["a"], at["b"]) <= AIM_EDGE_REACH:
+			# (the aimed piece's edge; or, aimed exactly at the seam between two pieces' faces, the
+			# neighbour's edge in line with that face too, so neither side of the seam wins by the hit)
+			var seam: bool = absf(((at["a"] as Vector3) - hit_point).dot(_hit_normal)) < SEAM \
+				and SnapEdges.point_segment(Vector3(hit_point.x, (at["a"] as Vector3).y, hit_point.z), at["a"], at["b"]) < SEAM
+			at_face = at.get("piece") == aimed or seam
+		s["face"] = 0 if at_face or not flight else 1
+		s["standing"] = 0 if not flight or _flight_stands(s["c"]["where"], all_edges) else 1
 	scored.sort_custom(func(a, b):
+		if a["turned"] != b["turned"]:
+			return a["turned"] < b["turned"]
 		if a["body"] != b["body"]:
 			return a["body"] < b["body"]
+		if a["face"] != b["face"]:
+			return a["face"] < b["face"]
+		if a["standing"] != b["standing"]:
+			return a["standing"] < b["standing"]
 		if a["matched"] != b["matched"]:
 			return a["matched"] > b["matched"]
 		# (and of two exactly in line with the crosshair, one behind the other, the nearer)
 		if absf(a["line"] - b["line"]) > 0.001:
 			return a["line"] < b["line"]
 		return a["near"] < b["near"])
+	last_ranking = scored.map(func(s): return {"origin": (s["c"]["where"] as Transform3D).origin, "turned": s["turned"], "body": s["body"], "face": s["face"], "standing": s["standing"], "matched": s["matched"], "line": s["line"]})
 	var best := {}
 	for s in scored:
 		if not _taken(s["c"]["where"], pieces):
@@ -516,7 +500,6 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 	# lying along an edge: a roof on a wall top, an overhang along a gable's slope), the same join on
 	# the other side, next to the crosshair too)
 	var joint := _joint_of(best["c"])
-	var want := _turn_ref + turn
 	var chosen: Dictionary = best["c"]
 	var nearest := INF
 	var tried := {}
@@ -531,10 +514,15 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 		if tried.has(key):
 			continue
 		tried[key] = true
-		if not around_post and (candidate * _bounds.get_center()).distance_to(spot) > SAME_SPOT:
+		if not around_post and (candidate * _middle).distance_to(spot) > SAME_SPOT:
 			var either_way: bool = SnapEdges.RULES.get(c["own"]["type"], {}).get(c["at"]["type"], []) == [0.0, 180.0]
-			if not either_way or not _same_joint(joint, _joint_of(c)) or SnapEdges.box_distance(candidate, _bounds, from, to) > BODY_REACH:
+			if not either_way or not _same_joint(joint, _joint_of(c)):
 				continue
+		# (every turn there keeps its body near the crosshair's line too: a triangle turned about its
+		# middle lies over the other half of its square, and a floor swung round a post top swings
+		# away from where it's aimed)
+		if c != best["c"] and SnapEdges.box_distance(candidate, _bounds, from, to) > BODY_REACH:
+			continue
 		if _taken(candidate, pieces):
 			continue
 		var yaw := _yaw(candidate.basis)
@@ -552,6 +540,21 @@ func _edge_fit(from: Vector3, to: Vector3, aimed: BuildPiece, hit_point: Vector3
 	var at: Dictionary = fit["at"]
 	return {"where": where, "piece": fit["piece"], "own_mid": where * (((own["a"] as Vector3) + (own["b"] as Vector3)) / 2.0),
 		"at_mid": ((at["a"] as Vector3) + (at["b"] as Vector3)) / 2.0}
+
+
+# True if a flight put at `where` stands on something: its bottom edge along a placed edge it may
+# meet (see SnapEdges.RULES)
+func _flight_stands(where: Transform3D, edges: Array) -> bool:
+	for g in SnapEdges.of(_shape_name, _shape):
+		if g["type"] != "stairs_bottom":
+			continue
+		var rule: Dictionary = SnapEdges.RULES.get(g["type"], {})
+		var a: Vector3 = where * (g["a"] as Vector3)
+		var b: Vector3 = where * (g["b"] as Vector3)
+		for t in edges:
+			if rule.has(t["type"]) and SnapEdges.along(a, b, t["a"], t["b"]):
+				return true
+	return false
 
 
 # The pieces round the crosshair's line from `from` to `to` (and the aimed piece), as keys
@@ -766,212 +769,6 @@ static func hold_point(def: Dictionary) -> Vector3:
 	return Vector3(box.get_center().x, box.position.y, box.get_center().z)
 
 
-# The snap with `target` (rules 5 and 6), the ghost held at `spot`: of the pairs between its corners
-# and the target's and touching pieces' snap points no more than `reach` apart, the closest that
-# doesn't sink it into any of those pieces (see PieceOverlap), a pair where the pieces meet edge to
-# edge or face to face (two or more corners meeting) winning over a point-only one up to
-# CONTACT_PREFERENCE closer, and of two equally close the one whose corner is nearer the camera.
-# While the sticky corner is on this target and the crosshair isn't nearer another of its points by
-# more than STICKY_SWITCH, only pairs on that corner count (unless none of them will do).
-# {"own" (its corner), "at" (the snap point), "gap", "landed" (how many corners meet), "where"}, or
-# empty for none.
-func _best_pair(target: BuildPiece, spot: Vector3, reach: float) -> Dictionary:
-	var ghost := _ghost_at(spot, target)
-	var points: Array = _slender_points_round(target) if _is_slender() else _points_round(target)
-	if _sticky_target == target and points.any(func(p): return (p as Vector3).distance_to(_sticky_point) < MEET):
-		var nearest := INF
-		for p in points:
-			nearest = minf(nearest, spot.distance_to(p))
-		# (a pillar, pole or beam keeps its snap point while the crosshair stays where it was when it
-		# snapped there, so it turns freely in place, whichever point the crosshair is nearest)
-		var still := _is_slender() and spot.distance_to(_sticky_spot) <= STICKY_SWITCH
-		if still or spot.distance_to(_sticky_point) <= nearest + STICKY_SWITCH:
-			var held := _pick(ghost, spot, points, [_sticky_point], target, reach)
-			if not held.is_empty():
-				return held
-	return _pick(ghost, spot, points, points, target, reach)
-
-
-# The pair chosen of the ghost's corners and `anchors` (see _best_pair); `points` are all the snap
-# points round the target, for counting how many corners meet. Of two equally close pairs, the one
-# on the snap point nearer the crosshair, then the one whose corner is nearer the camera.
-func _pick(ghost: Transform3D, spot: Vector3, points: Array, anchors: Array, target: BuildPiece, reach: float) -> Dictionary:
-	var eye: Vector3 = (_player.camera as Camera3D).global_position
-	var pairs := []
-	for own in SnapCorners.of(_shape_name, _shape):
-		var at: Vector3 = ghost * (own as Vector3)
-		for p in anchors:
-			var gap := at.distance_to(p)
-			if gap <= reach and _may_meet(_point_kind(target, p)):
-				pairs.append([gap, at, p])
-	pairs.sort_custom(func(a, b):
-		if absf(float(a[0]) - float(b[0])) > TIE:
-			return float(a[0]) < float(b[0])
-		var a_spot := (a[2] as Vector3).distance_to(spot)
-		var b_spot := (b[2] as Vector3).distance_to(spot)
-		if absf(a_spot - b_spot) > TIE:
-			return a_spot < b_spot
-		return (a[1] as Vector3).distance_to(eye) < (b[1] as Vector3).distance_to(eye))
-	var best := {}
-	# A pillar, pole or beam: simply the closest pair (ties as above), where the player points: no
-	# edge-to-edge preference, and it never counts as sinking in (see PieceOverlap)
-	if _is_slender():
-		if pairs.is_empty():
-			return best
-		var first: Array = pairs[0]
-		var at := ghost.translated((first[2] as Vector3) - (first[1] as Vector3))
-		return {"own": first[1], "at": first[2], "gap": first[0], "landed": _landed(at, points), "where": at}
-	for pair in pairs:
-		if not best.is_empty() and float(pair[0]) > float(best["gap"]) + CONTACT_PREFERENCE:
-			break
-		var where := ghost.translated((pair[2] as Vector3) - (pair[1] as Vector3))
-		if _sinks_in(where, target):
-			continue
-		var landed := _landed(where, points)
-		if best.is_empty() or (landed >= 2 and int(best["landed"]) < 2):
-			best = {"own": pair[1], "at": pair[2], "gap": pair[0], "landed": landed, "where": where}
-			if landed >= 2:
-				break
-	return best
-
-
-# How many of the ghost's corners, put at `where`, meet one of `points`
-func _landed(where: Transform3D, points: Array) -> int:
-	var count := 0
-	for own in SnapCorners.of(_shape_name, _shape):
-		var at: Vector3 = where * (own as Vector3)
-		if points.any(func(p): return at.distance_to(p) < MEET):
-			count += 1
-	return count
-
-
-# True if the ghost at `where` would sink into the target or a piece touching it (see PieceOverlap)
-func _sinks_in(where: Transform3D, target: BuildPiece) -> bool:
-	for piece in _pieces_round(target):
-		if PieceOverlap.overlaps(_shape_name, _shape, where, piece):
-			return true
-	return false
-
-
-# Snaps the ghost by `pair` with `target` (the crosshair at `spot`), and makes that the sticky
-# corner (noting where the crosshair was when it became the sticky corner)
-func _use_pair(target: BuildPiece, pair: Dictionary, spot: Vector3) -> void:
-	_where = pair["where"]
-	_pair = [pair["own"], pair["at"], pair["gap"]]
-	if target != _sticky_target or (pair["at"] as Vector3).distance_to(_sticky_point) > MEET:
-		_sticky_spot = spot
-	_sticky_target = target
-	_sticky_point = pair["at"]
-
-
-# Aimed at the ground (or nothing) right beside a building: the sticky corner's piece while the
-# crosshair stays within the ghost's reach of that corner (so turning it keeps it there); otherwise,
-# of the pieces round the spot, the one with the closest pair (see _best_pair) within SNAP_RANGE,
-# the ghost turned against it. It's then the target and the ghost is snapped to it. Null (free) if
-# none is that close.
-func _beside(spot: Vector3) -> BuildPiece:
-	if is_instance_valid(_sticky_target) and spot.distance_to(_sticky_point) <= _bounds.size.length() + SNAP_RANGE:
-		var held := _best_pair(_sticky_target, spot, MAX_SLIDE)
-		if not held.is_empty():
-			_use_pair(_sticky_target, held, spot)
-			return _sticky_target
-	var best: BuildPiece = null
-	var best_pair := {}
-	for piece in registry.pieces_near(spot, BESIDE_REACH + _bounds.size.length()):
-		if not is_instance_valid(piece) or piece.is_queued_for_deletion():
-			continue
-		var pair := _best_pair(piece, spot, SNAP_RANGE)
-		if not pair.is_empty() and (best_pair.is_empty() or float(pair["gap"]) < float(best_pair["gap"])):
-			best = piece
-			best_pair = pair
-	if best:
-		_use_pair(best, best_pair, spot)
-	return best
-
-
-# A piece's snap points with those of the pieces directly touching it (their boxes within TOUCH_GAP
-# of its box), in the world
-func _points_round(piece: BuildPiece) -> Array:
-	var key := piece.get_instance_id()
-	if not _round_cache.has(key):
-		var points := []
-		var kinds := {}
-		for other in _pieces_round(piece):
-			var def: Dictionary = other.shape_def()
-			var kind := POINT_FLOOR if def.get("floor", false) else (POINT_STAIRS if def.get("stairs", false) else POINT_OTHER)
-			for p: Vector3 in SnapCorners.in_world(other):
-				points.append(p)
-				var at := _point_key(p)
-				kinds[at] = int(kinds.get(at, 0)) | kind
-		_round_cache[key] = points
-		_kind_cache[key] = kinds
-	return _round_cache[key]
-
-
-# For a pillar, pole or beam: the snap points round a piece (see _points_round) and also the 1 m
-# spots along the floor edges and wall tops there (see SnapCorners.post_spots_in_world)
-func _slender_points_round(piece: BuildPiece) -> Array:
-	var key := "slender_%d" % piece.get_instance_id()
-	if not _round_cache.has(key):
-		var points := _points_round(piece).duplicate()
-		for other in _pieces_round(piece):
-			for p: Vector3 in SnapCorners.post_spots_in_world(other):
-				if not points.any(func(q): return (q as Vector3).distance_to(p) < MEET):
-					points.append(p)
-		_round_cache[key] = points
-	return _round_cache[key]
-
-
-# True while placing a pillar, pole or beam (not a ladder, which hangs by its own corners): see
-# the note at the top
-func _is_slender() -> bool:
-	return _shape.get("slender", false) and not _shape.get("ladder", false)
-
-
-# What the snap point `p` round a piece is (see _points_round): POINT_FLOOR, POINT_STAIRS and
-# POINT_OTHER together, for each kind of piece with a corner there
-func _point_kind(piece: BuildPiece, p: Vector3) -> int:
-	_points_round(piece)
-	return int(_kind_cache[piece.get_instance_id()].get(_point_key(p), 0))
-
-
-static func _point_key(p: Vector3) -> Vector3i:
-	return Vector3i((p * 1000.0).round())
-
-
-# Which snap points the ghost's corners may meet. A flight of stairs (Stairs, Half Stairs,
-# Foundation Steps), by its top corners or its bottom ones alike, only a floor's or foundation's
-# corners (all of which are on its top's edge); on bare ground it simply stands where it's put. And
-# so the other way round: a point that is only a flight's corners only takes a floor or foundation.
-# Nothing else pairs with a flight, so a flight never meets anything by a wrong corner, leaving a gap.
-# A pillar, pole or beam meets any snap point (no exceptions: see the note at the top).
-func _may_meet(kind: int) -> bool:
-	if _is_slender():
-		return true
-	if _shape.get("stairs", false):
-		return kind & POINT_FLOOR != 0
-	if kind & POINT_STAIRS and kind & (POINT_FLOOR | POINT_OTHER) == 0:
-		return _shape.get("floor", false)
-	return true
-
-
-# A piece and the pieces directly touching it
-func _pieces_round(piece: BuildPiece) -> Array:
-	var key := -piece.get_instance_id()
-	if not _round_cache.has(key):
-		var found := [piece]
-		var box := _world_box(piece).grow(TOUCH_GAP)
-		for other in registry.pieces_near(piece.global_position, 8.0):
-			if other != piece and is_instance_valid(other) and not other.is_queued_for_deletion() and _world_box(other).intersects(box):
-				found.append(other)
-		_round_cache[key] = found
-	return _round_cache[key]
-
-
-static func _world_box(piece: BuildPiece) -> AABB:
-	return piece.global_transform * PieceShapes.bounds_of(piece.shape_def())
-
-
 static func _yaw(basis: Basis) -> float:
 	return atan2(basis.z.x, basis.z.z)
 
@@ -1158,7 +955,7 @@ func _show_markers() -> void:
 		return
 	var points: Array = SnapCorners.in_world(_target) if is_instance_valid(_target) and snapping_now() else []
 	# (a pillar, pole or beam also shows the target's 1 m spots it may take)
-	if not points.is_empty() and _is_slender():
+	if not points.is_empty() and point_piece():
 		for p: Vector3 in SnapCorners.post_spots_in_world(_target):
 			if not points.any(func(q): return (q as Vector3).distance_to(p) < MEET):
 				points.append(p)

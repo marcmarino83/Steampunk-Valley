@@ -91,6 +91,18 @@ func _run() -> void:
 		await _templates_grid_shot()
 		_finish()
 		return
+	# (-- --snap-fixes-shot, in a window: the stairs between walls and the inverse triangle under a
+	# floor, placed through the placer by real clicks, with their picture)
+	if "--snap-fixes-shot" in OS.get_cmdline_user_args():
+		await _snap_fixes_shot()
+		_finish()
+		return
+	# (-- --round-shot, in a window: a round foundation ring with curved walls and stairs, and the
+	# fixed Woodcutter's Hut, with their picture)
+	if "--round-shot" in OS.get_cmdline_user_args():
+		await _round_shot()
+		_finish()
+		return
 	# (-- --template-joints: only the built-in templates' joint audit)
 	if "--template-joints" in OS.get_cmdline_user_args():
 		await _case_template_joints()
@@ -123,6 +135,11 @@ func _run() -> void:
 	await _case_family_joins()
 	await _case_fixed_sizes()
 	await _case_floor_on_floor()
+	await _case_stairs_beside_walls()
+	await _case_under_floor()
+	await _case_wall_under_raised_foundation()
+	await _case_typed_snapping()
+	await _case_converted_families()
 	var half := PieceShapes.HALF_HEIGHT
 	await _case_turning("a half wall on top of a half wall", "structure/wall_half_2", "structure/wall_half_2", Vector3(0.6, half + 1.4, 3.2), Vector3(0.3, half, 0.0), Vector3(0, half, 0))
 	await _case_turning("a wall beside a wall", "structure/wall_2m", "structure/wall_2m", Vector3(3.6, 1.7, 3.2), Vector3(1.9, -0.03, 0.12), Vector3(2, 0, 0))
@@ -397,6 +414,198 @@ func _case_stairs() -> void:
 	var foundation := _spawn("structure/foundation_wood", Vector3(0, lift, 0))
 	await _frames(2)
 	await _flight_case("Half Stairs down from a %s m foundation's edge, aimed at the ground below" % PieceShapes.FOUNDATION_LIFT, "half_stairs", 8, Vector3(0.3, foot_ground + 1.7, 4.6), Vector3(0.1, foot_ground, 2.1), "top", foundation, null, Vector3(0, lift, 1), Vector3.INF)
+	await _clear()
+
+
+# ---- Stairs beside walls, pieces under floors, and typed snapping everywhere ----
+
+# Tall Stairs (and Stairs) on two foundations with walls standing along both their sides (the
+# flight's 2 m width reaches 0.1 m into each wall: overlaps are allowed), climbing onto an upper floor:
+# it snaps by its bottom edge, both joints 0 mm, and a real click puts it down there
+func _case_stairs_beside_walls() -> void:
+	for flight in ["stairs_tall", "stairs"]:
+		var height: float = PieceShapes.FLIGHTS[flight][0]
+		var length: float = PieceShapes.FLIGHTS[flight][1]
+		var mid := 3.0 - length / 2.0
+		_spawn("structure/foundation_wood", Vector3(0, 0, 0))
+		var lower := _spawn("structure/foundation_wood", Vector3(0, 0, 2))
+		var upper := _spawn("structure/floor", Vector3(0, height, 2.0 - length))
+		for x in [-1.0, 1.0]:
+			for z in [0.0, 2.0]:
+				_spawn("structure/wall" if flight == "stairs_tall" else "structure/wall_2m", Vector3(x, 0, z), 90.0)
+		await _frames(2)
+		var eye := Vector3(0.3, 1.7, mid + 2.6)
+		var at := Vector3(0.1, 0.0, mid + 0.1)
+		await _flight_case("%s on foundations between walls, climbing onto an upper floor" % flight.capitalize(), flight, 8, eye, at, "bottom", upper, lower, Vector3(0, height, 3.0 - length), Vector3(0, 0, 3))
+		var placed := await _click_place("structure/" + flight, 8, eye, at)
+		var top := _local(placed.global_transform * Vector3(0, height, length / 2.0)) if placed else Vector3.INF
+		_check("%s between walls: a click puts it down where it snapped" % flight.capitalize(), placed != null and top.distance_to(Vector3(0, height, 3.0 - length)) < EXACT, "placed %s, top edge middle at %s" % [placed != null, top.snapped(Vector3.ONE * 0.001) if placed else "-"])
+		await _clear()
+
+
+# Up under a floor (the user's 26° inverse triangle): each inverse triangle (both widths, both
+# pitches) and a 2 m wall, aimed under a raised floor's edge, fits with its top (flat top, wall top)
+# along that edge, under the floor; and a floor aimed beside an inverse triangle's flat top lies on
+# it, its top edge along the flat top
+func _case_under_floor() -> void:
+	var top := 2.0
+	for shape in ["inverse_2_26", "inverse_2_45", "inverse_1_26", "inverse_1_45", "wall_2m"]:
+		var floor_piece := _spawn("structure/floor", Vector3(0, top, 0))
+		await _frames(2)
+		var def := registry.shape_of(shape)
+		var own_top: Dictionary = SnapEdges.of(shape, def).filter(func(e): return e["type"] in ["flat_top", "wall_top"])[0]
+		var box := PieceShapes.bounds_of(def)
+		var body_y := top - (own_top["a"] as Vector3).y + box.get_center().y
+		var x := 0.5 if box.size.x < 1.5 else 0.0
+		await _begin("structure/" + shape)
+		await _unsnap()
+		await _aim(Vector3(x + 0.3, body_y + 0.2, 4.0), Vector3(x, body_y, 1.0))
+		var a: Vector3 = pp._where * (own_top["a"] as Vector3)
+		var b: Vector3 = pp._where * (own_top["b"] as Vector3)
+		var along := SnapEdges.in_world(floor_piece).any(func(e): return e["type"] == "floor_edge" and SnapEdges.along(a, b, e["a"], e["b"]))
+		var under := (pp._where * box.get_center()).y < O.y + top
+		_check("%s up under a floor's edge: its top along the edge, under the floor" % _name_of(shape), not pp._pair.is_empty() and along and under and pp._problem.is_empty(), "snapped %s, top along the floor's edge %s, under it %s, middle at %s, problem \"%s\"" % [not pp._pair.is_empty(), along, under, _local(pp._where * box.get_center()).snapped(Vector3.ONE * 0.001), pp._problem])
+		await _clear()
+	var tri := _spawn("structure/inverse_2_26", Vector3.ZERO)
+	await _frames(2)
+	var rise: float = (SnapEdges.of("inverse_2_26", tri.shape_def()).filter(func(e): return e["type"] == "flat_top")[0]["a"] as Vector3).y
+	await _begin("structure/floor")
+	await _unsnap()
+	await _aim(Vector3(0.3, rise + 1.7, 3.2), Vector3(0.1, rise, 1.0))
+	var off := minf(_local(pp._where.origin).distance_to(Vector3(0, rise, 1)), _local(pp._where.origin).distance_to(Vector3(0, rise, -1)))
+	_check("a floor on an inverse triangle's flat top: its top edge along the flat top", not pp._pair.is_empty() and off < EXACT, "snapped %s, %.4f m from the spot (top %.2f m up, beside the flat top)" % [not pp._pair.is_empty(), off, rise])
+	await _clear()
+
+
+# The user's house's spot, built fresh: a foundation raised 2.5 m above the ground (stairs come down
+# from it there) with a wood pillar on the ground under each corner of its +X edge; a Tall wall aimed
+# under that edge, between the pillars, fits with its top along the foundation's edge, standing on the
+# ground between them
+func _case_wall_under_raised_foundation() -> void:
+	var high := PieceShapes.WALL_HEIGHT
+	var foundation := _spawn("structure/foundation_stone", Vector3(0, high, 0))
+	_spawn("structure/pillar_wood", Vector3(1, 0, 1))
+	_spawn("structure/pillar_wood", Vector3(1, 0, -1))
+	_spawn("structure/stairs_tall", Vector3(0, 0, 3), 180.0)
+	await _frames(2)
+	await _begin("structure/wall")
+	await _unsnap()
+	await _aim(Vector3(3.8, 1.5, 0.4), Vector3(1.0, 1.2, 0.1))
+	var def := pp._shape
+	var top: Dictionary = SnapEdges.of("wall", def).filter(func(e): return e["type"] == "wall_top")[0]
+	var a: Vector3 = pp._where * (top["a"] as Vector3)
+	var b: Vector3 = pp._where * (top["b"] as Vector3)
+	var along := SnapEdges.in_world(foundation).any(func(e): return e["type"] == "floor_edge" and SnapEdges.along(a, b, e["a"], e["b"]))
+	var foot := _local(pp._where.origin)
+	_check("a Tall wall under a raised foundation's edge, between two pillars on the ground (the user's spot, built fresh): its top along the edge, upright, standing on the ground", not pp._pair.is_empty() and along and absf(foot.y) < EXACT and not SaveGame.is_leaning(pp._where.basis), "snapped %s, top along the foundation's edge %s, foot at %s" % [not pp._pair.is_empty(), along, foot.snapped(Vector3.ONE * 0.001)])
+	await _clear()
+
+
+# Typed snapping everywhere: no building piece snaps the old way (no exceptions); a door aimed at a
+# doorway (both families) stands in it by its typed edge, either way round; a chimney section aimed
+# at the fireplace's chimney stands on it by its typed point, and a chimney top on a section's top
+func _case_typed_snapping() -> void:
+	var old := []
+	for folder in ["res://buildables/structure", "res://buildables/round", "res://buildables/furniture"]:
+		for file in DirAccess.get_files_at(folder):
+			var piece := load(folder.path_join(file)) as PieceBuildable if file.ends_with(".tres") else null
+			if piece == null or registry.shape_of(piece.shape).get("furniture", false):
+				continue
+			if not SnapEdges.converted(piece.shape):
+				old.append(piece.shape)
+	_check("every building piece snaps by typed edges or points, no exceptions", old.is_empty(), "still the old way: %s" % ", ".join(old) if not old.is_empty() else "none")
+	for pair in [["doorway", "door"], ["doorway_2m", "door_2m"]]:
+		var doorway := _spawn("structure/" + pair[0], Vector3.ZERO)
+		await _frames(2)
+		await _begin("structure/" + pair[1])
+		await _unsnap()
+		await _aim(Vector3(0.3, 1.5, 3.0), Vector3(0.1, 1.0, 0.0))
+		var turned := _turned_against(doorway)
+		var ok: bool = pp.edge_piece() and not pp._pair.is_empty() and _local(pp._where.origin).length() < EXACT and (turned < EXACT_TURN or absf(turned - 180.0) < EXACT_TURN)
+		_check("a %s in a %s: by its typed edge, standing in the doorway" % [_name_of(pair[1]), _name_of(pair[0])], ok, "typed edges %s, snapped %s, at %s, turned %.1f°" % [pp.edge_piece(), not pp._pair.is_empty(), _local(pp._where.origin).snapped(Vector3.ONE * 0.001), turned])
+		await _clear()
+	var fireplace := _spawn("furniture/fireplace", Vector3.ZERO)
+	await _frames(2)
+	var spot := _local(fireplace.global_transform * PieceShapes.FIREPLACE_CHIMNEY)
+	await _begin("furniture/chimney_section")
+	await _unsnap()
+	await _aim(spot + Vector3(0.4, 1.0, 2.6), spot + Vector3(0.05, 0.5, 0.05))
+	var on_fire: bool = pp.point_piece() and not pp._pair.is_empty() and _local(pp._where.origin).distance_to(spot) < EXACT
+	_check("a chimney section on the fireplace's chimney: by its typed point", on_fire, "typed points %s, snapped %s, foot %.4f m from the chimney's top" % [pp.point_piece(), not pp._pair.is_empty(), _local(pp._where.origin).distance_to(spot)])
+	var section := _spawn("furniture/chimney_section", spot)
+	await _frames(2)
+	var section_top := spot + Vector3.UP * PieceShapes.CHIMNEY_SECTION_HEIGHT
+	await _begin("furniture/chimney_top")
+	await _unsnap()
+	await _aim(section_top + Vector3(0.4, 1.0, 2.6), section_top + Vector3(0.05, 0.3, 0.05))
+	var on_section: bool = pp.point_piece() and not pp._pair.is_empty() and _local(pp._where.origin).distance_to(section_top) < EXACT
+	_check("a chimney top on a chimney section: by its typed point", on_section and section != null, "typed points %s, snapped %s, foot %.4f m from the section's top" % [pp.point_piece(), not pp._pair.is_empty(), _local(pp._where.origin).distance_to(section_top)])
+	await _clear()
+
+
+# The families converted last (round floors and foundations, curved walls, ladders, railings, the
+# fence), in the joins the snap audit doesn't make: each aimed as a player would, snapped by typed
+# edges to the aimed piece (an edge of its along a compatible edge there, not sunk into it), and at
+# the spot it should be
+func _case_converted_families() -> void:
+	var fit := func(label: String, target: BuildPiece, expected: Vector3, extra := true) -> void:
+		var def := registry.shape_of(pp._shape_name)
+		var along: bool = SnapEdges.matched(pp._shape_name, def, pp._where, SnapEdges.in_world(target)) > 0
+		var sunk: bool = PieceOverlap.overlaps(pp._shape_name, def, pp._where, target)
+		var at := _local(pp._where.origin)
+		var ok: bool = pp.edge_piece() and not pp._pair.is_empty() and pp._target == target and along and not sunk and at.distance_to(expected) < EXACT and extra
+		_check(label, ok, "snapped %s to %s, an edge along one of its %s, sunk %s, at %s (expected %s)" % [not pp._pair.is_empty(), _name(pp._target), along, sunk, at.snapped(Vector3.ONE * 0.001), expected])
+	# Half Stairs hanging from a round foundation's arc (top 1 m up), aimed at the arc's face
+	var round_foundation := _spawn("round/round_foundation_wood", Vector3(0, 1.0, 0))
+	await _frames(2)
+	await _begin("structure/half_stairs")
+	await _unsnap()
+	await _turn_to(8)
+	var arc_mid := PieceShapes.RING_RADIUS * cos(PI / 8.0)
+	await _aim(Vector3(0.3, 1.7, arc_mid + 3.0), Vector3(0.05, 0.85, arc_mid + 0.01))
+	var top_on_arc: bool = SnapEdges.in_world(round_foundation).any(func(e): return str(e["type"]).begins_with("arc_edge") and SnapEdges.point_segment(pp._pair[1], e["a"], e["b"]) < 0.001) if not pp._pair.is_empty() else false
+	fit.call("Half Stairs hang from a round foundation's arc edge, feet on the ground", round_foundation, Vector3(0, 0, _local(pp._where.origin).z), top_on_arc and absf(_local(pp._where.origin).y) < EXACT)
+	await _clear()
+	# A round floor on a curved wall's top (the ring's middle shared)
+	var curved := _spawn("round/curved_wall_45", Vector3.ZERO)
+	await _frames(2)
+	var wall_top := PieceShapes.bounds_of(registry.shape_of("curved_wall_45")).end.y
+	await _begin("round/round_floor")
+	await _unsnap()
+	await _aim(Vector3(0.3, wall_top + 1.5, 0.5), Vector3(0.05, wall_top - 0.05, arc_mid - 0.05))
+	fit.call("a round floor on a curved wall's top: its arc along the wall's top", curved, Vector3(0, wall_top, 0))
+	await _clear()
+	# A ladder on a ladder's top (the same turn, straight up)
+	var ladder := _spawn("structure/ladder", Vector3.ZERO)
+	await _frames(2)
+	var rung_top: float = PieceShapes.LADDER_HEIGHTS["ladder"]
+	await _begin("structure/ladder")
+	await _unsnap()
+	await _turn_to(0)
+	await _aim(Vector3(0.3, rung_top + 0.6, 2.5), Vector3(0.05, rung_top - 0.3, 0.0))
+	fit.call("a ladder stacked on a ladder's top", ladder, Vector3(0, rung_top, 0), _turned_against(ladder) < EXACT_TURN)
+	await _clear()
+	# A railing beside a railing on a foundation's edge, end to end
+	for x in [0.0, 2.0]:
+		_spawn("structure/foundation_wood", Vector3(x, 1.0, 0))
+	var railing := _spawn("structure/railing_2", Vector3(0, 1.0, 1.0))
+	await _frames(2)
+	await _begin("structure/railing_2")
+	await _unsnap()
+	await _aim(Vector3(1.6, 2.4, 3.5), Vector3(1.4, 1.4, 1.0))
+	var beside_railing := _local(pp._where.origin).distance_to(Vector3(2, 1.0, 1.0)) < EXACT
+	_check("a railing beside a railing on a foundation's edge, end to end", pp.edge_piece() and not pp._pair.is_empty() and beside_railing and not PieceOverlap.overlaps("railing_2", registry.shape_of("railing_2"), pp._where, railing), "snapped %s to %s at %s" % [not pp._pair.is_empty(), _name(pp._target), _local(pp._where.origin).snapped(Vector3.ONE * 0.001)])
+	await _clear()
+	# A fence chained to a fence on bare ground, end to end
+	var fence := _spawn("structure/fence", Vector3.ZERO)
+	await _frames(2)
+	var fence_box := PieceShapes.bounds_of(registry.shape_of("fence"))
+	await _begin("structure/fence")
+	await _unsnap()
+	# (aimed at the ground just past its end, as the wall-beside-a-wall case)
+	await _aim(Vector3(fence_box.end.x + 2.6, 1.7, 3.2), Vector3(fence_box.end.x + 0.9, -0.03, 0.12))
+	var turned := _turned_against(fence)
+	fit.call("a fence chained to a fence on the ground, end to end", fence, Vector3(fence_box.size.x, 0, 0), turned < EXACT_TURN or absf(turned - 180.0) < EXACT_TURN)
 	await _clear()
 
 
@@ -1039,6 +1248,122 @@ func _templates_grid_shot() -> void:
 	_check("the built-in templates' picture saved", err == OK, TEMPLATES_GRID_SHOT)
 
 
+## Where the snapping fixes' picture goes (see _snap_fixes_shot)
+const SNAP_FIXES_SHOT := "res://docs/reference/ours/snap_fixes.png"
+
+
+# Two builds, each placed through the placer by real clicks, pictured in daylight side by side: Tall
+# Stairs on two foundations between Tall walls, climbing onto an upper floor; and a 26° inverse
+# triangle 2 m fitted up under a raised floor's edge
+func _snap_fixes_shot() -> void:
+	var flight := "stairs_tall"
+	var height: float = PieceShapes.FLIGHTS[flight][0]
+	var length: float = PieceShapes.FLIGHTS[flight][1]
+	var mid := 3.0 - length / 2.0
+	_spawn("structure/foundation_wood", Vector3(0, 0, 0))
+	_spawn("structure/foundation_wood", Vector3(0, 0, 2))
+	_spawn("structure/floor", Vector3(0, height, 2.0 - length))
+	for x in [-1.0, 1.0]:
+		for z in [0.0, 2.0]:
+			_spawn("structure/wall", Vector3(x, 0, z), 90.0)
+	await _frames(2)
+	var stairs := await _placer_place("structure/" + flight, 8, Vector3(0.3, 1.7, mid + 2.6), Vector3(0.1, 0.0, mid + 0.1))
+	_check("the picture's Tall Stairs between walls went down", stairs != null, "placed %s" % (stairs != null))
+	var top := 2.0
+	var away := Vector3(9.0, 0, 0)
+	_spawn("structure/floor", away + Vector3(0, top, 0))
+	_spawn("structure/pole_2", away + Vector3(-1, 0, 1))
+	_spawn("structure/pole_2", away + Vector3(1, 0, 1))
+	await _frames(2)
+	var tri := await _placer_place("structure/inverse_2_26", 0, away + Vector3(0.3, 1.7, 4.0), away + Vector3(0.0, 1.5, 1.0))
+	_check("the picture's inverse triangle under the floor went down", tri != null, "placed %s" % (tri != null))
+	await _frames(20)
+	var sun = get_tree().get_first_node_in_group("sun")
+	if sun:
+		sun.time_of_day = 0.45
+	_hide_overlays()
+	var pictures := []
+	for view in [[Vector3(4.5, 3.6, 6.5), Vector3(0.0, 1.0, 0.5)], [away + Vector3(3.2, 1.6, 4.8), away + Vector3(0.0, 1.4, 1.0)]]:
+		await _aim(view[0], view[1])
+		for k in 6:
+			await RenderingServer.frame_post_draw
+		pictures.append(get_viewport().get_texture().get_image())
+	var a: Image = pictures[0]
+	var b: Image = pictures[1]
+	var both := Image.create_empty(a.get_width() + b.get_width(), maxi(a.get_height(), b.get_height()), false, a.get_format())
+	both.blit_rect(a, Rect2i(Vector2i.ZERO, a.get_size()), Vector2i.ZERO)
+	both.blit_rect(b, Rect2i(Vector2i.ZERO, b.get_size()), Vector2i(a.get_width(), 0))
+	var err := both.save_png(ProjectSettings.globalize_path(SNAP_FIXES_SHOT))
+	_check("the snapping fixes' picture saved", err == OK, SNAP_FIXES_SHOT)
+
+
+## Where the round build's and fixed template's picture goes (see _round_shot)
+const ROUND_SHOT := "res://docs/reference/ours/round_and_template.png"
+
+
+# Two pictures in daylight side by side: a ring of round wood foundations with three curved walls
+# round its back and Half Stairs hanging from its front arc, each placed through the placer by its
+# own place call; and the Woodcutter's Hut (fixed: foundations 1 m up, Half Stairs, porch rails)
+# laid out from its template, from outside
+func _round_shot() -> void:
+	for k in 8:
+		_spawn("round/round_foundation_wood", Vector3(0, 1.0, 0), k * 45.0)
+	await _frames(2)
+	var arc_mid := PieceShapes.RING_RADIUS * cos(PI / 8.0)
+	var walls := 0
+	for a in [135.0, 180.0, 225.0]:
+		var dir := Basis(Vector3.UP, deg_to_rad(a)) * Vector3.BACK
+		var wall := await _placer_place("round/curved_wall_45", 0, dir * (arc_mid + 3.0) + Vector3(0.3, 2.7, 0), dir * (arc_mid - 0.15) + Vector3(0, 1.02, 0))
+		walls += 1 if wall != null else 0
+	var stairs := await _placer_place("structure/half_stairs", 8, Vector3(0.3, 1.7, arc_mid + 3.0), Vector3(0.05, 0.85, arc_mid + 0.01))
+	_check("the picture's round build went down (3 curved walls, Half Stairs on the arc)", walls == 3 and stairs != null, "walls %d, stairs %s" % [walls, stairs != null])
+	await _frames(20)
+	var sun = get_tree().get_first_node_in_group("sun")
+	if sun:
+		sun.time_of_day = 0.45
+	_hide_overlays()
+	var pictures := []
+	await _aim(Vector3(5.5, 4.0, 7.5), Vector3(0.0, 1.2, 0.5))
+	for k in 6:
+		await RenderingServer.frame_post_draw
+	pictures.append(get_viewport().get_texture().get_image())
+	await _clear()
+	await _lay_out(BuildingTemplate.read(BuildingTemplate.BUILT_IN_FOLDER.path_join("woodcutter_s_hut.json")))
+	await _frames(20)
+	# (from the porch side, front three-quarter, a little lower than the template's own view)
+	await _aim(Vector3(-7.0, 4.0, -10.0), Vector3(0.4, 1.8, 0.0))
+	for k in 6:
+		await RenderingServer.frame_post_draw
+	pictures.append(get_viewport().get_texture().get_image())
+	var a: Image = pictures[0]
+	var b: Image = pictures[1]
+	var both := Image.create_empty(a.get_width() + b.get_width(), maxi(a.get_height(), b.get_height()), false, a.get_format())
+	both.blit_rect(a, Rect2i(Vector2i.ZERO, a.get_size()), Vector2i.ZERO)
+	both.blit_rect(b, Rect2i(Vector2i.ZERO, b.get_size()), Vector2i(a.get_width(), 0))
+	var err := both.save_png(ProjectSettings.globalize_path(ROUND_SHOT))
+	_check("the round build's and template's picture saved", err == OK, ROUND_SHOT)
+
+
+# Places a piece through the placer, as a captured left click does: begun, turned with the wheel
+# (looking at open ground), aimed from `eye` at `at`, then the placer's own place call. The piece that
+# went down, or null.
+func _placer_place(path: String, notches: int, eye: Vector3, at: Vector3) -> BuildPiece:
+	await _begin(path)
+	await _unsnap()
+	await _turn_to(notches)
+	await _aim(eye, at)
+	var before := {}
+	for p in registry.all_pieces():
+		before[p] = true
+	pp._place()
+	await _frames(3)
+	bp.cancel()
+	for p in registry.all_pieces():
+		if not before.has(p):
+			return p
+	return null
+
+
 ## Where the grid standard picture goes (see _grid_standard_shot)
 const GRID_STANDARD_SHOT := "res://docs/reference/ours/grid_standard.png"
 
@@ -1135,7 +1460,7 @@ func _flight_case(name: String, flight: String, notches: int, eye: Vector3, at: 
 	await _turn_to(notches)
 	await _aim(eye, at)
 	var r := await _flight_result(flight, end, upper, lower, top_at, bottom_at)
-	_check("%s: snapped by its %s corners, both ends where they belong, the bar on the joint, %s" % [name, end, r["joints"]], r["ok"], r["detail"])
+	_check("%s: snapped by its %s edge, both ends where they belong, the bar on the joint, %s" % [name, end, r["joints"]], r["ok"], r["detail"])
 
 
 # What _flight_case checks, for the flight being placed: {"ok", "detail", "joints" (what's measured)}
@@ -1143,15 +1468,15 @@ func _flight_result(flight: String, end: String, upper: BuildPiece, lower: Build
 	var height: float = PieceShapes.FLIGHTS[flight][0]
 	var tops := Vector3.ZERO
 	var bottoms := Vector3.ZERO
-	var by := ""
 	for c in SnapCorners.of(pp._shape_name, pp._shape):
 		var w: Vector3 = pp._where * (c as Vector3)
 		if absf((c as Vector3).y - height) < 0.001:
 			tops += w / 2.0
 		else:
 			bottoms += w / 2.0
-		if not pp._pair.is_empty() and w.distance_to(pp._pair[1]) < 0.001:
-			by = "top" if absf((c as Vector3).y - height) < 0.001 else "bottom"
+	# (snapped by whole edges: which of its ends lie along a placed edge they may meet)
+	var ends: Array = _flight_ends_met() if not pp._pair.is_empty() else []
+	var by: String = end if ends.has(end) else "+".join(ends)
 	var top_off := _local(tops).distance_to(top_at)
 	var bottom_off := 0.0 if bottom_at == Vector3.INF else _local(bottoms).distance_to(bottom_at)
 	var bar: Vector3 = pp.shown_markers()["bar"]
@@ -1169,7 +1494,7 @@ func _flight_result(flight: String, end: String, upper: BuildPiece, lower: Build
 		joints.append("footing board 0 mm on the lower floor")
 	var ok: bool = placed != null and by == end and top_off < 0.001 and bottom_off < 0.001 and bar_ok and pp._problem.is_empty() \
 		and absf(header[0]) <= 0.001 and absf(footing[0]) <= 0.001
-	var detail := "target %s, turned %.1f°, snapped by its %s corners (want %s), top edge middle at %s (%.1f mm off), bottom edge middle at %s (%.1f mm off), bar on the joint %s, problem \"%s\"" % [_name(pp._target), rad_to_deg(pp.turn), by if by != "" else "no", end, _local(tops).snapped(Vector3.ONE * 0.001), top_off * 1000.0, _local(bottoms).snapped(Vector3.ONE * 0.001), bottom_off * 1000.0, bar_ok, pp._problem]
+	var detail := "target %s, turned %.1f°, its %s edge on a placed edge (want %s), top edge middle at %s (%.1f mm off), bottom edge middle at %s (%.1f mm off), bar on the joint %s, problem \"%s\"" % [_name(pp._target), rad_to_deg(pp.turn), by if by != "" else "no", end, _local(tops).snapped(Vector3.ONE * 0.001), top_off * 1000.0, _local(bottoms).snapped(Vector3.ONE * 0.001), bottom_off * 1000.0, bar_ok, pp._problem]
 	if upper:
 		detail += "; header board: closest %.1f mm, %d of %d columns touching" % [header[0] * 1000.0, header[2], header[3]]
 	if lower:
@@ -1178,6 +1503,22 @@ func _flight_result(flight: String, end: String, upper: BuildPiece, lower: Build
 		registry.remove(placed)
 		await _frames(1)
 	return {"ok": ok, "detail": detail, "joints": ", ".join(joints) if not joints.is_empty() else "nothing to measure"}
+
+
+# Which ends ("top", "bottom") of the flight being placed lie, where the placer has put it, along a
+# placed edge their type may meet (SnapEdges.RULES)
+func _flight_ends_met() -> Array:
+	var placed := []
+	for p in registry.all_pieces():
+		placed.append_array(SnapEdges.in_world(p))
+	var ends := []
+	for g in SnapEdges.of(pp._shape_name, pp._shape):
+		var rule: Dictionary = SnapEdges.RULES.get(g["type"], {})
+		var a: Vector3 = pp._where * (g["a"] as Vector3)
+		var b: Vector3 = pp._where * (g["b"] as Vector3)
+		if placed.any(func(t): return rule.has(t["type"]) and SnapEdges.along(a, b, t["a"], t["b"])):
+			ends.append("top" if g["type"] == "stairs_top" else "bottom")
+	return ends
 
 
 # Looks at open ground well away from any piece, so nothing is snapped (and no sticky corner held)
@@ -1258,38 +1599,36 @@ func _case_raised_floor() -> void:
 	await _clear()
 
 
-# A floor placed beside a raised floor and taken away again leaves nothing behind: none of its snap
-# points, kinds of point or touching left among the raised floor's
+# A floor placed beside a raised floor and taken away again leaves nothing behind: none of its typed
+# edges left in the placer's cache, and stairs aimed at its old far edge don't snap to it
 func _case_removed_neighbour() -> void:
 	var top := storey
-	var floor_piece := _spawn("structure/floor", Vector3(0, top, 0))
+	_spawn("structure/floor", Vector3(0, top, 0))
 	await _frames(2)
 	await _begin("structure/stairs")
-	await _aim(Vector3(3.0, top + 1.7, 0.6), Vector3(0.2, top, 0.1))
 	var beside := _spawn("structure/floor", Vector3(2, top, 0))
 	await _frames(2)
 	# (the placer looks at both while it's there)
-	await _aim(Vector3(3.0, top + 1.7, 0.6), Vector3(0.2, top, 0.1))
-	var touching_then: bool = pp._pieces_round(floor_piece).has(beside)
+	await _aim(Vector3(4.6, top + 1.7, 0.6), Vector3(2.9, top, 0.1))
+	var snapped_then: bool = pp._target == beside
+	var beside_id := beside.get_instance_id()
 	registry.remove(beside)
 	await _frames(3)
-	await _aim(Vector3(3.0, top + 1.7, 0.6), Vector3(0.2, top, 0.1))
-	var leftover := pp._pieces_round(floor_piece).filter(func(p): return not is_instance_valid(p) or p.is_queued_for_deletion() or registry.find(p.piece_id) == null)
-	var stale_points := pp._points_round(floor_piece).filter(func(c): return absf(_local(c).x - 3.0) < 0.01)
-	var stale_kind := pp._point_kind(floor_piece, O + Vector3(3.0, top, 1.0))
-	_check("a floor placed beside it and taken away leaves no snap points, kinds or target behind", touching_then and leftover.is_empty() and stale_points.is_empty() and stale_kind == 0, "touching while there %s; left behind after: %d pieces, %d snap points, kind %d at its far corner" % [touching_then, leftover.size(), stale_points.size(), stale_kind])
+	await _aim(Vector3(4.6, top + 1.7, 0.6), Vector3(2.9, top, 0.1))
+	var stale_cache: bool = pp._edge_cache.has(beside_id)
+	var stale_target: bool = pp._target != null and (not is_instance_valid(pp._target) or registry.find(pp._target.piece_id) == null)
+	_check("a floor placed beside it and taken away leaves no edges or target behind", snapped_then and not stale_cache and not stale_target, "aimed at it while there %s; after: edges cached %s, stale target %s" % [snapped_then, stale_cache, stale_target])
 	await _clear()
 
 
 # The user's own bug snapshots (F9) at their raised floor (floor 1015, its east edge; a leftover Half
 # Stairs standing up off it): each snapshot's game loaded and its camera held exactly where it was,
-# Stairs begun and turned with the wheel to 0°, 90°, 180° and 270°. By ordinary snapping, whatever
-# it snaps to at each turn is a floor's or foundation's corner (never the leftover flight's, or
-# anything else's), and put down there, the joint at that pair is 0 mm (its header board on the
-# edge face for a top-corner snap, its footing board on the top for a bottom-corner one). The first
-# snapshot is aimed at the floor's edge face: at some turn it snaps both corners onto floor 1015.
-# The second is aimed into the empty gap past the edge, at nothing: it mustn't snap by a wrong
-# corner (with nothing under the crosshair it's left free).
+# Stairs begun and turned with the wheel to 0°, 90°, 180° and 270°. By whole edges, whatever it
+# snaps to at each turn is a floor's or foundation's edge (never the leftover flight's, or anything
+# else's), and put down there, the joint is 0 mm (its header board on the edge face when it hangs by
+# its top edge, its footing board on the top when it stands by its bottom edge). The first snapshot
+# is aimed at the floor's edge face: at some turn both its corners land on floor 1015's. The second
+# is aimed into the empty gap past the edge, at nothing: it mustn't snap to a wrong piece.
 func _case_user_snapshots() -> void:
 	for snapshot_path in SNAPSHOTS:
 		var info: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(snapshot_path))
@@ -1336,41 +1675,61 @@ func _case_user_snapshots() -> void:
 				seen.append("%d°: free" % (notches * 22.5))
 				continue
 			var at: Vector3 = pp._pair[1]
-			var owner := _corner_owner(at)
+			var owner := _edge_owner(at)
 			var height: float = pp._shape["stairs_height"]
-			var end := ""
+			# (snapped by a whole edge: which of its own edges, by where its middle is)
+			var own_mid: Vector3 = pp._where.affine_inverse() * (pp._pair[0] as Vector3)
+			var end := "top" if absf(own_mid.y - height) < 0.001 else "bottom"
 			var meeting := 0
 			for c in SnapCorners.of(pp._shape_name, pp._shape):
 				var w: Vector3 = pp._where * (c as Vector3)
-				if w.distance_to(at) < 0.001:
-					end = "top" if absf((c as Vector3).y - height) < 0.001 else "bottom"
 				if floor_piece and SnapCorners.in_world(floor_piece).any(func(p): return (p as Vector3).distance_to(w) < 0.001):
 					meeting += 1
 			if meeting >= 2:
 				onto_floor = true
 			if owner == null or not owner.shape_def().get("floor", false):
-				wrong.append("%d°: snapped by its %s corner to %s's corner" % [notches * 22.5, end, _name(owner)])
+				wrong.append("%d°: snapped by its %s edge to %s's edge" % [notches * 22.5, end, _name(owner)])
 				continue
 			var placed := registry.spawn(load("res://buildables/structure/stairs.tres"), pp._where, {})
 			await _frames(2)
 			var gaps := _header_gaps(placed, owner) if end == "top" else _footing_gaps(placed, owner)
-			seen.append("%d°: by its %s corners onto %s %d (%d corners on floor 1015), %s board %.1f mm" % [notches * 22.5, end, owner.shape_name, owner.piece_id, meeting, "header" if end == "top" else "footing", gaps[0] * 1000.0])
+			seen.append("%d°: by its %s edge onto %s %d (%d corners on floor 1015), %s board %.1f mm" % [notches * 22.5, end, owner.shape_name, owner.piece_id, meeting, "header" if end == "top" else "footing", gaps[0] * 1000.0])
 			if absf(gaps[0]) > 0.001:
 				wrong.append("%d°: the %s board %.1f mm from %s %d" % [notches * 22.5, "header" if end == "top" else "footing", gaps[0] * 1000.0, owner.shape_name, owner.piece_id])
 			registry.remove(placed)
 			await _frames(2)
 		if first and not onto_floor:
 			wrong.append("at no turn did it snap both corners onto floor 1015")
+			# (what the placer makes of the flight hanging from floor 1015's east edge, by its top edge)
+			if floor_piece:
+				await _begin("structure/stairs")
+				await _turn_to(12)
+				await _frames(4)
+				var h: float = pp._shape["stairs_height"]
+				var l: float = pp._shape["stairs_length"]
+				var east := floor_piece.global_transform * Vector3(1, 0, 0)
+				var basis := floor_piece.global_basis * Basis(Vector3.UP, -PI / 2.0)
+				var hanging := Transform3D(basis, east - basis * Vector3(0, h, l / 2.0))
+				var cam: Vector3 = player.camera.global_position
+				var line_to: Vector3 = cam - player.camera.global_basis.z * ValheimPlacer.REACH
+				var pieces: Dictionary = pp._pieces_along(cam, line_to, floor_piece)
+				var edges := []
+				for piece in pieces:
+					edges.append_array(SnapEdges.in_world(piece))
+				var among := SnapEdges.placements("stairs", pp._shape, 1.0, edges).any(func(c): return (c["where"] as Transform3D).origin.distance_to(hanging.origin) < 0.01)
+				var sunk := (pieces.keys() as Array).filter(func(p): return SnapEdges.kind(p.shape_name) == "stairs" and PieceOverlap.overlaps("stairs", pp._shape, hanging, p)).map(func(p): return "%s %d" % [p.shape_name, p.piece_id])
+				wrong.append("hanging from 1015's east edge at %s: among the fits %s, taken %s (sinks into %s), body %.3f m from the line, %d edges matched; chosen at %s; hit normal %s, aimed %s, turn %.1f°; %d fits ranked, first %s; the hanging one ranked %s" % [hanging.origin.snapped(Vector3.ONE * 0.01), among, pp._taken(hanging, pieces), sunk, SnapEdges.box_distance(hanging, pp._bounds, cam, line_to), SnapEdges.matched("stairs", pp._shape, hanging, edges), pp._where.origin.snapped(Vector3.ONE * 0.01), pp._hit_normal.snapped(Vector3.ONE * 0.01), _name(pp._target), rad_to_deg(pp.turn), pp.last_ranking.size(), pp.last_ranking.slice(0, 1), pp.last_ranking.filter(func(r): return (r["origin"] as Vector3).distance_to(hanging.origin) < 0.01)])
 		_check("the user's snapshot %s, from its exact camera, turned with the wheel: only floor or foundation corners, every joint 0 mm%s" % [snapshot_path.get_file().get_basename(), ", onto floor 1015 at some turn" if first else ""], floor_piece != null and wrong.is_empty(), "; ".join(seen) + ("" if wrong.is_empty() else " | WRONG: " + "; ".join(wrong)))
 		bp.cancel()
 		_hold_camera = false
 
 
-# The piece whose snap point is at `p` (a floor or foundation first, when several share it), or null
-func _corner_owner(p: Vector3) -> BuildPiece:
+# The piece one of whose typed edges `p` lies on (a floor or foundation first, when several share
+# it), or null
+func _edge_owner(p: Vector3) -> BuildPiece:
 	var found: BuildPiece = null
 	for piece in registry.pieces_near(p, 8.0):
-		if SnapCorners.in_world(piece).any(func(c): return (c as Vector3).distance_to(p) < 0.001):
+		if SnapEdges.in_world(piece).any(func(e): return SnapEdges.point_segment(p, e["a"], e["b"]) < 0.001):
 			if found == null or (piece.shape_def().get("floor", false) and not found.shape_def().get("floor", false)):
 				found = piece
 	return found
@@ -1382,9 +1741,10 @@ const FLOOR_TYPES := ["structure/floor", "structure/floor_1", "structure/floor_r
 	"structure/foundation_stone", "structure/foundation_stone_rtri", "structure/foundation_stone_tri45", "round/round_foundation_stone", "round/round_foundation_stone_22"]
 
 
-# Which corners a flight may meet (the rule, not any special placement):
+# Which pieces a flight may meet (the rule, not any special placement):
 #   - each flight, turned with the wheel to 0° and to 180°, aimed at the top of every floor and
-#     foundation type just inside one of its corners: snaps, by a corner meeting one of that type's;
+#     foundation type just inside one of its corners: snaps, by a whole edge along one of that type's
+#     edges (round floors and foundations, still snapping the old way, offer it none: it stays free);
 #   - a flight aimed at the ground right by a lone wall's foot: its corners never pair with the
 #     wall's (it stays free);
 #   - a flight aimed right by a lone flight's foot: never pairs with the other flight's corners;
@@ -1394,6 +1754,8 @@ const FLOOR_TYPES := ["structure/floor", "structure/floor_1", "structure/floor_r
 func _case_stair_pairing() -> void:
 	for type in FLOOR_TYPES:
 		var wrong := []
+		# (round floors and foundations: their arc edge or a straight side edge)
+		var edge_types := ["floor_edge", "arc_edge_45", "arc_edge_22"]
 		for flight in PieceShapes.FLIGHTS:
 			var target := _spawn(type, Vector3(0, 0, 0))
 			await _frames(2)
@@ -1409,10 +1771,12 @@ func _case_stair_pairing() -> void:
 				var at := corner + inward * 0.15
 				await _aim(at - inward * 2.0 + Vector3.UP * 1.7, at)
 				var anchor: Vector3 = pp._pair[1] if not pp._pair.is_empty() else Vector3.INF
-				if pp._pair.is_empty() or not SnapCorners.in_world(target).any(func(p): return (p as Vector3).distance_to(anchor) < 0.001):
+				var on_edge := not pp._pair.is_empty() and SnapEdges.in_world(target).any(func(e): return e["type"] in edge_types and SnapEdges.point_segment(anchor, e["a"], e["b"]) < 0.001)
+				if not on_edge:
 					wrong.append("%s at %d°: %s" % [flight, notches * 22.5, "free" if pp._pair.is_empty() else "met %s" % _local(anchor)])
 			await _clear()
-		_check("every flight snaps onto a %s by a corner meeting one of its corners, turned 0° and 180°" % type.get_file().replace("_", " "), wrong.is_empty(), "; ".join(wrong) if not wrong.is_empty() else "6 of 6 snapped onto its corners")
+		var what := "snaps onto a %s by a whole edge along one of its edges, turned 0° and 180°" % type.get_file().replace("_", " ")
+		_check("every flight " + what, wrong.is_empty(), "; ".join(wrong) if not wrong.is_empty() else "8 of 8 as they should be")
 	# A flight by a lone wall's foot, and by a lone flight's foot: no pairing
 	for other in ["structure/wall", "structure/stairs"]:
 		var lone := _spawn(other, Vector3.ZERO)
@@ -2331,8 +2695,6 @@ const AUDIT := [
 	[["curved_wall_22"], "round_floor_22", Vector3.ZERO, "arc", "above"],
 	[["cone_roof"], "curved_wall_45", Vector3.ZERO, "top", "inside"],
 	[["pole_1", "pole_2", "pole_4", "pillar_wood", "pillar_stone", "pillar_wood_2m", "pillar_stone_2m", "pillar_wood_half", "pillar_stone_half", "pillar_wood_half_tall", "pillar_stone_half_tall"], "floor", Vector3.ZERO, "corner", "above"],
-	[["ladder"], "floor", Vector3(0, PieceShapes.LADDER_HEIGHT, 0), "corner", "below"],
-	[["ladder_tall"], "floor", Vector3(0, PieceShapes.TALL_STOREY, 0), "corner", "below"],
 	[["door"], "doorway", Vector3.ZERO, "slot", "any"],
 	[["door_2m"], "doorway_2m", Vector3.ZERO, "slot", "any"],
 	[["chimney_section"], "fireplace", Vector3.ZERO, "slot", "any"],
@@ -2362,6 +2724,8 @@ func _audit() -> void:
 					line = await _audit_beam(buildable)
 				elif PieceShapes.FLIGHTS.has(shape):
 					line = await _audit_stairs(buildable)
+				elif shape in SnapEdges.LADDERS:
+					line = await _audit_ladder(buildable)
 				elif specs.has(shape):
 					line = await _audit_piece(buildable, specs[shape])
 				else:
@@ -2411,7 +2775,12 @@ func _audit_piece(buildable: PieceBuildable, spec: Array) -> Array:
 	var eye := aim + out * 2.8 + Vector3.UP * 1.6
 	var hit := pp._cast_ray(eye, eye + (aim - eye) * 1.5)
 	if phase_2:
-		aim = e * PieceShapes.bounds_of(def).get_center()
+		# (a floor or foundation: the middle of its top, as the placer ranks it, not its buried middle)
+		var box := PieceShapes.bounds_of(def)
+		var centre := box.get_center()
+		if def.get("floor", false):
+			centre.y = box.end.y - 0.1
+		aim = e * centre
 		eye = aim + out * 2.8 + Vector3.UP * 1.6
 	elif hit.is_empty() or (hit["position"] as Vector3).distance_to(aim) > 0.3:
 		# (its hold point is in the air: aimed at the target by the corners it should meet, from
@@ -2501,11 +2870,35 @@ func _audit_stairs(buildable: PieceBuildable) -> Array:
 	await _aim(Vector3(0.3, 1.7, mid + 2.6), Vector3(0.1, 0.0, mid + 0.1))
 	var seen := pp._cast_ray(player.camera.global_position, player.camera.global_position - player.camera.global_basis.z * 8.0)
 	var expected := Transform3D(Basis(Vector3.UP, PI), O + Vector3(0, 0, mid))
-	var sinks_into := pp._pieces_round(pp._target).filter(func(p): return PieceOverlap.overlaps(pp._shape_name, pp._shape, expected, p)).map(func(p): return _name(p)) if pp._target else []
+	var sinks_into := registry.pieces_near(expected.origin, 6.0).filter(func(p): return PieceOverlap.overlaps(pp._shape_name, pp._shape, expected, p)).map(func(p): return _name(p)) if pp._target else []
 	var r := await _flight_result(buildable.shape, "bottom", upper, lowers[length], Vector3(0, height, 1), Vector3(0, 0, 1 + length))
 	await _turn_to(0)
 	var why := " [crosshair on %s at %s; at the expected spot it would sink into: %s]" % [(seen["collider"] as Node).name if not seen.is_empty() else "nothing", _local(seen["position"]).snapped(Vector3.ONE * 0.01) if not seen.is_empty() else "-", sinks_into]
 	return [not pp._pair.is_empty(), "2 of 4 (bottom), the top on the upper edge" if r["ok"] else "", r["ok"], "" if r["ok"] else r["detail"] + why]
+
+
+# A ladder (typed): hung from a floor exactly its height up, aimed just off the middle of the floor's
+# +Z edge face from outside: its 1 m top edge along that edge in the 1 m half-grid cell nearer the
+# aim (x 0 to 1), its back against the edge face, its feet on the ground
+func _audit_ladder(buildable: PieceBuildable) -> Array:
+	var height: float = PieceShapes.LADDER_HEIGHTS[buildable.shape]
+	var floor_piece := _spawn("structure/floor", Vector3(0, height, 0))
+	await _frames(2)
+	bp.begin(buildable)
+	await _frames(2)
+	await _unsnap()
+	await _turn_to(0)
+	await _aim(Vector3(0.3, 1.7, 3.5), Vector3(0.05, height - 0.1, 1.0))
+	var where := pp._where
+	var def := registry.shape_of(buildable.shape)
+	var back := PieceShapes.bounds_of(def).position.z
+	var expected := O + Vector3(0.5, 0, 1.0 - back)
+	var snapped := not pp._pair.is_empty()
+	var placed := where.origin.distance_to(expected) < EXACT and _same_turn(where.basis, floor_piece.global_basis, 0.0)
+	var along := SnapEdges.matched(buildable.shape, def, where, SnapEdges.in_world(floor_piece)) > 0
+	var sunk: bool = PieceOverlap.overlaps(buildable.shape, def, where, floor_piece)
+	var right := snapped and placed and along and not sunk
+	return [snapped, "top along the floor edge" if along else "", right, "" if right else "landed at %s, %.1f° (expected %s, 0°); along %s, sunk %s" % [_local(where.origin).snapped(Vector3.ONE * 0.01), _turn_of(where, floor_piece), _local(expected).snapped(Vector3.ONE * 0.01), along, sunk]]
 
 
 # Furniture (and the workbench, chest, campfire and lean-to): stands on a floor, aimed at its middle

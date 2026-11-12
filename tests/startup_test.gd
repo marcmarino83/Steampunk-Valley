@@ -70,7 +70,7 @@ func _registry_outside_the_world() -> void:
 		for shape in WallBaker.all_shapes():
 			registry.material_for(shape)
 			registry.mid_mesh(shape, 1)
-	print("STARTUP | a registry outside the world built every wall's looks")
+	print("STARTUP | a registry outside the world built every hybrid wall's and roof's looks")
 	registry.free()
 
 

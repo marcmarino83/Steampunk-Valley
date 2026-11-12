@@ -136,8 +136,9 @@ func material_for(shape: String) -> Material:
 	var kind := "wood"
 	if def.get("furniture", false):
 		return wood_material()
-	if is_hybrid(shape):
-		# (its first variant's far look: each piece wears its own variant's, see mid_mesh)
+	if is_hybrid(shape) and not WallBaker.is_roof(shape):
+		# (its first variant's far look: each piece wears its own variant's, see mid_mesh; a roof keeps
+		# its plain surface until it's dressed, when its far slab takes the plain box's place)
 		return baker.far_material(shape, 0)
 	if shape.contains("stone"):
 		kind = "stone_round" if shape.begins_with("round") else "stone"
@@ -172,10 +173,24 @@ func _make_surface(kind: String) -> ShaderMaterial:
 
 
 ## A wood wall, Standard or Tall (walls, half walls, strips, doorways, windows, gables and triangle
-## walls), while hybrid_walls is on: modelled planks up close, the baked slab from afar (see
-## BuildPiece.dress, WallBaker)
+## walls), or a roof piece in WallBaker.ROOFS, while hybrid_walls is on: modelled planks or shakes up
+## close, a slab baked from them from afar (see BuildPiece.dress, WallBaker)
 static func is_hybrid(shape: String) -> bool:
-	return hybrid_walls and (shape in SnapEdges.WALLS or shape in SnapEdges.TRIANGLES)
+	return hybrid_walls and (shape in SnapEdges.WALLS or shape in SnapEdges.TRIANGLES or WallBaker.is_roof(shape))
+
+
+## A hybrid roof's close-up look in its two layers (see PieceDetail.layer), for the variant this
+## piece id picks: {"surface": the deck and shakes (baked for its far look), "trim": its fascia,
+## barge boards, rafters and logs (real geometry in its far look), "facets": its shaked facets}
+func roof_parts(shape: String, piece_id: int) -> Dictionary:
+	var variant := posmod(piece_id, DETAIL_VARIANTS)
+	var key := "%s#%d#roof" % [shape, variant]
+	if not _details.has(key):
+		var seed_value := hash(shape) + variant * 7919
+		var surface := PieceDetail.build(shape, seed_value, false, "surface")
+		var trim := PieceDetail.build(shape, seed_value, false, "trim")
+		_details[key] = {"surface": surface.get("mesh"), "trim": trim.get("mesh"), "facets": surface.get("facets", [])}
+	return _details[key]
 
 
 ## A piece's close-up look (see PieceDetail): one of DETAIL_VARIANTS made once per shape, picked
@@ -195,11 +210,16 @@ func detail_mesh(shape: String, piece_id: int) -> Dictionary:
 ## The same variant's simplified look, for the middle distance (see PieceDetail.build: simple).
 ## "shadow_from_mid" is set when it has fewer triangles than the shape's plain box (a foundation's
 ## box reaches far underground), so its shadow is cast with it instead (see BuildPiece.dress).
-## A hybrid wall (see is_hybrid) has none: instead {"hybrid": true, "far": its variant's baked far
-## look, "baker": the WallBaker, which says when a far look still baking is ready}.
+## A hybrid wall or roof (see is_hybrid) has none: instead {"hybrid": true, "far": its variant's
+## baked far look, "baker": the WallBaker, which says when a far look still baking is ready}, and for
+## a roof "far_mesh" (its slab and trim in one mesh, in the plain box's place: WallBaker.far_mesh).
 func mid_mesh(shape: String, piece_id: int) -> Dictionary:
 	if is_hybrid(shape):
-		return {"hybrid": true, "far": baker.far_material(shape, posmod(piece_id, DETAIL_VARIANTS)), "baker": baker}
+		var variant := posmod(piece_id, DETAIL_VARIANTS)
+		var hybrid := {"hybrid": true, "far": baker.far_material(shape, variant), "baker": baker}
+		if WallBaker.is_roof(shape):
+			hybrid["far_mesh"] = baker.far_mesh(shape, variant)
+		return hybrid
 	var variant := posmod(piece_id, DETAIL_VARIANTS)
 	var key := "%s#%d#mid" % [shape, variant]
 	if not _details.has(key):

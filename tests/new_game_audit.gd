@@ -103,6 +103,7 @@ func _run() -> void:
 	await _hunger(hut)
 	await _storehouse()
 	await _village_center()
+	await _panel_keys()
 	_still_locked()
 	_hud_leftovers()
 	await frames(5)
@@ -435,6 +436,78 @@ func _village_center() -> void:
 		if not homes.is_empty():
 			ok = manager.recruit(v[0], homes[0])
 		say("step 9: recruit %s into %s: %s" % [v[0].settler_name, homes[0].plot_name if not homes.is_empty() else "(no free home)", ok])
+
+
+# ---- The panels' keys (E closes, Q and R switch the Village screen's tabs, V closes it; a panel
+# opened from the Village screen goes back to it) ----
+
+func _panel_keys() -> void:
+	var screen: VillageScreen = player._village_screen
+	# Drawn in the HUD as always: the note page under the frames-per-second label; the plot panel,
+	# the Village screen and a settler's panel above the HUD and menus, under the black of sleep; the
+	# pause menu and the banner over it
+	var at := func(node: Node) -> int: return node.get_index()
+	var fade: Node = player._fade
+	var order_ok: bool = at.call(player._note_panel) == at.call(player._fps_label) - 1 \
+		and at.call(player._plot_panel) < at.call(screen) and at.call(screen) < at.call(player._settler_panel) \
+		and at.call(player._settler_panel) == at.call(fade) - 1 and at.call(player._plot_panel) > at.call(player.inventory_screen) \
+		and at.call(player._panels.pause_menu) == at.call(fade) + 1 and at.call(player._panels.banner) == at.call(fade) + 2
+	check(order_ok, "the panels are drawn in the HUD in their usual order")
+	player.open_village()
+	await frames(1)
+	var tab_before: int = screen._tab
+	_press(KEY_R)
+	await frames(1)
+	var tab_after: int = screen._tab
+	_press(KEY_Q)
+	await frames(1)
+	check(screen.is_open() and tab_after == posmod(tab_before + 1, VillageScreen.TABS.size()) and screen._tab == tab_before, "R and Q switch the Village screen's tabs")
+	_press(KEY_V)
+	await frames(1)
+	check(not screen.is_open(), "V closes the Village screen")
+	player.open_village()
+	await frames(1)
+	_press(KEY_E)
+	await frames(1)
+	check(not screen.is_open(), "E closes the Village screen")
+	# A settler's panel opened from the Village screen: E closes it and goes back to the screen
+	var someone: Array = manager.all_settlers()
+	if not someone.is_empty():
+		player.open_village()
+		await frames(1)
+		screen.settler_requested.emit(someone[0])
+		await frames(1)
+		var opened: bool = player._settler_panel.is_open() and not screen.is_open()
+		_press(KEY_E)
+		await frames(2)
+		check(opened and not player._settler_panel.is_open() and screen.is_open(), "a settler's panel opened from the Village screen goes back to it when E closes it")
+		_press(KEY_E)
+		await frames(1)
+	# The plot panel and the note page: E closes them
+	var a_plot: Plot = plots.all_plots()[0] if not plots.all_plots().is_empty() else null
+	if a_plot:
+		player.open_plot_panel(a_plot)
+		await frames(1)
+		var plot_open: bool = player._plot_panel.is_open()
+		_press(KEY_E)
+		await frames(1)
+		check(plot_open and not player._plot_panel.is_open(), "E closes the plot panel")
+	player.read_note("Audit", "A test page.")
+	await frames(1)
+	var note_open: bool = player._note_panel.is_open()
+	_press(KEY_E)
+	await frames(1)
+	check(note_open and not player._note_panel.is_open() and player.has_read("Audit"), "E closes the note page, and the note counts as read")
+
+
+# A key press (and its release) through the player's own input handling
+func _press(key: Key) -> void:
+	for pressed in [true, false]:
+		var event := InputEventKey.new()
+		event.keycode = key
+		event.physical_keycode = key
+		event.pressed = pressed
+		player._unhandled_input(event)
 
 
 # ---- Helpers ----

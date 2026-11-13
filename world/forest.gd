@@ -196,7 +196,7 @@ func _plant_tree(scene: PackedScene, spot: Vector2, rng: RandomNumberGenerator) 
 ## away). `changes` is the valley's saved changes (id -> state).
 func felled(tree: Node3D, changes: Dictionary, respawner: Node) -> void:
 	var id: String = valley.id_of(tree)
-	changes[id] = "stump"
+	changes[id] = tree.save_state()
 	var days: float = valley.tree_regrow_days
 	if days > 0.0 and respawner:
 		respawner.schedule(days * SAPLING_AT, tree.global_position, "sapling", id)
@@ -215,6 +215,23 @@ func grow(kind: String, tree: Node, id: String, changes: Dictionary) -> void:
 			changes.erase(id)
 
 
-## Loading a save: a tree saved as "stump" or "sapling" is set to that stage
+## A felled tree's trunk section was cut or its stump cleared: the valley's saved changes follow
+## (unless it's already growing back)
+func changed(tree: Node3D, changes: Dictionary) -> void:
+	var id: String = valley.id_of(tree)
+	if str(changes.get(id, "")).begins_with("felled:"):
+		changes[id] = tree.save_state()
+
+
+## True for the states a tree is saved in: felled (what's left of it), an older save's "stump",
+## or "sapling"
+static func is_tree_state(state: String) -> bool:
+	return state.begins_with("felled:") or state == "stump" or state == "sapling"
+
+
+## Loading a save: a tree set to its saved state
 static func restore(tree: Node, state: String) -> void:
-	tree.set_stage(state)
+	if state.begins_with("felled:"):
+		tree.restore_state(state)
+	else:
+		tree.set_stage(state)

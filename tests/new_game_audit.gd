@@ -16,12 +16,19 @@ extends Node
 ## and an "AUDIT SUMMARY" line at the end; exit code 1 on any failure or error): the empty start,
 ## picking things up by hand, the unlock chain (Hammer → Lean-to and plots, Axe + Pickaxe →
 ## Workbench → Storage Chest, Planks → building pieces, a working Storehouse → Village Center),
-## sleeping in the lean-to, a working House bringing two quest villagers, the Forager's Hut making
-## its day's output once they've eaten, quest villagers never leaving, and the Village Center
-## working. Known gaps (the castle quest, objectives) are reported, not failed.
+## felling a medium tree (its sections, the stump, its saved state and regrowth), sleeping in the
+## lean-to, a working House bringing two quest villagers with 3 days of their own food, the
+## Forager's Hut making its output from their first day, quest villagers never leaving, the hint
+## when food is only in the player's pockets, the Village Center working, the hint when a visitor
+## has no free home, and the Starter House template. It also reports the wood the way to the
+## Village Center takes, in trees by hand. Known gaps (the castle quest, objectives) are reported,
+## not failed.
 
 var _checks := 0
 var _failed: Array[String] = []
+# The average wood by hand from a tree within 60 m of the start, and the settlers' notices seen
+var _wood_per_tree := 0.0
+var _notices: PackedStringArray = []
 
 
 func check(ok: bool, what: String) -> void:
@@ -89,6 +96,7 @@ func _run() -> void:
 	registry = player._placer.registry
 	plots = player._placer.plots
 	manager = player._settlers
+	manager.notice.connect(func(text): _notices.append(text))
 	placer = player._placer
 	start = player.global_position
 	await _start_state()
@@ -163,7 +171,12 @@ func _resources() -> void:
 	say("nearest of each: %s" % ", ".join(nearest.keys().map(func(k): return "%s %.0f m" % [k, nearest[k]])))
 	say("gathering: %s" % tools)
 	var trees := _scripted("world/tree.gd")
-	say("trees: %d with the tree script, %d within 60 m" % [trees.size(), trees.filter(func(t): return start.distance_to((t as Node3D).global_position) < 60.0).size()])
+	var close := trees.filter(func(t): return start.distance_to((t as Node3D).global_position) < 60.0)
+	var by_wood := {}
+	for t in close:
+		by_wood[t.total_wood()] = int(by_wood.get(t.total_wood(), 0)) + 1
+		_wood_per_tree += float(t.total_wood()) / maxf(close.size(), 1)
+	say("trees: %d with the tree script, %d within 60 m; wood by hand per tree there {wood: trees} %s, %.1f on average" % [trees.size(), close.size(), by_wood, _wood_per_tree])
 
 
 # ---- 1. Gather, craft the stone tools ----
@@ -206,6 +219,79 @@ func _gather_and_craft() -> void:
 	for name in ["Lean-to", "House", "Forager's Hut", "Storehouse", "Workbench"]:
 		check(player._progress.is_unlocked(_buildable(name)), "%s is unlocked once the stone tools are made" % name)
 	await _views_follow()
+	await _fell_a_tree()
+
+
+# A real medium tree near the start felled with the axe: it lies as sections, each cut for its
+# wood, then the stump; its saved state follows each cut, loads back, and it regrows as before
+func _fell_a_tree() -> void:
+	var tree: Node3D = null
+	var best := INF
+	for t in _scripted("world/tree.gd"):
+		var d := start.distance_to((t as Node3D).global_position)
+		if t.tree_height >= 8.0 and t.tree_height < 15.0 and t.gathers_left > 0 and d < best:
+			tree = t
+			best = d
+	if tree == null:
+		check(false, "there's a medium tree to fell")
+		return
+	var valley = get_tree().get_first_node_in_group("valley")
+	var id: String = valley.id_of(tree)
+	player._on_held_changed("Axe")
+	var wood := func() -> int: return int(player.inventory.get("Wood", 0))
+	var start_wood: int = wood.call()
+	var hits := 0
+	while tree.gathers_left > 0 and hits < 20:
+		player.stamina = player.max_stamina()
+		tree.interact(player)
+		hits += 1
+	# (the fall takes about 2 s of real time)
+	var waited := Time.get_ticks_msec()
+	while tree.get_node_or_null("FallenTrunk") == null and Time.get_ticks_msec() - waited < 8000:
+		await get_tree().process_frame
+	var sections := func() -> Array:
+		var found := []
+		var trunk := tree.get_node_or_null("FallenTrunk")
+		if trunk:
+			for s in trunk.get_children():
+				# (a cut section shrinks away for a moment before it's gone)
+				if s is TrunkSection and s.gathers_left > 0:
+					found.append(s)
+		return found
+	var state := func() -> String: return str(valley._changes.get(id, ""))
+	say("trees: a %.0f m tree %.0f m away felled in %d hits: wood %d, sections %d, stump swings %d, saved '%s'" % [tree.tree_height, best, hits, wood.call() - start_wood, sections.call().size(), tree.gathers_left, state.call()])
+	check(sections.call().size() == 4 and tree.gathers_left == tree.STUMP_HITS and wood.call() == start_wood, "a felled medium tree lies as 4 trunk sections with its stump (no wood yet)")
+	check(state.call().begins_with("felled:15:%d:" % tree.STUMP_HITS), "a felled tree's trunk and stump are saved")
+	# One section cut: its wood, it's gone, and the save follows; then that state loads back
+	var first: TrunkSection = sections.call()[0]
+	var before: int = wood.call()
+	for k in TrunkSection.HITS:
+		player.stamina = player.max_stamina()
+		first.interact(player)
+	await frames(1)
+	say("trees: one section cut in %d hits: wood +%d, sections left %d, saved '%s'" % [TrunkSection.HITS, wood.call() - before, sections.call().size(), state.call()])
+	check(wood.call() - before == 4 and sections.call().size() == 3 and state.call().begins_with("felled:14:"), "a section takes %d hits, gives its wood straight to the inventory and is gone" % TrunkSection.HITS)
+	Forest.restore(tree, state.call())
+	await frames(1)
+	check(sections.call().size() == 3 and tree.gathers_left == tree.STUMP_HITS, "a part-cut tree loads back as it was saved")
+	for s in sections.call():
+		for k in TrunkSection.HITS:
+			player.stamina = player.max_stamina()
+			s.interact(player)
+	for k in tree.STUMP_HITS:
+		player.stamina = player.max_stamina()
+		tree.interact(player)
+	await frames(1)
+	var total: int = wood.call() - start_wood
+	say("trees: everything cut and the stump cleared: %d wood from the tree (it says %d), saved '%s', stump left: %s" % [total, tree.total_wood(), state.call(), tree.can_interact()])
+	check(total == tree.total_wood() and total >= 16 and total <= 20 and not tree.can_interact() and state.call().begins_with("felled:0:0:"), "a medium tree gives 16 to 20 wood by its sections and stump, and the stump clears")
+	# Regrowth on the same bookings as before
+	valley._on_respawn_due("sapling", id)
+	check(state.call() == "sapling" and tree.top.visible, "a felled tree still grows a sapling")
+	valley._on_respawn_due("tree", id)
+	check(not valley._changes.has(id) and tree.can_interact(), "and then a full tree that can be felled again")
+	player._on_held_changed("")
+	player.remove_item("Wood", total)
 
 
 # The views that show what you own bring themselves up to date: the backpack shows what isn't on
@@ -336,15 +422,21 @@ func _house() -> Plot:
 func _quest_villagers(house: Plot) -> void:
 	if house == null:
 		return
+	var carried := []
 	for k in 3:
 		manager.skip_to_dawn()
 		manager._dawn()
 		await frames(5)
 		var q := manager.all_settlers().filter(func(s): return s.quest)
+		if carried.is_empty() and not q.is_empty():
+			carried = q.map(func(s): return s.own_food)
 		say("step 6: dawn %d with the House: %d settlers, %d quest villagers (%s), homes %s" % [k + 1, manager.all_settlers().size(), q.size(), ", ".join(q.map(func(s): return s.settler_name)), q.map(func(s): return manager.plot(s.home_id).plot_name if manager.plot(s.home_id) else "none")])
 	var quest := manager.all_settlers().filter(func(s): return s.quest)
 	check(house.working, "the Basic House template makes a working House")
 	check(quest.size() == 2 and quest.all(func(s): return s.home_id == house.plot_id), "a working House brings the two quest villagers, who live in it")
+	var three_days := SettlementEconomy.ARRIVAL_FOOD_DAYS * SettlementEconomy.MEAL
+	say("step 6: food the quest villagers arrived with: %s (now %s)" % [carried, quest.map(func(s): return s.own_food)])
+	check(carried.size() == 2 and carried.all(func(f): return f == three_days), "the quest villagers arrive with %d days of their own food" % SettlementEconomy.ARRIVAL_FOOD_DAYS)
 
 
 # ---- 6. Food: Forager's Hut, jobs ----
@@ -364,7 +456,8 @@ func _forager() -> Plot:
 	var before: Dictionary = chest.contents.duplicate() if chest else {}
 	manager.skip_days(1)
 	await frames(5)
-	say("step 7: a day later (no food anywhere) the hut's chest holds %s (was %s); worker: '%s', hungry days %d" % [chest.contents if chest else "no chest", before, q[0].status_text(), q[0].hungry_days])
+	say("step 7: a day later (no food stored; their own food now: %s) the hut's chest holds %s (was %s); worker: '%s', hungry days %d" % [q.map(func(s): return s.own_food), chest.contents if chest else "no chest", before, q[0].status_text(), q[0].hungry_days])
+	check(chest != null and int(chest.contents.get("Stone", 0)) > 0 and q[0].hungry_days == 0, "on their own food, the quest villagers work from their first day (the Forager's Hut makes its output with no food stored)")
 	# As a player would: berries picked by hand put into the hut's chest (a plot's chest, which
 	# settlers eat from; the player's own chests outside every plot they never touch)
 	if chest:
@@ -397,6 +490,20 @@ func _hunger(hut: Plot) -> void:
 	var still := manager.all_settlers().filter(func(s): return s.quest and not s.leaving)
 	say("step 7: four nights with no food: quest villagers still here %d of %d; hungry days %s; status %s" % [still.size(), q.size(), q.map(func(s): return s.hungry_days), q.map(func(s): return s.status_text())])
 	check(still.size() == q.size(), "quest villagers never leave, however long they go hungry")
+	# Food only in the player's pockets: the status line and the settler panel say where it must go
+	_notices.clear()
+	player.gathered("Berries", 10)
+	manager.skip_to_dawn()
+	await frames(3)
+	player.open_settler_panel(q[0])
+	await frames(3)
+	var panel: SettlerPanel = player._panels.settler_panel
+	var subtitle: String = panel._panel.subtitle.text
+	say("step 7: hungry with 10 berries in the player's pockets: notices %s; settler panel says '%s'" % [_notices, subtitle])
+	check(_notices.has(SettlerHints.FOOD_PLACE) and subtitle == SettlerHints.FOOD_PLACE, "with food only in the player's pockets, the status line and settler panel say settlers eat from town storage or a plot's chest")
+	panel.close()
+	player.remove_item("Berries", 10)
+	await frames(2)
 	if hut:
 		var made := manager.economy.output_today(hut, manager.workers(hut))
 		say("step 7: what the hungry worker makes today: %s" % made)
@@ -462,16 +569,58 @@ func _village_center() -> void:
 		await frames(3)
 	var v := manager.staying_visitors()
 	say("step 9: after 6 days: visitors staying %d (all visitors %d)" % [v.size(), manager.all_visitors().size()])
+	if v.is_empty():
+		# (none came this time: one brought in, so the visitor checks still run)
+		manager.spawn_visitor(plot)
+		v = manager.staying_visitors()
 	if not v.is_empty():
+		# The bell rings once they reach the mast (here: as if they'd walked there); with no free
+		# home, the status line says to build one
+		_notices.clear()
+		for visitor in v:
+			visitor.travel_time = 1e6
+		manager._tend_visitors()
+		say("step 9: a visitor at the mast with %d free homes: notices %s" % [manager.free_homes().size(), _notices])
+		check(_notices.has(SettlerHints.VISITOR_HOME), "a visitor with no free home to move into says to build a house")
 		homes = manager.free_homes()
 		if homes.is_empty():
-			# (the first House is full with the two quest villagers: a second one, as a player would)
-			await _template_plot("basic_house", "House", start + Vector3(25, 0, -16), "step 9")
+			# (the first House is full with the two quest villagers: a second one, as a player
+			# would, from the small starter template)
+			var second := await _template_plot("starter_house", "House", start + Vector3(25, 0, -16), "step 9")
+			check(second != null and second.working and second.capacity == 2, "the Starter House template makes a working House for two")
 			homes = manager.free_homes()
 		var ok := false
 		if not homes.is_empty():
 			ok = manager.recruit(v[0], homes[0])
 		say("step 9: recruit %s into %s: %s" % [v[0].settler_name, homes[0].plot_name if not homes.is_empty() else "(no free home)", ok])
+	_wood_to_village_center()
+
+
+# How much wood (planks are half a wood) the way to the Village Center takes, and so how many
+# trees by hand at the average near the start: with the Basic House, and with the Starter House
+func _wood_to_village_center() -> void:
+	var wood_of := func(cost: Dictionary) -> float:
+		return float(cost.get("Wood", 0)) + float(cost.get("Planks", 0)) / 2.0
+	var extras := 0.0
+	for name in ["Lean-to", "Workbench"]:
+		var b := _buildable(name)
+		extras += wood_of.call(b.costs[0]) if b and not b.costs.is_empty() else 0.0
+	var chest := _recipe("Storage Chest")
+	extras += wood_of.call(chest.costs) if chest else 0.0
+	var mast := load("res://buildables/furniture/bell_mast.tres") as Buildable
+	extras += wood_of.call(mast.costs[0]) if mast and not mast.costs.is_empty() else 0.0
+	for house in ["basic_house", "starter_house"]:
+		var total := extras
+		var parts: PackedStringArray = []
+		for t in [house, "forager_s_hut", "storehouse"]:
+			var template := BuildingTemplate.read("res://buildables/templates/%s.json" % t)
+			var w: float = wood_of.call(template.total_cost())
+			parts.append("%s %.0f" % [t, w])
+			total += w
+		var trees := ceili(total / maxf(_wood_per_tree, 0.1))
+		say("wood to the Village Center with the %s: %.0f wood (%s, lean-to, workbench, chest and bell mast %.0f) = %d trees by hand at %.1f wood a tree (it was %d trees at 3 wood a tree)" % [house, total, ", ".join(parts), extras, trees, _wood_per_tree, ceili(total / 3.0)])
+	var starter := BuildingTemplate.read("res://buildables/templates/starter_house.json")
+	say("the Starter House costs %s (%.0f wood)" % [starter.total_cost(), wood_of.call(starter.total_cost())])
 
 
 # ---- The panels' keys (E closes, Q and R switch the Village screen's tabs, V closes it; a panel

@@ -392,6 +392,8 @@ func _quest_arrival() -> void:
 		return
 	var settler := spawn(found["spot"], house)
 	settler.quest = true
+	# They bring a few days' food of their own, so they can work from their first day
+	settler.own_food = SettlementEconomy.ARRIVAL_FOOD_DAYS * SettlementEconomy.MEAL
 	_quest_arrivals += 1
 	print("[Settlers]   %s (quest villager) arrived at %s, heading for %s" % [settler.settler_name, (found["spot"] as Vector3).snapped(Vector3.ONE * 0.1), house.plot_name])
 	arrived.emit(settler)
@@ -443,6 +445,8 @@ func _tend_visitors() -> void:
 			ring_bell(mast.global_position + Vector3.UP * 6.0)
 			# (the player shows it as an event banner: "A visitor has arrived")
 			visitor_arrived.emit(visitor)
+			if SettlerHints.visitor_needs_home(self):
+				notice.emit(SettlerHints.VISITOR_HOME)
 		if center == null or (at >= visitor.stay_until and daytime):
 			if visitor.announced and center:
 				notice.emit("%s didn't find a home here and has moved on." % visitor.settler_name)
@@ -751,6 +755,7 @@ func _loaded(entry: Dictionary) -> Settler:
 	settler.job_id = str(entry.get("job", ""))
 	settler.hungry_days = int(entry.get("hungry_days", 0))
 	settler.quest = bool(entry.get("quest", false))
+	settler.own_food = int(entry.get("own_food", 0))
 	settler.background = str(entry.get("background", ""))
 	var number := int(settler.settler_id.get_slice("_", settler.settler_id.get_slice_count("_") - 1))
 	_next_id = maxi(_next_id, number + 1)

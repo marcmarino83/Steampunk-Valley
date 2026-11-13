@@ -67,6 +67,9 @@ var leave_to := Vector3.ZERO
 var leave_time := 0.0
 ## A quest villager: permanent, never leaves (see above)
 var quest := false
+## Food they carry for themselves (quest villagers arrive with some), eaten at dusk before
+## anything from storage (see SettlementEconomy)
+var own_food := 0
 ## A visitor at the Village Center, not a settler yet: a line about who they are, until when they
 ## stay (the sun's day count plus time of day), whether the bell has rung for them, and how long
 ## they've been on their way to the mast (seconds)
@@ -182,9 +185,12 @@ func unmet_need() -> String:
 	return ""
 
 
-## "Fed", or "Hungry (2 days)"
+## "Fed", "Fed (own food, 2 days)", or "Hungry (2 days)"
 func food_text() -> String:
 	if not is_hungry():
+		var days := own_food / SettlementEconomy.MEAL
+		if days > 0:
+			return "Fed (own food, %d %s)" % [days, "day" if days == 1 else "days"]
 		return "Fed"
 	return "Hungry (%d %s)" % [hungry_days, "day" if hungry_days == 1 else "days"]
 
@@ -751,6 +757,8 @@ func save_data() -> Dictionary:
 	}
 	if quest:
 		data["quest"] = true
+	if own_food > 0:
+		data["own_food"] = own_food
 	if not background.is_empty():
 		data["background"] = background
 	if visitor:

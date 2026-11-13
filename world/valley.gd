@@ -447,6 +447,11 @@ func tree_felled(tree: Node3D) -> void:
 	forest.felled(tree, _changes, _respawner())
 
 
+## A felled tree's log was cut or its stump cleared (see Forest.changed)
+func tree_changed(tree: Node3D) -> void:
+	forest.changed(tree, _changes)
+
+
 ## A boulder placed by hand has been mined out; it comes back
 func rock_mined(rock: Node3D) -> void:
 	var id := id_of(rock)
@@ -565,6 +570,9 @@ func load_data(data: Dictionary) -> void:
 		var node := _node_for(id)
 		if node == null:
 			continue
+		if Forest.is_tree_state(state):
+			Forest.restore(node, state)
+			continue
 		match state:
 			"gone":
 				remove_child(node)
@@ -572,8 +580,6 @@ func load_data(data: Dictionary) -> void:
 				_by_id.erase(id)
 			"empty":
 				node.set_empty()
-			"stump", "sapling":
-				Forest.restore(node, state)
 			"mined":
 				node.set_mined()
 

@@ -224,7 +224,11 @@ func replace_picture(picture: Image) -> void:
 func thumbnail() -> Texture2D:
 	if _thumbnail == null and not path.is_empty():
 		var picture_path := path.get_basename() + ".png"
-		var image := Image.load_from_file(ProjectSettings.globalize_path(picture_path) if picture_path.begins_with("res://") else picture_path)
+		# (a template written by hand may have no picture yet: then it has none, quietly)
+		if not FileAccess.file_exists(picture_path):
+			return null
+		var image := Image.load_from_file(ProjectSettings.globalize_path(picture_path)
+				if picture_path.begins_with("res://") else picture_path)
 		if image and not image.is_empty():
 			_thumbnail = ImageTexture.create_from_image(image)
 	return _thumbnail

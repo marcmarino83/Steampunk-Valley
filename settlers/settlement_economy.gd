@@ -8,7 +8,8 @@ extends Node
 ## fits in neither is lost: "Forager's Hut: Town storage full (4 herbs lost)" (or "chest full" with
 ## no working Storehouse). With neither a chest nor town storage, the whole day's output is lost.
 ##
-## At dusk every settler eats MEAL food (berries first, then mushrooms), from town storage first,
+## At dusk every settler eats MEAL food: first any of their own (quest villagers arrive with
+## ARRIVAL_FOOD_DAYS' worth), then berries before mushrooms, from town storage first,
 ## then from the nearest storage chest belonging to a working plot that has any, then from any
 ## other chest belonging to a plot.
 ## Chests outside every plot are the player's own: settlers never eat from them. One who
@@ -23,6 +24,8 @@ signal notice(text: String)
 
 ## What a settler eats each dusk, and what counts as food (eaten in this order)
 const MEAL := 2
+## Days of their own food the quest villagers arrive with (see Settler.own_food)
+const ARRIVAL_FOOD_DAYS := 3
 const FOODS := ["Berries", "Mushrooms"]
 const HUNGRY_DAYS_TO_LEAVE := 3
 const CHEST_NAME := "Storage Chest"
@@ -107,7 +110,9 @@ func plan_day() -> Dictionary:
 		if settler.leaving:
 			continue
 		var ate := {}
-		short += MEAL - _feed(settler.global_position, stores, ate)
+		# (their own food isn't from the stores: it only makes the meal they need smaller)
+		var own := mini(settler.own_food, MEAL)
+		short += MEAL - own - _feed(settler.global_position, stores, ate, MEAL - own)
 		for food in ate:
 			eaten[food] = int(eaten.get(food, 0)) + int(ate[food])
 			eaters[food] = int(eaters.get(food, 0)) + 1
@@ -150,7 +155,9 @@ func dusk() -> void:
 	for settler in manager.all_settlers():
 		if settler.leaving:
 			continue
-		var eaten := _feed(settler.global_position, stores, {})
+		var own := mini(settler.own_food, MEAL)
+		settler.own_food -= own
+		var eaten := own + _feed(settler.global_position, stores, {}, MEAL - own)
 		if eaten >= MEAL:
 			settler.hungry_days = 0
 			continue
@@ -172,6 +179,9 @@ func dusk() -> void:
 		notice.emit("No food for %s tonight: they're hungry and will work at half pace." % ", ".join(hungry))
 	if not stopped.is_empty():
 		notice.emit("No food for %s tonight: \"We can't work hungry.\" They won't work until they're fed." % ", ".join(stopped))
+	# Food the player has, but where settlers never look: say where it has to go
+	if (not hungry.is_empty() or not stopped.is_empty()) and SettlerHints.food_out_of_reach(manager):
+		notice.emit(SettlerHints.FOOD_PLACE)
 
 
 # The stores meals come from, as plain dictionaries: the town storage pool, its room (slots), and
@@ -187,26 +197,26 @@ func _stores(copies: bool) -> Dictionary:
 		"chests": chests, "town_touched": false, "touched": {}}
 
 
-# Eats up to a meal from town storage first, then the chests, nearest working plot's first;
-# returns how much was eaten, adding each food to `ate` ({food: amount})
-func _feed(spot: Vector3, stores: Dictionary, ate: Dictionary) -> int:
+# Eats up to `wanted` food from town storage first, then the chests, nearest working plot's
+# first; returns how much was eaten, adding each food to `ate` ({food: amount})
+func _feed(spot: Vector3, stores: Dictionary, ate: Dictionary, wanted := MEAL) -> int:
 	var eaten := 0
 	for food in FOODS:
-		if eaten < MEAL:
-			var got := _take(stores["town"], food, MEAL - eaten)
+		if eaten < wanted:
+			var got := _take(stores["town"], food, wanted - eaten)
 			if got > 0:
 				eaten += got
 				ate[food] = int(ate.get(food, 0)) + got
 				stores["town_touched"] = true
 	for i in 8:
-		if eaten >= MEAL:
+		if eaten >= wanted:
 			break
 		var chest := _food_chest(spot, stores["chests"])
 		if chest == null:
 			break
 		for food in FOODS:
-			if eaten < MEAL:
-				var got := _take(stores["chests"][chest], food, MEAL - eaten)
+			if eaten < wanted:
+				var got := _take(stores["chests"][chest], food, wanted - eaten)
 				eaten += got
 				if got > 0:
 					ate[food] = int(ate.get(food, 0)) + got

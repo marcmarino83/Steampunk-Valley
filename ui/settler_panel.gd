@@ -133,14 +133,19 @@ func _refresh() -> void:
 			rows.append(["Free homes", "%d villager %s with a free bed" % [homes.size(), "House" if homes.size() == 1 else "Houses"]])
 		rows.append(["Doing", status, BrassStyle.TEXT_DIM])
 		_panel.set_facts(_facts, rows)
-		BrassStyle.set_disabled_reason(_recruit, "" if not homes.is_empty() else "Needs a free home", "Recruit", true)
+		BrassStyle.set_disabled_reason(_recruit, "" if not homes.is_empty() else "Needs a free home",
+				"Recruit", true)
 		if not homes.is_empty():
 			_recruit.tooltip_text = "They move into a free villager House as a settler with no job"
+		else:
+			_recruit.tooltip_text = SettlerHints.VISITOR_HOME
 		return
 	var state := _state_of(status)
 	_panel.set_status(state[0], state[1])
-	# (no subtitle: the name, pill and facts say who they are)
-	_panel.set_subtitle("")
+	# (no subtitle: the name, pill and facts say who they are; but hungry with the only food out
+	# of their reach, it says where food has to go)
+	var food_hint: bool = _settler.is_hungry() and SettlerHints.food_out_of_reach(manager)
+	_panel.set_subtitle(SettlerHints.FOOD_PLACE if food_hint else "")
 	# (quest villagers aren't marked: they never leave, but nothing says so)
 	var home := manager.plot(_settler.home_id)
 	var job := manager.plot(_settler.job_id)

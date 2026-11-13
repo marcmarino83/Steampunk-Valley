@@ -265,6 +265,17 @@ func _workbench_and_chest() -> void:
 	say("step 4: Storage Chest usable: %s, cost %s, have planks %d, rope %d" % [player.is_unlocked(chest), chest.costs, int(player.inventory.get("Planks", 0)), int(player.inventory.get("Rope", 0))])
 	var c := _place_building(chest, player.global_position + Vector3(-1.5, 0, 1.0))
 	say("step 4: chest placed: %s, its prompt: '%s'" % [c != null, c.get_prompt() if c else ""])
+	# Opening it (the inventory opens beside it), a stack in and back out
+	player.gathered("Stone", 5)
+	var stone := int(player.inventory.get("Stone", 0))
+	player.open_chest(c)
+	await frames(1)
+	player.inventory_screen.item_moved.emit("Stone", "backpack")
+	var in_chest := int(c.contents.get("Stone", 0))
+	player.inventory_screen.item_moved.emit("Stone", "chest")
+	say("step 4: chest opened (inventory showing %s); Stone in: chest %d, back: backpack %d (was %d)" % [player.inventory_screen.visible, in_chest, int(player.inventory.get("Stone", 0)), stone])
+	check(player.inventory_screen.visible and in_chest == stone and int(player.inventory.get("Stone", 0)) == stone and not c.contents.has("Stone"), "a chest opens beside the inventory, and a stack moves into it and back")
+	player._toggle_inventory()
 
 
 # ---- 4. The ruined castle ----
@@ -363,6 +374,27 @@ func _storehouse() -> void:
 	_new_unlocks("step 8: the Storehouse working", before)
 	say("step 8: town storage open: %s, %d slots" % [plots.town.is_open(), plots.town.capacity()])
 	check(plots.town.is_open(), "a working Storehouse opens town storage")
+	# Deposit resources at its Storehouse Storage: every material and food goes in, tools stay
+	var shelf: Node3D = null
+	for p in registry.all_pieces():
+		if (p as BuildPiece).buildable.display_name == "Storehouse Storage":
+			shelf = p
+	if shelf:
+		player.global_position = shelf.global_position + Vector3(0, 1, 1.5)
+		player.gathered("Plant Fiber", 4)
+		var fiber_before := int(plots.town.contents.get("Plant Fiber", 0))
+		var carried := int(player.inventory.get("Plant Fiber", 0))
+		player.open_town_storage(shelf)
+		await frames(1)
+		player.inventory_screen.deposit_requested.emit()
+		say("step 8: deposited at the Storehouse Storage: town Plant Fiber %d → %d; still carrying fiber %d, hammer %d" % [fiber_before, int(plots.town.contents.get("Plant Fiber", 0)), int(player.inventory.get("Plant Fiber", 0)), int(player.inventory.get("Hammer", 0))])
+		check(int(plots.town.contents.get("Plant Fiber", 0)) == fiber_before + carried and not player.inventory.has("Plant Fiber") and player.inventory.has("Hammer"), "Deposit resources puts materials into town storage and keeps tools")
+		# Walking away closes it
+		player.global_position = shelf.global_position + Vector3(0, 1, 12.0)
+		await frames(3)
+		check(not player.inventory_screen.visible, "walking away from town storage closes it")
+	else:
+		check(false, "the Storehouse template has a Storehouse Storage")
 	check(player.is_unlocked(_buildable("Village Center")), "a working Storehouse unlocks the Village Center")
 
 

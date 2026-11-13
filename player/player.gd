@@ -60,10 +60,6 @@ const SLEEP_FADE := 1.0
 const SLEEP_DARK := 0.6
 ## In plot view, how far ahead E finds the plot whose ground you're aiming at
 const PLOT_REACH := 20.0
-## How close a crafting station (like the workbench) must be for its recipes, in meters
-const STATION_RANGE := 3.0
-## An open chest closes once you're this far from it, in meters
-const CHEST_RANGE := 4.0
 ## A torch burns for this share of a night while held, and while held the cold gets to you only
 ## this fast (0.75 = three quarters as fast)
 const TORCH_NIGHTS := 0.5
@@ -168,13 +164,10 @@ var _fade: ColorRect
 var _sleeping := false
 # Esc's menu: Resume, Save, Load, Quit
 var _pause_menu: Control
-# What's open beside the inventory, if anything: a chest, or town storage (see TownStorage), and
-# the thing in the world you opened it at (the chest itself, or the Storehouse Storage), which closes it
-# when you walk away
-var _open_chest: Node
-var _open_near: Node3D
-# The crafting stations in reach last time the Crafting tab was brought up to date
-var _last_stations: PackedStringArray = []
+# What's open beside the inventory (a chest or town storage), and crafting and the stations in
+# reach (child nodes, see ContainerSession and PlayerCrafting)
+var _containers := ContainerSession.new()
+var _crafting := PlayerCrafting.new()
 # Seconds left on the torch in your hand (0 = a fresh one is lit when you next hold one)
 var _torch_left := 0.0
 # The developer console (debug builds only; null otherwise)
@@ -340,9 +333,32 @@ func _ready() -> void:
 	action_bar.held_changed.connect(_on_held_changed)
 	action_bar.contents_changed.connect(_refresh_inventory_display)
 	inventory_screen.tool_returned.connect(action_bar.remove)
-	inventory_screen.item_moved.connect(_move_item)
-	inventory_screen.deposit_requested.connect(_deposit_resources)
-	inventory_screen.crafting.craft_requested.connect(craft)
+	# What's open beside the inventory (a chest or town storage): it asks for the inventory to open,
+	# and to close when you walk away
+	_containers.name = "Containers"
+	_containers.body = self
+	_containers.inventory = _inventory
+	_containers.inventory_screen = inventory_screen
+	_containers.action_bar = action_bar
+	add_child(_containers)
+	_containers.open_requested.connect(_toggle_inventory)
+	_containers.walked_away.connect(func():
+		if inventory_screen.visible:
+			_toggle_inventory()
+		else:
+			_containers.close())
+	_containers.message.connect(flash)
+	inventory_screen.item_moved.connect(_containers.move_item)
+	inventory_screen.deposit_requested.connect(_containers.deposit)
+	# Crafting: the Crafting tab follows you toward and away from crafting stations
+	_crafting.name = "Crafting"
+	_crafting.body = self
+	_crafting.inventory = _inventory
+	_crafting.progress = _progress
+	_crafting.inventory_screen = inventory_screen
+	add_child(_crafting)
+	_crafting.stations_changed.connect(_refresh_inventory_display)
+	inventory_screen.crafting.craft_requested.connect(_crafting.craft)
 	_refresh_inventory_display()
 	# The developer console: debug builds only (never in a release build). Its cheats start off.
 	DevCheats.reset()
@@ -456,18 +472,10 @@ func _process(delta: float) -> void:
 
 	# The Crafting tab follows you toward and away from crafting stations while it's open
 	if inventory_screen.visible:
-		var stations := nearby_stations()
-		if stations != _last_stations:
-			_refresh_inventory_display()
+		_crafting.follow_stations()
 	# An open chest (or town storage) closes once you walk away from it, or once town storage has
 	# no working Storehouse left
-	if _open_chest and (not is_instance_valid(_open_chest) or not is_instance_valid(_open_near) \
-			or global_position.distance_to(_open_near.global_position) > CHEST_RANGE \
-			or (_open_chest is TownStorage and not (_open_chest as TownStorage).is_open())):
-		if inventory_screen.visible:
-			_toggle_inventory()
-		else:
-			_close_chest()
+	_containers.follow()
 
 
 	# With the hammer out: while the middle button (see _unhandled_input) or X is held, the
@@ -1398,14 +1406,9 @@ func _eat() -> void:
 		flash("You have nothing to eat")
 
 
-## Where you can craft right now: by hand anywhere, plus every crafting station within reach
-## (anything in the "crafting_stations" group, like the workbench, naming its station)
+## (see PlayerCrafting.nearby_stations)
 func nearby_stations() -> PackedStringArray:
-	var stations: PackedStringArray = ["hand"]
-	for station in get_tree().get_nodes_in_group("crafting_stations"):
-		if global_position.distance_to(station.global_position) <= STATION_RANGE and not stations.has(station.station):
-			stations.append(station.station)
-	return stations
+	return _crafting.nearby_stations()
 
 
 ## Opens the inventory on its Crafting tab (the workbench does this)
@@ -1415,98 +1418,15 @@ func open_crafting() -> void:
 	inventory_screen.show_tab(true)
 
 
-## Opens a chest beside the inventory
+## Opens a chest beside the inventory (see ContainerSession)
 func open_chest(chest: Node3D) -> void:
-	_open_container(chest, chest)
+	_containers.open(chest, chest)
 
 
 ## Opens the Town Storage screen beside the inventory (E on the Storehouse Storage in a working
-## Storehouse): the whole shared pool, whichever shelf it's opened at
+## Storehouse): the whole shared pool, whichever shelf it's opened at (see ContainerSession)
 func open_town_storage(shelf: Node3D) -> void:
-	_open_container(_placer.plots.town, shelf)
-
-
-func _open_container(container: Node, near: Node3D) -> void:
-	_close_chest()
-	_open_chest = container
-	_open_near = near
-	if not inventory_screen.visible:
-		_toggle_inventory()
-	_show_open_container()
-	# A day's output going in, or a settler eating from it, shows while it's open
-	if container.has_signal("changed") and not container.changed.is_connected(_on_open_chest_changed):
-		container.changed.connect(_on_open_chest_changed)
-
-
-# Brings the open chest's (or town storage's) panel up to date
-func _show_open_container() -> void:
-	if _open_chest is TownStorage:
-		var town := _open_chest as TownStorage
-		inventory_screen.show_town_storage(town.sorted_contents(), town.capacity(), town.category_totals())
-	else:
-		inventory_screen.show_chest(_open_chest.contents)
-
-
-func _on_open_chest_changed() -> void:
-	if _open_chest and is_instance_valid(_open_chest) and inventory_screen.visible:
-		_show_open_container()
-
-
-func _close_chest() -> void:
-	if _open_chest and is_instance_valid(_open_chest) and _open_chest.has_signal("changed") and _open_chest.changed.is_connected(_on_open_chest_changed):
-		_open_chest.changed.disconnect(_on_open_chest_changed)
-	_open_chest = null
-	_open_near = null
-	inventory_screen.hide_chest()
-
-
-# A whole stack moving between the backpack and the open chest (or town storage), if there's room
-func _move_item(item: String, from: String) -> void:
-	if _open_chest == null or not is_instance_valid(_open_chest):
-		return
-	if from == "chest":
-		if _backpack_contents().size() >= inventory_screen.slot_count and not inventory.has(item):
-			flash("Inventory full")
-			return
-		add_item(item, _open_chest.take_all(item))
-	else:
-		if not _open_chest.can_take(item):
-			flash("Town storage is full" if _open_chest is TownStorage else "The chest is full")
-			return
-		var amount: int = inventory.get(item, 0)
-		if remove_item(item, amount):
-			_open_chest.put(item, amount)
-	if _open_chest is TownStorage:
-		_open_chest.changed.emit()
-	_refresh_inventory_display()
-
-
-# Deposit resources: every material and food in the backpack goes into town storage (as much as
-# there's room for); tools and whatever's on the action bar stay
-func _deposit_resources() -> void:
-	if not _open_chest is TownStorage:
-		return
-	var town := _open_chest as TownStorage
-	var moved := 0
-	var no_room: PackedStringArray = []
-	for item in inventory.keys():
-		if action_bar.has_item(item) or not ["Food", "Materials"].has(TownStorage.category_of(item)):
-			continue
-		if not town.can_take(item):
-			no_room.append(item)
-			continue
-		var amount: int = inventory[item]
-		inventory.erase(item)
-		town.put(item, amount)
-		moved += amount
-	town.changed.emit()
-	_refresh_inventory_display()
-	if moved == 0 and no_room.is_empty():
-		flash("No materials or food to deposit")
-	elif no_room.is_empty():
-		flash("Deposited %d items in town storage" % moved)
-	else:
-		flash("Deposited %d items; town storage is full (%s stayed with you)" % [moved, ", ".join(no_room)])
+	_containers.open(_placer.plots.town, shelf)
 
 
 # A torch in your hand burns down; when it's out, it's gone and the next one is ready to light
@@ -1526,19 +1446,9 @@ func _burn_torch(delta: float) -> void:
 		flash("Your torch burned out")
 
 
-## Makes a recipe: takes the resources and puts the result in the backpack. If there's no room,
-## says so and spends nothing.
+## (see PlayerCrafting.craft)
 func craft(recipe: Recipe) -> void:
-	if not is_unlocked(recipe) or not recipe.can_craft(inventory) or not nearby_stations().has(recipe.station):
-		return
-	var crafting: Control = inventory_screen.crafting
-	if _backpack_contents().size() >= inventory_screen.slot_count and not inventory.has(recipe.result):
-		crafting.show_status("Inventory full", true)
-		return
-	pay(recipe.costs)
-	add_item(recipe.result, recipe.result_amount)
-	crafting.show_status("%s added to your inventory" % recipe.display_name, false)
-	report_progress("Craft", recipe.result)
+	_crafting.craft(recipe)
 
 
 # What's in your hand changed: swap the model in front of the view to match
@@ -1621,7 +1531,7 @@ func _toggle_inventory() -> void:
 	else:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		# Closing the inventory closes any chest that was open beside it
-		_close_chest()
+		_containers.close()
 
 
 ## Call this whenever the inventory changes, so the action bar, the backpack and the build menu
@@ -1635,11 +1545,10 @@ func _refresh_inventory_display() -> void:
 func _refresh_inventory_now() -> void:
 	action_bar.forget_missing(inventory)
 	inventory_screen.show_items(_backpack_contents())
-	_last_stations = nearby_stations()
-	inventory_screen.crafting.refresh(inventory, _last_stations, is_unlocked)
+	inventory_screen.crafting.refresh(inventory, _crafting.stations_for_tab(), is_unlocked)
 	build_menu.refresh(inventory, is_unlocked)
-	if _open_chest and is_instance_valid(_open_chest):
-		_show_open_container()
+	if _containers.is_open():
+		_containers.show_contents()
 
 
 # Everything you own, minus whatever's on the action bar (see PlayerInventory)

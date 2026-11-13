@@ -63,11 +63,19 @@ static var hybrid_range := 15.0
 ## The same for hybrid roofs: 25 m. Of 12, 15, 20 and 25 m (tests/roof_pass.gd, from the ground), the
 ## switch shows least there, and the shakes just inside it shimmer little more than the far look.
 static var roof_range := 25.0
-## The same for hybrid floors and foundations (see WallBaker.FLOORS): 10 m. Of 10, 15, 20 and 25 m
-## (tests/floor_pass.gd: standing on a floor, from the ground beside raised ones, from a raised spot,
-## and stone foundations' sides from outside), the switch shows least there (15 m within 0.3% of it),
-## and from 20 m out the planks seen from standing height shimmer over twice as much as the far look.
-static var floor_range := 10.0
+## The same for hybrid floors and foundations (see WallBaker.FLOORS): 15 m, the walls' distance. Of
+## 10, 15, 20 and 25 m (tests/floor_pass.gd: standing on a floor, from the ground beside raised ones,
+## from a raised spot, and stone foundations' sides from outside), 10 and 15 m show the switch about
+## equally (within 0.3%, inside the noise), so it matches the walls; from 20 m out the planks seen from
+## standing height shimmer over twice as much as the far look.
+static var floor_range := 15.0
+## The lean far look's switch (stairs and pillars, see PieceRegistry.LEAN): their close-up look within
+## it, beyond it the same parts in the same places with plain edges (no bake). 20 m: of 10, 15, 20 and
+## 25 m (tests/structure_pass.gd: standing, from a raised spot, and flights from below), the switch
+## shows least there (10.99% in all; 15 m 12.50 and 12.72% in two runs, beyond the 0.44% noise, so not
+## the walls' 15 m), and the close-up look never shimmers over twice the far look's. (A variable only so
+## tests can compare distances.)
+static var lean_range := 20.0
 var _hybrid := false
 # A hybrid roof or floor: its far look (its slab with its trim merged in, so its edges don't change at
 # the switch) takes its plain box's place
@@ -251,8 +259,11 @@ func _dress_looks(detail: Dictionary, material: Material, mid: Dictionary) -> vo
 		add_child(logs)
 	if detail.is_empty() or detail.get("mesh") == null and detail.get("door_mesh") == null:
 		return
+	if mid.get("single", false):
+		_dress_single(detail["mesh"], material)
+		return
 	if mid.get("hybrid", false):
-		_dress_hybrid(detail["mesh"], material, mid.get("far"), mid.get("baker"), mid.get("far_mesh"))
+		_dress_hybrid(detail["mesh"], material, mid.get("far"), mid.get("baker"), mid.get("far_mesh"), mid.get("lean", false))
 		return
 	var has_mid := not mid.is_empty() and (mid.get("mesh") != null or mid.get("door_mesh") != null)
 	var plain_from := MID_RANGE if has_mid else NEAR_RANGE
@@ -321,11 +332,17 @@ func _dress_looks(detail: Dictionary, material: Material, mid: Dictionary) -> vo
 # when `baker` says the bake is in. A roof's far look is `far_mesh` (its slab with its trim merged in,
 # see WallBaker.far_mesh), in the plain box's place, switching at roof_range; a floor's or
 # foundation's the same (its top slab and its close-up sides), switching at floor_range.
-func _dress_hybrid(near_mesh: Mesh, material: Material, far: Material, baker: WallBaker, far_mesh: Mesh = null) -> void:
+#
+# `lean` (stairs and pillars, see PieceRegistry.LEAN): `far_mesh` is its lean far look, unbaked, worn
+# with the close-up material, ready at once, switching at lean_range.
+func _dress_hybrid(near_mesh: Mesh, material: Material, far: Material, baker: WallBaker, far_mesh: Mesh = null, lean := false) -> void:
 	_hybrid = true
 	_roof = far_mesh != null
-	_far_range = floor_range if WallBaker.is_floor(shape_name) else (roof_range if _roof else hybrid_range)
-	_far_ready = WallBaker.is_ready(far)
+	if lean:
+		_far_range = lean_range
+	else:
+		_far_range = floor_range if WallBaker.is_floor(shape_name) else (roof_range if _roof else hybrid_range)
+	_far_ready = lean or WallBaker.is_ready(far)
 	if far_mesh:
 		for plain in _plain_looks:
 			plain.mesh = far_mesh
@@ -348,6 +365,16 @@ func _dress_hybrid(near_mesh: Mesh, material: Material, far: Material, baker: Wa
 	_hybrid_ranges()
 	if not _far_ready and baker and not baker.shape_ready.is_connected(_on_far_ready):
 		baker.shape_ready.connect(_on_far_ready)
+
+
+# A pole's or beam's one look (see PieceRegistry.SINGLE): its close-up log in the plain box's place,
+# at every distance, casting its own shadow (it is its own far mesh, so this is the shadow rule above
+# without a copy). Nothing switches, so nothing can pop.
+func _dress_single(mesh: Mesh, material: Material) -> void:
+	for plain in _plain_looks:
+		plain.mesh = mesh
+		plain.material_override = material
+		plain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
 
 # The shadow rule for a piece with a far look (see far_shadows): a shadow-only copy of each far look

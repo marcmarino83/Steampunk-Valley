@@ -70,6 +70,11 @@ var _count := 0
 ## stone in the same places, but planks and stones with plain (unbevelled) edges, each row of
 ## shakes merged into one strip, logs with fewer sides, and no rope lashings
 var simple := false
+## The lean far look of stairs and pillars (see PieceRegistry.LEAN): like `simple` (plain-edged planks
+## and stones), but keeping everything that shapes the outline exactly as up close (logs keep all their
+## sides, every random choice is drawn the same, so every part is in the same place), rope lashings
+## kept in fewer segments, and each stair tread's two planks one plank
+var far := false
 ## Roofs only, for their hybrid look (see PieceRegistry.is_hybrid): "" for the whole look; "surface"
 ## for only the deck and shakes (what the far look is baked from); "trim" for only what shapes the
 ## roof's outline (fascia and barge boards, rafters, logs and rope), worn over the far slab. Every
@@ -91,9 +96,11 @@ func _init(seed_value: int) -> void:
 ## The look of one shape: {"mesh": ArrayMesh, "door_mesh": ArrayMesh or null}, or empty for a
 ## shape drawn some other way (furniture). `simple_look`: its simplified version (see simple).
 ## `part`: a roof's layer (see layer); the result also lists its shaked facets ("facets").
-static func build(shape: String, seed_value: int, simple_look := false, part := "") -> Dictionary:
+## `far_look`: the lean far look (see far).
+static func build(shape: String, seed_value: int, simple_look := false, part := "", far_look := false) -> Dictionary:
 	var b := PieceDetail.new(seed_value)
-	b.simple = simple_look
+	b.simple = simple_look or far_look
+	b.far = far_look
 	b.layer = part
 	var door: PieceDetail = null
 	var G := PieceShapes.GRID
@@ -1091,6 +1098,9 @@ func _stairs(height: float, length: float) -> void:
 		var z0 := start + run * i - (0.0 if i == 0 else 0.02)
 		var z1 := start + run * (i + 1)
 		var mid := z0 + (z1 - z0) * rng.randf_range(0.45, 0.55)
+		var sinks: Array[float] = []
+		var shades: Array[Color] = []
+		var uvs: Array[Transform2D] = []
 		for part in [[z0, mid - 0.005], [mid + 0.005, z1]]:
 			var p: Array = part
 			var poly := PackedVector2Array([Vector2(-w / 2.0, p[0]), Vector2(w / 2.0, p[0]), Vector2(w / 2.0, p[1]), Vector2(-w / 2.0, p[1])])
@@ -1098,7 +1108,23 @@ func _stairs(height: float, length: float) -> void:
 			rng.randf()
 			var sink := rng.randf_range(0.0, 0.006)
 			var plank_top := top if i == steps - 1 else top - sink
-			prism(poly, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, top - 0.075, plank_top, BEVEL, _wood_shade(0.95), WOOD, _plank_uv((p[0] + p[1]) / 2.0, p[1] - p[0]), 0)
+			# (every random choice drawn in the same order in the lean far look too, so the parts after
+			# the treads, the stringers above all, come out exactly the same)
+			var shade := _wood_shade(0.95)
+			var uvx := _plank_uv((p[0] + p[1]) / 2.0, p[1] - p[0])
+			if far:
+				# (the lean far look: both planks drawn as one, below)
+				sinks.append(top - plank_top)
+				shades.append(shade)
+				uvs.append(uvx)
+				continue
+			prism(poly, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, top - 0.075, plank_top, BEVEL, shade, WOOD, uvx, 0)
+		if far:
+			# One tread the step's full depth, its top at the two planks' average (they differ by at
+			# most 6 mm), its shade theirs mixed, wearing the first plank's grain
+			var poly := PackedVector2Array([Vector2(-w / 2.0, z0), Vector2(w / 2.0, z0), Vector2(w / 2.0, z1), Vector2(-w / 2.0, z1)])
+			var tread_top := top - (sinks[0] + sinks[1]) / 2.0
+			prism(poly, Vector3.ZERO, Vector3.RIGHT, Vector3.BACK, Vector3.UP, top - 0.075, tread_top, BEVEL, shades[0].lerp(shades[1], 0.5), WOOD, uvs[0], 0)
 	# The header board: a plank the flight's full width, upright, right under the top tread, its
 	# outer face in the plane of the flight's top edge (the edge face of the floor or foundation it
 	# hangs from), so it looks fixed to that edge. HEADER_HEIGHT tall, HEADER_THICK thick.
@@ -1303,7 +1329,7 @@ func log_part(a: Vector3, b: Vector3, r: float, sides: int, wobble: float, color
 	var length := axis.length()
 	if length < 0.01:
 		return
-	if simple:
+	if simple and not far:
 		sides = maxi(5, sides - 3)
 	axis /= length
 	var side := axis.cross(Vector3.UP)
@@ -1361,8 +1387,12 @@ func log_part(a: Vector3, b: Vector3, r: float, sides: int, wobble: float, color
 
 ## A ring of rope round an axis (radius R, rope thickness 2 × tube)
 func rope_ring(centre: Vector3, axis: Vector3, R: float, tube: float, segments := 12, sides := 6) -> void:
-	if simple:
+	if simple and not far:
 		return
+	if far:
+		# (the lean far look: the same ring, in its place and thickness, with fewer segments)
+		segments = maxi(6, segments * 2 / 3)
+		sides = 4
 	# Thick hemp: the tube grown to ROPE_THICK (1.5× for thin ones), the ring widened to match so
 	# it still sits on the surface it's wrapped round
 	var thick := maxf(tube * 1.5, ROPE_THICK)

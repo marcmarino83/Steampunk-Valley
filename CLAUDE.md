@@ -61,6 +61,7 @@ If you think a run is worth it for a non-visual change, ask first in one line.
 
 - Never put new scripts or scenes in the project root. Only project.godot,
   icon.svg, DESIGN.md, CREDITS.md, CLAUDE.md and git/editor config live there.
+- Scripts have a soft limit of 450 lines (tests 800). New features go in their own scripts (a child node or a helper), not into an existing large one. When a change would take a script past the limit, or it's already past it, say so in the report and propose the split instead of adding to it; don't split without an OK. Splits are behaviour-identical, one script per commit, checked with the tests listed for it in DESIGN.md's Code structure.
 - Keep each script with its scene in a feature folder: player/, ui/,
   building/, world/, crafting/, tools/, iron_tier/. If nothing fits,
   make a sensible new folder and tell me.

@@ -6,6 +6,7 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "gable_wall_45"
+vertical_unit = 1.25
 display_name = "Tall 45° Gable Wall 2.5 m"
 starts_locked = true
 unlocked_by = "Craft"

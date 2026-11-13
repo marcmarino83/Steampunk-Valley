@@ -15,6 +15,8 @@ extends Node
 ## can't eat their fill is hungry for the day; HUNGRY_DAYS_TO_LEAVE hungry days in a row and they
 ## leave the settlement. Quest villagers never leave: hungry, they stop working instead (and make
 ## nothing) until they're fed. Visitors don't eat.
+##
+## plan_day runs the same steps on copies of the stores, for the Village screen's ledger.
 
 ## Sent with a message for the player ("Forager's Hut: chest full", "Ada Cobb has left...")
 signal notice(text: String)
@@ -31,15 +33,9 @@ var manager: SettlerManager
 ## The day's output from every working workplace with a worker, into its chest
 func dawn() -> void:
 	var notes: PackedStringArray = []
-	for plot in manager.plots.all_plots():
-		if not SettlerManager.is_workplace(plot) or not plot.working:
-			continue
-		var crew: Array = manager.workers(plot).filter(func(s): return not s.leaving)
-		if crew.is_empty():
-			continue
-		var made := output_today(plot, crew)
-		if made.is_empty():
-			continue
+	var outputs := outputs_today()
+	for plot in outputs:
+		var made: Dictionary = outputs[plot]
 		var town := manager.plots.town
 		var chest := chest_of(plot)
 		if chest == null and not town.is_open():
@@ -62,6 +58,60 @@ func dawn() -> void:
 			notes.append("%s: %s (%s lost)" % [plot.plot_name, full, ", ".join(lost)])
 	for note in notes:
 		notice.emit(note)
+
+
+## What every working workplace with a worker makes at dawn, with its workers as they are now:
+## {plot: {item: amount}} (places that would make nothing are left out)
+func outputs_today() -> Dictionary:
+	var out := {}
+	for plot in manager.plots.all_plots():
+		if not SettlerManager.is_workplace(plot) or not plot.working:
+			continue
+		var crew: Array = manager.workers(plot).filter(func(s): return not s.leaving)
+		if crew.is_empty():
+			continue
+		var made := output_today(plot, crew)
+		if not made.is_empty():
+			out[plot] = made
+	return out
+
+
+## The next day as planned (the Village screen's Resources tab): what dawn makes and what dusk's
+## meals eat, worked out by the same steps as dawn() and dusk() on copies of the stores, so nothing
+## changes. Taken from the settlers' and the plots' state now (workers, hunger, slider settings).
+##   made:   {plot: {item: amount}}, as outputs_today()
+##   eaten:  {food: amount} eaten at dusk
+##   eaters: {food: how many settlers eat some of it}
+##   short:  meals' worth of food missing (0: everyone eats their fill)
+## The player's own takings aren't in it (no one can plan them); output lost for want of room
+## still counts as made.
+func plan_day() -> Dictionary:
+	var made := outputs_today()
+	var stores := _stores(true)
+	var town: Dictionary = stores["town"]
+	var room: int = stores["room"]
+	# The output goes in as dawn puts it: into town storage while it has room, then the hut's chest
+	for plot in made:
+		var chest := chest_of(plot)
+		var own: Variant = stores["chests"].get(chest) if chest else null
+		for item in made[plot]:
+			var amount := int(made[plot][item])
+			if room > 0 and (town.has(item) or town.size() < room):
+				town[item] = int(town.get(item, 0)) + amount
+			elif own != null and (own.has(item) or own.size() < _slots_of(chest)):
+				own[item] = int(own.get(item, 0)) + amount
+	var eaten := {}
+	var eaters := {}
+	var short := 0
+	for settler in manager.all_settlers():
+		if settler.leaving:
+			continue
+		var ate := {}
+		short += MEAL - _feed(settler.global_position, stores, ate)
+		for food in ate:
+			eaten[food] = int(eaten.get(food, 0)) + int(ate[food])
+			eaters[food] = int(eaters.get(food, 0)) + 1
+	return {"made": made, "eaten": eaten, "eaters": eaters, "short": short}
 
 
 ## What a workplace makes today with these workers: its full day's output, halved for each
@@ -96,10 +146,11 @@ func output_today(plot: Plot, crew: Array) -> Dictionary:
 func dusk() -> void:
 	var hungry: PackedStringArray = []
 	var stopped: PackedStringArray = []
+	var stores := _stores(false)
 	for settler in manager.all_settlers():
 		if settler.leaving:
 			continue
-		var eaten := _feed(settler.global_position)
+		var eaten := _feed(settler.global_position, stores, {})
 		if eaten >= MEAL:
 			settler.hungry_days = 0
 			continue
@@ -112,45 +163,85 @@ func dusk() -> void:
 			manager.send_away(settler)
 		else:
 			hungry.append(settler.settler_name)
+	if stores["town_touched"]:
+		manager.plots.town.changed.emit()
+	for chest in stores["touched"]:
+		if is_instance_valid(chest):
+			chest.changed.emit()
 	if not hungry.is_empty():
 		notice.emit("No food for %s tonight: they're hungry and will work at half pace." % ", ".join(hungry))
 	if not stopped.is_empty():
 		notice.emit("No food for %s tonight: \"We can't work hungry.\" They won't work until they're fed." % ", ".join(stopped))
 
 
-# Eats up to a meal from town storage first, then the chests, nearest working plot's first;
-# returns how much was eaten
-func _feed(spot: Vector3) -> int:
-	var eaten := 0
+# The stores meals come from, as plain dictionaries: the town storage pool, its room (slots), and
+# every storage chest's contents (chest -> its contents). Dusk works on the real ones (the very
+# dictionaries the storage holds); plan_day on copies, by the same steps. "town_touched" and
+# "touched" (chest -> true) note what was eaten from, so dusk can say they changed.
+func _stores(copies: bool) -> Dictionary:
 	var town := manager.plots.town
+	var chests := {}
+	for chest in all_chests():
+		chests[chest] = chest.contents.duplicate() if copies else chest.contents
+	return {"town": town.contents.duplicate() if copies else town.contents, "room": town.capacity(),
+		"chests": chests, "town_touched": false, "touched": {}}
+
+
+# Eats up to a meal from town storage first, then the chests, nearest working plot's first;
+# returns how much was eaten, adding each food to `ate` ({food: amount})
+func _feed(spot: Vector3, stores: Dictionary, ate: Dictionary) -> int:
+	var eaten := 0
 	for food in FOODS:
 		if eaten < MEAL:
-			eaten += town.take(food, MEAL - eaten)
-	if eaten > 0:
-		town.changed.emit()
+			var got := _take(stores["town"], food, MEAL - eaten)
+			if got > 0:
+				eaten += got
+				ate[food] = int(ate.get(food, 0)) + got
+				stores["town_touched"] = true
 	for i in 8:
 		if eaten >= MEAL:
 			break
-		var chest := _food_chest(spot)
+		var chest := _food_chest(spot, stores["chests"])
 		if chest == null:
 			break
 		for food in FOODS:
 			if eaten < MEAL:
-				eaten += chest.take(food, MEAL - eaten)
-		chest.changed.emit()
+				var got := _take(stores["chests"][chest], food, MEAL - eaten)
+				eaten += got
+				if got > 0:
+					ate[food] = int(ate.get(food, 0)) + got
+		stores["touched"][chest] = true
 	return eaten
 
 
+# Takes up to `amount` of an item out of a store's contents (as a chest's take does); how many
+static func _take(contents: Dictionary, item: String, amount: int) -> int:
+	var have: int = contents.get(item, 0)
+	var taken := mini(have, amount)
+	if taken <= 0:
+		return 0
+	if taken == have:
+		contents.erase(item)
+	else:
+		contents[item] = have - taken
+	return taken
+
+
+# How many kinds of item a storage chest holds (its SLOTS)
+static func _slots_of(chest: Node) -> int:
+	return int(chest.get_script().get_script_constant_map().get("SLOTS", 0)) if chest.get_script() else 0
+
+
 # The chest to eat from: the nearest storage chest of a working plot that holds food, else the
-# nearest storage chest anywhere that does
-func _food_chest(spot: Vector3) -> Node3D:
+# nearest storage chest anywhere that does (`chests`: chest -> its contents, see _stores)
+func _food_chest(spot: Vector3, chests: Dictionary) -> Node3D:
 	var best: Node3D = null
 	var best_distance := INF
 	for plot in manager.plots.all_plots():
 		if not plot.working:
 			continue
 		for item in manager.plots.owned_items(plot):
-			if manager.plots.name_of(item) == CHEST_NAME and _food_in(item) > 0:
+			if chests.has(item) and manager.plots.name_of(item) == CHEST_NAME and _food_in_contents(chests[item]) > 0:
 				var distance: float = item.global_position.distance_to(spot)
 				if distance < best_distance:
 					best = item
@@ -158,7 +249,7 @@ func _food_chest(spot: Vector3) -> Node3D:
 	if best:
 		return best
 	for chest in settlement_chests():
-		if _food_in(chest) > 0:
+		if chests.has(chest) and _food_in_contents(chests[chest]) > 0:
 			var distance: float = chest.global_position.distance_to(spot)
 			if distance < best_distance:
 				best = chest
@@ -186,9 +277,13 @@ func settlement_chests() -> Array:
 
 
 func _food_in(chest: Node) -> int:
+	return _food_in_contents(chest.contents)
+
+
+static func _food_in_contents(contents: Dictionary) -> int:
 	var total := 0
 	for food in FOODS:
-		total += int(chest.contents.get(food, 0))
+		total += int(contents.get(food, 0))
 	return total
 
 

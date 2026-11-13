@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/resources_tab_shots.gd" id="1_resshot"]
+
+[node name="ResourcesTabShots" type="Node"]
+script = ExtResource("1_resshot")

@@ -91,6 +91,8 @@ const ALL_BEAMS := ["beam_2", "beam_4", "beam_diag_26", "beam_diag_45", "beam_di
 ##   beam_mid    a beam's crossing point: the middle of its end-to-end line (two diagonals spanning a
 ##               frame, one each way, cross there in an X)
 ##   edge_spot   a floor's or foundation's corners and the 1 m spots along its edges
+##   floor_corner   a floor's or foundation's top corners, as a new piece's own points (a floor on
+##               posts: a corner on a post top, at any wheel turn, see ValheimPlacer._point_pair_fits)
 ##   top_spot    a wall top's ends and the 1 m spots along it
 ##   chimney_foot   a chimney section's or top's bottom middle
 ##   chimney_spot   the top middle of the fireplace's chimney, or of a chimney section
@@ -101,7 +103,18 @@ const POINT_RULES := {
 	"beam_end": ["post_top", "top_spot", "edge_spot", "beam_end", "post_foot"],
 	"beam_mid": ["beam_mid"],
 	"chimney_foot": ["chimney_spot"],
+	"floor_corner": ["post_top"],
 }
+## Joins up under a piece: a new piece's edge of this type along a placed edge of these types puts it
+## under the placed piece (a wall's top, an inverse triangle's flat top, fitted up under a floor's
+## edge). Such a fit isn't offered while the crosshair is on that placed piece's top face: aimed at a
+## floor's top, a wall goes on top of it.
+const UNDER_JOINS := {"wall_top": ["floor_edge"], "flat_top": ["floor_edge"]}
+## Joins that need support when slid: a join by one of these edge types, slid up or down along the
+## edge from level (a wall's end on a neighbour's end, a unit higher or lower), counts only if one of
+## the listed own edges also rests on a placed edge it may meet (its foot on a floor edge, its top
+## under one). A level join needs nothing (walls and fences end to end, on bare ground too).
+const SLID_NEEDS := {"wall_end": ["wall_base", "wall_top"]}
 ## A beam's line (through its two ends) lies along these edges, its whole length (a beam on a wall
 ## top or floor edge, a diagonal along a triangle's slope)
 const LINE_RULES := ["wall_top", "floor_edge", "slope"]
@@ -150,11 +163,9 @@ const RULES := {
 }
 ## Points this close are one point
 const EXACT := 0.001
-## The building grid: steps along level edges (and along a sloped edge's level run), and up upright
-## edges (Standard and Tall)
+## The building grid: steps along level edges (and along a sloped edge's level run); up upright edges
+## a piece steps by its own family's unit (PieceBuildable.vertical_unit: 1 m Standard, 1.25 m Tall)
 const GRID_STEP := 1.0
-const STANDARD_UNIT := 1.0
-const TALL_UNIT := 1.25
 ## Edges are on the grid when their length (a sloped edge's level run) is a whole number of these
 ## (the triangles' long and short sides aren't, and take only pieces of their own length)
 const GRID_FINE := 0.25
@@ -203,6 +214,10 @@ static func points_of(shape: String, def: Dictionary) -> Array:
 		# same frame, one each way, cross there in a true X)
 		if ends.size() == 2:
 			found.append({"p": ((ends[0] as Vector3) + (ends[1] as Vector3)) / 2.0, "type": "beam_mid"})
+		# (a floor's or foundation's top corners, for a floor on posts)
+		if shape in FLOORS:
+			for c in SnapCorners.of(shape, def):
+				found.append({"p": c, "type": "floor_corner"})
 		_point_cache[shape] = found
 	return _point_cache[shape]
 
@@ -276,12 +291,6 @@ static func kind(shape: String) -> String:
 	if shape in RAILINGS:
 		return "rail"
 	return ""
-
-
-## The vertical grid step for a piece: the Tall family's unit for "Tall …" pieces, else the
-## Standard one
-static func vertical_step(display_name: String) -> float:
-	return TALL_UNIT if display_name.begins_with("Tall") else STANDARD_UNIT
 
 
 ## A shape's typed edges in its own space: [{"a", "b", "type", "out"}]
@@ -496,7 +505,7 @@ static func _socket_y(def: Dictionary, types: Array) -> float:
 
 ## Every way a new piece (`shape`) fits the placed edges `targets` (world edges, see in_world):
 ## [{"where": Transform3D, "piece", "own" (its edge), "at" (the placed edge)}]. `step_up` is its
-## vertical grid step (see vertical_step).
+## vertical grid step (its PieceBuildable.vertical_unit).
 static func placements(shape: String, def: Dictionary, step_up: float, targets: Array) -> Array:
 	var found := []
 	var own := of(shape, def)

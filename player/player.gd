@@ -102,8 +102,12 @@ const PAUSE_MENU_SCENE = preload("res://ui/pause_menu.tscn")
 @onready var build_menu: Control = $HUD/BuildMenu
 @onready var action_bar: ActionBar = $HUD/ActionBar
 
-## Everything you own, like {"Scrap": 3, "Coal": 1}, including tools sitting on the action bar
-var inventory := {}
+## What you own (see PlayerInventory, which keeps it): the same dictionary, for whatever reads it
+var inventory: Dictionary:
+	get:
+		return _inventory.items
+# Everything you own, and adding, taking, room and paying (a child node, see PlayerInventory)
+var _inventory := PlayerInventory.new()
 ## What's in your hand, or an empty string
 var held_item := ""
 ## 100 = full, 0 = starving
@@ -211,6 +215,14 @@ func _ready() -> void:
 	interact_ray.add_exception(self)
 	# So things like campfires can check what you're carrying
 	add_to_group("player")
+	# What you own: whenever it changes, the action bar, backpack, crafting tab and build menu are
+	# brought up to date
+	_inventory.name = "Inventory"
+	_inventory.action_bar = action_bar
+	_inventory.inventory_screen = inventory_screen
+	_inventory.world = get_parent()
+	add_child(_inventory)
+	_inventory.changed.connect(_refresh_inventory_display)
 	# Debug builds: the lag spike logger (it writes nothing until it's turned on in Settings)
 	if OS.is_debug_build():
 		get_parent().add_child.call_deferred(SpikeLog.new())
@@ -673,7 +685,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			_village_screen.cycle_tab(-1)
 		elif key and event.keycode == KEY_R:
 			_village_screen.cycle_tab(1)
-		elif (key and event.keycode in [KEY_E, KEY_V]) or event.is_action_pressed("ui_cancel"):
+		elif (key and event.keycode == KEY_E) or event.is_action_pressed("ui_cancel"):
+			# (a resource's detail panel goes back to the ledger first)
+			get_viewport().set_input_as_handled()
+			if not _village_screen.back():
+				_village_screen.close()
+		elif key and event.keycode == KEY_V:
 			get_viewport().set_input_as_handled()
 			_village_screen.close()
 		return
@@ -1027,31 +1044,18 @@ func _announce(text: String) -> void:
 		flash(text, 6.0)
 
 
+# (the inventory's own functions, kept here for whatever calls them on the player: see
+# PlayerInventory)
 func add_item(item: String, amount: int) -> void:
-	inventory[item] = inventory.get(item, 0) + amount
-	_refresh_inventory_display()
+	_inventory.add(item, amount)
 
 
-## True if this item would fit: you already carry some (stacks have no limit), or the backpack
-## has a free slot
 func has_room_for(item: String) -> bool:
-	return inventory.has(item) or action_bar.has_item(item) or _backpack_contents().size() < inventory_screen.slot_count
+	return _inventory.has_room_for(item)
 
 
-## Puts these items in your pockets; any that won't fit (backpack full) are left in a bundle on
-## the ground at `spot`, for E to pick up later. Returns what was left.
 func give_or_drop(items: Dictionary, spot: Vector3) -> Dictionary:
-	var left := {}
-	for item in items:
-		if has_room_for(item):
-			add_item(item, items[item])
-		else:
-			left[item] = items[item]
-	if not left.is_empty():
-		var bundle := ItemBundle.create(left)
-		get_parent().add_child(bundle)
-		bundle.global_position = spot
-	return left
+	return _inventory.give_or_drop(items, spot)
 
 
 # The hammer is out and nothing else is in the way (no menu, page or sleep), so demolishing works
@@ -1144,25 +1148,14 @@ func sleep(where: Vector3) -> void:
 		SaveGame.autosave())
 
 
-## Pays a cost from your pockets (building, filling a ghost, crafting) and returns what was paid,
-## which is what comes back if it's taken down again: nothing at all with the freebuild cheat on
+## (see PlayerInventory.pay)
 func pay(cost: Dictionary) -> Dictionary:
-	if DevCheats.freebuild:
-		return {}
-	for item in cost:
-		remove_item(item, cost[item])
-	return cost
+	return _inventory.pay(cost)
 
 
-## Takes items out of your pockets. Returns false (and takes nothing) if you don't have enough.
+## (see PlayerInventory.remove)
 func remove_item(item: String, amount: int) -> bool:
-	if inventory.get(item, 0) < amount:
-		return false
-	inventory[item] -= amount
-	if inventory[item] == 0:
-		inventory.erase(item)
-	_refresh_inventory_display()
-	return true
+	return _inventory.remove(item, amount)
 
 
 ## The thing in front of you (within reach) that E would use, or null
@@ -1693,9 +1686,6 @@ func _refresh_inventory_now() -> void:
 		_show_open_container()
 
 
-# Everything you own, minus whatever's on the action bar
+# Everything you own, minus whatever's on the action bar (see PlayerInventory)
 func _backpack_contents() -> Dictionary:
-	var in_backpack := inventory.duplicate()
-	for item in action_bar.items:
-		in_backpack.erase(item)
-	return in_backpack
+	return _inventory.backpack_contents()

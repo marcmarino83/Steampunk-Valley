@@ -6,6 +6,7 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "ladder_tall"
+vertical_unit = 1.25
 display_name = "Tall Ladder 2.5 m"
 starts_locked = true
 unlocked_by = "Craft"

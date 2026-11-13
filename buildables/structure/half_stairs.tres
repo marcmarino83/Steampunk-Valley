@@ -6,6 +6,7 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "half_stairs"
+keeps_turn = true
 display_name = "Half Stairs"
 starts_locked = true
 unlocked_by = "Craft"

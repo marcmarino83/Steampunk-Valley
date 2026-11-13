@@ -290,7 +290,7 @@ func _edge_story(buildable: PieceBuildable, was: Transform3D) -> String:
 		var again: Dictionary = pp._point_fit(cam.global_position, (cam_hit["position"] as Vector3) + (-cam.global_basis.z) * 0.1 if not cam_hit.is_empty() else cam.global_position - cam.global_basis.z * ValheimPlacer.REACH, cam_hit["collider"] if not cam_hit.is_empty() and cam_hit["collider"] is BuildPiece else null, cam_hit["position"] if not cam_hit.is_empty() else Vector3.INF)
 		did += " (asked again: camera %s, hit %s on %s; fit %s)" % [_local(cam.global_position).snapped(Vector3.ONE * 0.01), _local(cam_hit["position"]).snapped(Vector3.ONE * 0.01) if not cam_hit.is_empty() else "-", _name(cam_hit["collider"]) if not cam_hit.is_empty() and cam_hit["collider"] is BuildPiece else "not a piece", _local((again["where"] as Transform3D).origin).snapped(Vector3.ONE * 0.01) if not again.is_empty() else "none"]
 		return "%s; right fit: %s; chosen: %s; placer's top fits: %s; where it was: %s" % [did, keys.call(was), keys.call(pp._where) if not pp._pair.is_empty() else "-", " ".join(ranking), "; ".join(touches.slice(0, 3)) if not touches.is_empty() else "touching no typed point, corner or edge"]
-	var step: float = SnapEdges.vertical_step(buildable.display_name)
+	var step: float = buildable.vertical_unit
 	for c in SnapEdges.placements(buildable.shape, def, step, edges):
 		var w: Transform3D = c["where"]
 		if w.origin.distance_to(was.origin) <= EXACT and _turn_apart(w.basis, was.basis, symmetry) <= EXACT_TURN:

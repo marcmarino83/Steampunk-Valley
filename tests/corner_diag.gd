@@ -88,7 +88,7 @@ func _scan(home: Vector3) -> Array:
 				continue
 			for shape in WALL_TYPES:
 				var def := registry.shape_of(shape)
-				var step := SnapEdges.vertical_step(load(_path(shape)).display_name)
+				var step: float = (load(_path(shape)) as PieceBuildable).vertical_unit
 				for c in SnapEdges.placements(shape, def, step, [e]):
 					if c["own"]["type"] != "wall_base":
 						continue

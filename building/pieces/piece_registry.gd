@@ -25,6 +25,20 @@ static var hybrid_walls := true
 ## The same for the floors and foundations alone (WallBaker.FLOORS): off, they get the three looks
 ## again (for comparing, tests/floor_pass.gd)
 static var hybrid_floors := true
+## Stairs, pillars, poles and beams (the look pass, tests/structure_pass.gd), none baked:
+##   LEAN (stairs, wood and stone pillars): the close-up look within BuildPiece.lean_range, beyond it
+##   a lean far look (PieceDetail.far: the same parts in the same places, plain-edged, rope in fewer
+##   segments, each stair tread one plank) in the plain box's place; the shadow from the far look at
+##   every distance (BuildPiece.far_shadows), no middle look, no plain box.
+##   SINGLE (poles and beams: one log, nothing finer to drop): the close-up look at every distance,
+##   in the plain box's place, casting its own shadow; no switch at all.
+## Off: they get the three looks again (for comparing).
+static var lean_structure := true
+const LEAN := ["stairs", "half_stairs", "stairs_tall", "half_stairs_tall",
+	"pillar_wood", "pillar_wood_2m", "pillar_wood_half", "pillar_wood_half_tall",
+	"pillar_stone", "pillar_stone_2m", "pillar_stone_half", "pillar_stone_half_tall"]
+const SINGLE := ["pole_1", "pole_2", "pole_4", "beam_2", "beam_4",
+	"beam_diag_26", "beam_diag_45", "beam_diag_26_4", "beam_diag_45_4"]
 
 ## Where pieces are added (the world). Set by the build placer.
 var world: Node
@@ -229,6 +243,10 @@ func mid_mesh(shape: String, piece_id: int) -> Dictionary:
 		if WallBaker.is_faceted(shape):
 			hybrid["far_mesh"] = baker.far_mesh(shape, variant)
 		return hybrid
+	if lean_structure and shape in SINGLE:
+		return {"single": true}
+	if lean_structure and shape in LEAN:
+		return {"hybrid": true, "lean": true, "far": detail_material(), "far_mesh": lean_mesh(shape, piece_id)}
 	var variant := posmod(piece_id, DETAIL_VARIANTS)
 	var key := "%s#%d#mid" % [shape, variant]
 	if not _details.has(key):
@@ -239,6 +257,17 @@ func mid_mesh(shape: String, piece_id: int) -> Dictionary:
 			mid["shadow_from_mid"] = _triangles(mid["mesh"]) < _triangles(shape_of(shape)["mesh"])
 		_details[key] = mid
 	return _details[key]
+
+
+## The same variant's lean far look (see LEAN, PieceDetail.far), made once and shared
+func lean_mesh(shape: String, piece_id: int) -> Mesh:
+	var variant := posmod(piece_id, DETAIL_VARIANTS)
+	var key := "%s#%d#far" % [shape, variant]
+	if not _details.has(key):
+		var timing := SpikeLog.begin()
+		_details[key] = PieceDetail.build(shape, hash(shape) + variant * 7919, false, "", true)
+		SpikeLog.end("lean far look made (first use)", timing)
+	return _details[key].get("mesh")
 
 
 # How many triangles a mesh has

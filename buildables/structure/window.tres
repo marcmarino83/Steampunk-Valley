@@ -7,6 +7,7 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "window"
+vertical_unit = 1.25
 display_name = "Tall Window Wall"
 starts_locked = true
 unlocked_by = "Craft"

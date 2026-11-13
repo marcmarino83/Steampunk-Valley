@@ -4,8 +4,9 @@
 #     powershell -File tests/run_suite.ps1 full      # before a commit: everything, in chunks
 #
 # Full: the snap regression's parts (snap_regression.gd PARTS), remove-and-replace on every template,
-# and the aim check on each template as its own chunk (the templates are read from the folder, so a new
-# one gets its own chunk), so no chunk reaches a time budget and nothing is skipped.
+# the aim check on each template as its own chunk (the templates are read from the folder, so a new
+# one gets its own chunk), and the new-game audit (a fresh world's T1 opening, new_game_audit.gd), so
+# no chunk reaches a time budget and nothing is skipped.
 #
 # Each chunk runs under a hard limit (180 s) and --quit-after; past it, only that chunk's own process
 # is killed (never an editor or another Godot), and the chunk counts as failed and skipped. Each chunk
@@ -36,6 +37,8 @@ if ($Suite -eq "quick") {
   foreach ($t in Get-ChildItem "buildables/templates" -Filter *.json | Sort-Object Name) {
     $chunks += , @("aim check ($($t.BaseName))", "res://tests/aim_check.tscn", @($t.BaseName), "AIM")
   }
+  # A brand-new game's T1 opening, start to Village Center (tests/new_game_audit.gd)
+  $chunks += , @("new-game audit", "res://tests/new_game_audit.tscn", @(), "AUDIT")
 }
 
 "== SUITE: $Suite ($($chunks.Count) chunk$(if ($chunks.Count -ne 1) {'s'}), each limited to $Limit s)"
@@ -67,7 +70,7 @@ foreach ($c in $chunks) {
   $summary = ($out | Where-Object { $_ -match "SUMMARY" -and $_ -match [regex]::Escape($tag.Split(' ')[0]) } | Select-Object -Last 1)
   $skips = @($out | Where-Object { $_ -cmatch "^(SNAPTEST|AIM) SKIPPED" })
   $scriptErrors = @($out | Where-Object { $_ -match "SCRIPT ERROR|Parse Error" })
-  $fails = @($out | Where-Object { $_ -cmatch "^(SNAPTEST FAIL|RR FAIL|AIM FAIL)" })
+  $fails = @($out | Where-Object { $_ -cmatch "^(SNAPTEST FAIL|RR FAIL|AIM FAIL|AUDIT FAIL)" })
   $ok = (-not $killed) -and ($p.ExitCode -eq 0) -and $summary -and $skips.Count -eq 0 -and $scriptErrors.Count -eq 0
   $note = if ($killed) { "KILLED at the $Limit s limit (only its own process); the rest of it was SKIPPED" }
           elseif (-not $summary) { "no summary line (it didn't finish)" }

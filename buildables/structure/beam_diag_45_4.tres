@@ -6,6 +6,7 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "beam_diag_45_4"
+keeps_turn = true
 display_name = "Long Diagonal Beam 45°"
 starts_locked = true
 unlocked_by = "Craft"

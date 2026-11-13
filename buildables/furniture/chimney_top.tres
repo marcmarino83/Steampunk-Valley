@@ -8,6 +8,7 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "chimney_top"
+keeps_turn = true
 model_scene = ExtResource("4_model")
 display_name = "Chimney Top"
 starts_locked = true

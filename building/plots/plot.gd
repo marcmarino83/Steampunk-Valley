@@ -200,6 +200,29 @@ func shares() -> Dictionary:
 	return production
 
 
+## Sets one item's slider percentage; the others share out what's left in their current
+## proportions (evenly if they were all at 0), so the total stays 100. This is the one value the
+## plot panel's sliders and the Village screen's Resources tab both change (never a copy); dawn reads
+## it, so a change takes effect at the next dawn.
+func set_share(item: String, percent: int) -> void:
+	var current := shares()
+	if not current.has(item):
+		return
+	var wanted := clampi(percent, 0, 100)
+	var others: Array = current.keys().filter(func(k): return k != item)
+	var left := 100 - wanted
+	var weights := {}
+	var weight_sum := 0
+	for other in others:
+		weight_sum += int(current[other])
+	for other in others:
+		weights[other] = int(current[other]) if weight_sum > 0 else 1
+	var parts := PlotType.split(left, weights) if left > 0 else {}
+	current[item] = wanted
+	for other in others:
+		current[other] = int(parts.get(other, 0))
+
+
 ## What it makes in a day at full strength (item -> amount)
 func daily_output() -> Dictionary:
 	return plot_type.output_for(shares() if plot_type.split_output_total > 0 else {})

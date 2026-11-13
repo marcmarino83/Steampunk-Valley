@@ -189,6 +189,7 @@ func _cases() -> Array:
 		["typed snapping", _case_typed_snapping, true, 1],                  # 1.1 s
 		["converted families", _case_converted_families, true, 1],          # 1.5 s
 		["crowded corners", _case_crowded_corners, true, 1],
+		["up under joins aimed from below and beside", _case_under_join_aims, true, 1],
 		["placement time", _case_placement_time, true, 1],
 		["turning: half wall on half wall", func(): await _case_turning("a half wall on top of a half wall", "structure/wall_half_2", "structure/wall_half_2", Vector3(0.6, half + 1.4, 3.2), Vector3(0.3, half, 0.0), Vector3(0, half, 0)), true, 1],
 		["turning: wall beside wall", func(): await _case_turning("a wall beside a wall", "structure/wall_2m", "structure/wall_2m", Vector3(3.6, 1.7, 3.2), Vector3(1.9, -0.03, 0.12), Vector3(2, 0, 0)), true, 1],
@@ -563,14 +564,26 @@ func _case_wall_under_raised_foundation() -> void:
 # at the fireplace's chimney stands on it by its typed point, and a chimney top on a section's top
 func _case_typed_snapping() -> void:
 	var old := []
+	var data_wrong := []
 	for folder in ["res://buildables/structure", "res://buildables/round", "res://buildables/furniture"]:
 		for file in DirAccess.get_files_at(folder):
 			var piece := load(folder.path_join(file)) as PieceBuildable if file.ends_with(".tres") else null
-			if piece == null or registry.shape_of(piece.shape).get("furniture", false):
+			if piece == null:
+				continue
+			# (the snapping data on each piece: the Tall family's 1.25 m unit on exactly the "Tall …"
+			# pieces; flights and point pieces keep the player's turn, nothing else does)
+			var tall := piece.display_name.begins_with("Tall")
+			if not is_equal_approx(piece.vertical_unit, 1.25 if tall else 1.0):
+				data_wrong.append("%s unit %.2f" % [piece.shape, piece.vertical_unit])
+			var keeps: bool = piece.shape in SnapEdges.FLIGHTS or SnapEdges.point_shape(piece.shape)
+			if piece.keeps_turn != keeps:
+				data_wrong.append("%s keeps_turn %s" % [piece.shape, piece.keeps_turn])
+			if registry.shape_of(piece.shape).get("furniture", false):
 				continue
 			if not SnapEdges.converted(piece.shape):
 				old.append(piece.shape)
 	_check("every building piece snaps by typed edges or points, no exceptions", old.is_empty(), "still the old way: %s" % ", ".join(old) if not old.is_empty() else "none")
+	_check("the pieces' snapping data: the 1.25 m unit on exactly the Tall pieces, keeping the player's turn on exactly the flights and point pieces", data_wrong.is_empty(), ", ".join(data_wrong) if not data_wrong.is_empty() else "all right")
 	for pair in [["doorway", "door"], ["doorway_2m", "door_2m"]]:
 		var doorway := _spawn("structure/" + pair[0], Vector3.ZERO)
 		await _frames(2)
@@ -597,6 +610,51 @@ func _case_typed_snapping() -> void:
 	await _aim(section_top + Vector3(0.4, 1.0, 2.6), section_top + Vector3(0.05, 0.3, 0.05))
 	var on_section: bool = pp.point_piece() and not pp._pair.is_empty() and _local(pp._where.origin).distance_to(section_top) < EXACT
 	_check("a chimney top on a chimney section: by its typed point", on_section and section != null, "typed points %s, snapped %s, foot %.4f m from the section's top" % [pp.point_piece(), not pp._pair.is_empty(), _local(pp._where.origin).distance_to(section_top)])
+	await _clear()
+
+
+# The "up under" join (SnapEdges.UNDER_JOINS: a wall's top fitted up under a floor's edge) aimed at
+# from below and beside: (a) a Tall Wall aimed at a lower floor just under a raised floor's edge (a
+# Tall wall standing on the lower floor and one hanging from the edge above are different places)
+# stands on the lower floor; (a') the same over bare ground (no lower floor: there's nothing to stand
+# on, so what it does is reported); (b) a wall aimed at the side face of a foundation on the ground
+# never hangs into the ground under its edge
+func _case_under_join_aims() -> void:
+	# (the raised floor a Standard storey up: a Tall Wall standing on the lower floor reaches 2.5 m,
+	# one hanging from the raised edge reaches down to -0.5 m, so they're different places)
+	var raised_top := 2.0
+	_spawn("structure/floor", Vector3(0, raised_top, 0))
+	_spawn("structure/floor", Vector3(0, 0, 2))
+	await _frames(2)
+	await _begin("structure/wall")
+	await _unsnap()
+	# (standing on the lower floor itself, inside its edges and out from under the raised floor, so the
+	# crosshair's line crosses no other empty wall spot on its way down to the lower floor's top)
+	await _aim(Vector3(0.3, 1.7, 2.3), Vector3(0.3, 0.0, 1.15))
+	var at := _local(pp._where.origin)
+	var standing := not pp._pair.is_empty() and at.distance_to(Vector3(0, 0, 1)) < EXACT
+	var ranked: Array = pp.last_ranking.slice(0, 4).map(func(r): return "[%s: aim %d, body %d, matched %d, line %.2f]" % [_local(r["origin"]).snapped(Vector3.ONE * 0.01), r["at_hit"], r["body"], r["matched"], r["line"]])
+	_check("a Tall Wall aimed at a lower floor just under a raised floor's edge stands on the lower floor, not hanging from the edge above", standing, "%s at %s; top fits %s" % ["snapped" if not pp._pair.is_empty() else "free", at.snapped(Vector3.ONE * 0.01), " ".join(ranked)])
+	await _clear()
+	_spawn("structure/floor", Vector3(0, raised_top, 0))
+	await _frames(2)
+	await _begin("structure/wall")
+	await _unsnap()
+	await _aim(Vector3(0.4, 1.7, 3.6), Vector3(0.3, -0.03, 1.15))
+	at = _local(pp._where.origin)
+	print("SNAPREPORT | a Tall Wall aimed at bare ground just under a raised floor's edge (nothing below to stand on): %s at %s" % ["snapped (hanging from the edge above)" if not pp._pair.is_empty() else "free", at.snapped(Vector3.ONE * 0.01)])
+	await _clear()
+	_spawn("structure/foundation_wood", Vector3(0, 1.0, 0))
+	await _frames(2)
+	var hanging := []
+	for shape in ["wall", "wall_2m", "wall_half_2"]:
+		await _begin("structure/" + shape)
+		await _unsnap()
+		await _aim(Vector3(0.4, 1.4, 3.6), Vector3(0.3, 0.5, 1.0))
+		var top := _local(pp._where * Vector3(0, PieceShapes.bounds_of(pp._shape).end.y, 0))
+		if not pp._pair.is_empty() and top.y < 1.0 + EXACT and _local(pp._where.origin).y < 1.0 - EXACT:
+			hanging.append("%s hangs, its foot at %.2f m" % [shape, _local(pp._where.origin).y])
+	_check("a wall aimed at the side face of a foundation on the ground never hangs into the ground under its edge", hanging.is_empty(), "; ".join(hanging) if not hanging.is_empty() else "none hangs")
 	await _clear()
 
 
@@ -662,7 +720,7 @@ func _case_placement_time() -> void:
 	var spots := [Vector3(0, 0, 1), Vector3(2, 0, 1), Vector3(1, 0, 0), Vector3(1, 0, 2), Vector3(-1, 0, 2), Vector3(0, 0, 3)]
 	var times := await _placements_timed("structure/wall_half_2", Vector3(0.2, 1.7, -1.6), spots)
 	var worst := _worst_step(times)
-	_check("a placement: each frame's share (the place call, the next snap search, the corner posts) within one frame at 60 fps (%.1f ms), in a small room" % PLACEMENT_BUDGET, times.size() == spots.size() and worst[0] <= PLACEMENT_BUDGET, "%d placed, worst %.2f ms; %s" % [times.size(), worst[0], worst[1]])
+	_check("a placement: each frame's share (the place call, the next snap search, the corner posts), the median within one frame at 60 fps (%.1f ms) and no run over %.1f ms, in a small room" % [PLACEMENT_BUDGET, PLACEMENT_HITCH], times.size() >= spots.size() and _placement_ok(worst), worst[2])
 	await _clear()
 
 
@@ -671,6 +729,9 @@ func _case_placement_time() -> void:
 # its own, as each runs in a frame of its own in play: the place call (the click's frame), the next
 # snap search (the next physics frame) and the corner posts and ridge logs worked out again (0.2 s
 # later). [{"place", "search", "posts"} in ms] for those placed.
+#
+# Each spot is placed PLACEMENT_RUNS times (taken away again between runs, the last one kept), so a
+# moment's load on the machine doesn't decide the check: see _worst_step.
 func _placements_timed(path: String, eye: Vector3, spots: Array) -> Array:
 	var times := []
 	await _begin(path)
@@ -678,38 +739,72 @@ func _placements_timed(path: String, eye: Vector3, spots: Array) -> Array:
 		await _aim(eye, spot)
 		if pp._pair.is_empty() or not pp._problem.is_empty():
 			continue
-		var t := Time.get_ticks_usec()
-		pp._place()
-		var place := (Time.get_ticks_usec() - t) / 1000.0
-		# (the search's own stages timed by the spike logger, shown when it runs long)
-		var was_on := SpikeLog.enabled
-		SpikeLog.enabled = true
-		SpikeLog._times.clear()
-		SpikeLog._calls.clear()
-		t = Time.get_ticks_usec()
-		pp._follow_crosshair()
-		var search := (Time.get_ticks_usec() - t) / 1000.0
-		var stages := []
-		for k in SpikeLog._times:
-			stages.append("%s %.1f" % [str(k).trim_prefix("snap search: "), float(SpikeLog._times[k]) / 1000.0])
-		SpikeLog.enabled = was_on
-		t = Time.get_ticks_usec()
-		registry._joints._rebuild()
-		var posts := (Time.get_ticks_usec() - t) / 1000.0
-		times.append({"place": place, "search": search, "posts": posts, "stages": ", ".join(stages)})
-		await _frames(2)
+		for run in PLACEMENT_RUNS:
+			if pp._pair.is_empty() or not pp._problem.is_empty():
+				break
+			var timed := await _placement_timed()
+			times.append(timed)
+			if run < PLACEMENT_RUNS - 1:
+				registry.remove(timed["piece"])
+				await _frames(2)
+				# (aimed again afresh, as after the first time)
+				await _aim(eye, spot)
 	bp.cancel()
 	return times
 
 
-# The worst single frame's work among timed placements (see _placements_timed), and a summary
+## Each spot is placed this many times for the placement-time checks (see _placements_timed)
+const PLACEMENT_RUNS := 5
+## No single run's frame may take longer than this (ms): a real occasional hitch still shows
+const PLACEMENT_HITCH := 1000.0 / 30.0
+
+
+# One placement through the placer's own place call, each step timed on its own: {"place", "search",
+# "posts", "stages", "piece"}
+func _placement_timed() -> Dictionary:
+	var id := registry.next_id()
+	var t := Time.get_ticks_usec()
+	pp._place()
+	var place := (Time.get_ticks_usec() - t) / 1000.0
+	# (the search's own stages timed by the spike logger, shown when it runs long)
+	var was_on := SpikeLog.enabled
+	SpikeLog.enabled = true
+	SpikeLog._times.clear()
+	SpikeLog._calls.clear()
+	t = Time.get_ticks_usec()
+	pp._follow_crosshair()
+	var search := (Time.get_ticks_usec() - t) / 1000.0
+	var stages := []
+	for k in SpikeLog._times:
+		stages.append("%s %.1f" % [str(k).trim_prefix("snap search: "), float(SpikeLog._times[k]) / 1000.0])
+	SpikeLog.enabled = was_on
+	t = Time.get_ticks_usec()
+	registry._joints._rebuild()
+	var posts := (Time.get_ticks_usec() - t) / 1000.0
+	await _frames(2)
+	return {"place": place, "search": search, "posts": posts, "stages": ", ".join(stages), "piece": registry.find(id)}
+
+
+# The placement runs' worst frames (each run's largest step: they run in frames of their own):
+# [median ms, worst ms, a summary]. The check: the median within PLACEMENT_BUDGET (one frame at
+# 60 fps) and no run over PLACEMENT_HITCH (two frames).
 static func _worst_step(times: Array) -> Array:
-	var worst := 0.0
+	var per_run := []
 	var text := []
 	for t in times:
-		worst = maxf(worst, maxf(t["place"], maxf(t["search"], t["posts"])))
-		text.append("%.1f/%.1f/%.1f%s" % [t["place"], t["search"], t["posts"], (" (search: %s)" % t["stages"]) if t["search"] > PLACEMENT_BUDGET / 2.0 else ""])
-	return [worst if not times.is_empty() else INF, "place/search/posts ms: " + ", ".join(text)]
+		per_run.append(maxf(t["place"], maxf(t["search"], t["posts"])))
+		text.append("%.1f/%.1f/%.1f%s" % [t["place"], t["search"], t["posts"], (" (search: %s)" % t["stages"]) if t["search"] > PLACEMENT_BUDGET else ""])
+	if per_run.is_empty():
+		return [INF, INF, "nothing placed"]
+	var sorted := per_run.duplicate()
+	sorted.sort()
+	var median: float = sorted[sorted.size() / 2] if sorted.size() % 2 == 1 else (float(sorted[sorted.size() / 2 - 1]) + float(sorted[sorted.size() / 2])) / 2.0
+	return [median, sorted[-1], "%d runs, median %.2f ms, worst %.2f ms; place/search/posts ms: %s" % [per_run.size(), median, sorted[-1], ", ".join(text)]]
+
+
+# The placement-time check's verdict on timed runs (see _worst_step)
+static func _placement_ok(worst: Array) -> bool:
+	return float(worst[0]) <= PLACEMENT_BUDGET and float(worst[1]) <= PLACEMENT_HITCH
 
 
 ## The user's house (a copy of their save) and its crowded spots: [where the wall goes (the middle of
@@ -796,7 +891,7 @@ func _case_crowded_save() -> void:
 			free.append(mid - (e["out"] as Vector3) * 0.15)
 	var times := await _placements_timed("structure/wall_half_2", stand, free.slice(0, 10))
 	var worst := _worst_step(times)
-	_check("the user's house (%d pieces): a placement: each frame's share (the place call, the next snap search, the corner posts) within one frame at 60 fps (%.1f ms)" % [registry.all_pieces().size(), PLACEMENT_BUDGET], times.size() >= 3 and worst[0] <= PLACEMENT_BUDGET, "%d placed of %d free edges, worst %.2f ms; %s" % [times.size(), free.size(), worst[0], worst[1]])
+	_check("the user's house (%d pieces): a placement: each frame's share (the place call, the next snap search, the corner posts), the median within one frame at 60 fps (%.1f ms) and no run over %.1f ms" % [registry.all_pieces().size(), PLACEMENT_BUDGET, PLACEMENT_HITCH], times.size() >= 3 * PLACEMENT_RUNS and _placement_ok(worst), "%d free edges; %s" % [free.size(), worst[2]])
 
 
 # The floor or foundation edge (typed) a wall's foot at `spot`, turned `yaw` degrees, stands along

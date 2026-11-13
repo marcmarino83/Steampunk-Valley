@@ -9,7 +9,7 @@ extends RefCounted
 
 ## The grid it snaps to on a floor, how far below the crosshair it looks for something to stand
 ## on, and how close to a wall (beyond its back) it backs up against it
-const FURNITURE_GRID := 0.5
+const FURNITURE_GRID := 0.25
 const SUPPORT_DROP := 4.0
 const WALL_BACK_REACH := 0.6
 

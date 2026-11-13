@@ -51,16 +51,13 @@ var _people_key := ""
 var _production_part: VBoxContainer
 var _production: VBoxContainer
 var _production_key := ""
-var _sliders := {}
-var _slider_labels := {}
+var _share_sliders: ShareSliders
 var _summary: Label
 var _requirements_part: VBoxContainer
 var _checklist: GridContainer
 # All met: one line that opens the list
 var _all_met: Button
 var _requirements_open := false
-# The slider being dragged (its percentage shows beside it while it is)
-var _dragging := ""
 var _remove: Button
 var _move: Button
 # The Village Center's way to the Village screen
@@ -303,47 +300,16 @@ func _refresh_production() -> void:
 		return
 	if _production_key != _plot.plot_id:
 		_production_key = _plot.plot_id
-		_sliders.clear()
-		_slider_labels.clear()
 		for child in _production.get_children():
 			_production.remove_child(child)
 			child.queue_free()
 		_summary = null
+		_share_sliders = null
 		if type.split_output_total > 0:
 			BrassPanel.set_heading(_production_part, "Production  ·  %d items each dawn" % type.split_output_total)
-			var shares := _plot.shares()
-			for item in shares:
-				var row := HBoxContainer.new()
-				row.add_theme_constant_override("separation", BrassStyle.GAP_S)
-				var item_label := BrassStyle.label(item, BrassStyle.SIZE_BODY, BrassStyle.TEXT)
-				item_label.custom_minimum_size.x = 92
-				row.add_child(item_label)
-				var slider := HSlider.new()
-				slider.min_value = 0
-				slider.max_value = 100
-				slider.step = 1
-				slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-				slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-				slider.custom_minimum_size.y = 18
-				slider.focus_mode = Control.FOCUS_NONE
-				BrassStyle.style_slider(slider)
-				slider.set_value_no_signal(int(shares[item]))
-				slider.value_changed.connect(_on_share_changed.bind(item))
-				# Its percentage shows beside it only while it's dragged
-				slider.drag_started.connect(func():
-					_dragging = item
-					_update_production_text())
-				slider.drag_ended.connect(func(_changed):
-					_dragging = ""
-					_update_production_text())
-				row.add_child(slider)
-				var amount := BrassStyle.label("", BrassStyle.SIZE_SMALL, BrassStyle.TEXT_DIM)
-				amount.custom_minimum_size.x = 84
-				amount.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-				row.add_child(amount)
-				_production.add_child(row)
-				_sliders[item] = slider
-				_slider_labels[item] = amount
+			# (the same sliders as the Village screen's Resources tab, on the plot's one value)
+			_share_sliders = ShareSliders.create(_plot)
+			_production.add_child(_share_sliders)
 		else:
 			BrassPanel.set_heading(_production_part, "Production  ·  each dawn")
 			_summary = _wrapped("", BrassStyle.TEXT)
@@ -360,32 +326,8 @@ func _update_production_text() -> void:
 		for item in made:
 			parts.append("%d %s" % [made[item], item.to_lower()])
 		_summary.text = "  ·  ".join(parts)
-	var shares := _plot.shares()
-	for item in _slider_labels:
-		var per_day := "%d/day" % int(made.get(item, 0))
-		(_slider_labels[item] as Label).text = ("%d%%  ·  %s" % [int(shares.get(item, 0)), per_day]) if item == _dragging else per_day
-
-
-# One slider moved: the others share out what's left in their current proportions (evenly if they
-# were all at 0), so the total stays 100%
-func _on_share_changed(value: float, item: String) -> void:
-	var shares := _plot.shares()
-	var wanted := clampi(roundi(value), 0, 100)
-	var others: Array = shares.keys().filter(func(k): return k != item)
-	var left := 100 - wanted
-	var weights := {}
-	var weight_sum := 0
-	for other in others:
-		weight_sum += int(shares[other])
-	for other in others:
-		weights[other] = int(shares[other]) if weight_sum > 0 else 1
-	var parts := PlotType.split(left, weights) if left > 0 else {}
-	shares[item] = wanted
-	for other in others:
-		shares[other] = int(parts.get(other, 0))
-	for other in _sliders:
-		(_sliders[other] as HSlider).set_value_no_signal(int(shares[other]))
-	_update_production_text()
+	if _share_sliders:
+		_share_sliders.sync()
 
 
 # Villager housing or Player home (anyone living there moves out when it becomes the player's)

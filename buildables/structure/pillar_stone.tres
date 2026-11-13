@@ -7,6 +7,8 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "pillar_stone"
+vertical_unit = 1.25
+keeps_turn = true
 display_name = "Tall Stone Pillar 2.5 m"
 starts_locked = true
 unlocked_by = "Craft"

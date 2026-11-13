@@ -6,6 +6,8 @@
 [resource]
 script = ExtResource("1_piece")
 shape = "stairs_tall"
+vertical_unit = 1.25
+keeps_turn = true
 display_name = "Tall Stairs"
 starts_locked = true
 unlocked_by = "Craft"

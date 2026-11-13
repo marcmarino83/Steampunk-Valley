@@ -1,61 +1,58 @@
 class_name PathTilePlacer
 extends Node
-## Lays path tiles (the build menu's Paths tab: Dirt, Gravel, Stone and Remove; see PathTileType)
-## like building pieces, though they're only paint on the ground (see PathTiles).
+## Lays paths (the build menu's Paths tab: Dirt, Gravel, Stone and Remove; see PathTileType) by
+## dragging out a strip: press left click where it starts, drag, and let go where it ends. The
+## strip is always PathTiles.WIDTH wide, at any angle, its length in LENGTH_STEP steps. Paths are
+## only paint on the ground (see PathTiles): nothing to collide with, and nothing stops building.
+## (Paths are the one piece that's sized by dragging; see CLAUDE.md.)
 ##
-## The tile (2 m wide, 4 m long) shows on the ground under the crosshair before it's laid: its own
-## texture with its soft, ragged edge, a thin white line along its footprint, red for a Remove
-## tile or one you can't pay for. The wheel turns it 22.5° (1° with snapping off: Z). Snapping,
-## it fits against the path tiles near it, of any type: side by side (a wider road), end to end (a
-## longer one), across the end or side of one (a corner or a junction), or right on top of one of
-## another type (layering, say gravel down the middle of a dirt road). Holding left click keeps
-## laying: each time the crosshair reaches the next spot, another tile goes down, so a road can be
-## laid in one sweep. A Remove tile clears every type under it back to grass.
+## The strip's outline shows on the ground while dragging (a circle where it would start before
+## that), white, red for Remove or one you can't pay for. With snapping on (Z), either end snaps
+## to a path near the crosshair, of any type: onto a strip's end, so a winding path is a chain of
+## straight strips, or beside an end on the 1 m step, so strips side by side or half over each
+## other make wider and layered roads. Where a strip carries on from the end of one of its own
+## type, both ends there are made round, so the bend has no gap or notch. Overlapping is always
+## allowed. Remove works the same way: drag over a strip (its ends snap to the strip's) and it
+## clears every path type under it back to grass.
 
-const CONTROLS := [["Place", "LMB"], ["Hold: keep laying", "LMB"], ["Turn", "Wheel"], ["Snap", "Z"], ["Cancel", "RMB"]]
+const CONTROLS := [["Drag: lay a strip", "LMB"], ["Snap", "Z"], ["Cancel", "RMB"]]
+const REMOVE_CONTROLS := [["Drag: clear a strip", "LMB"], ["Snap", "Z"], ["Cancel", "RMB"]]
 ## How far ahead of the camera it lays, in meters
 const REACH := 16.0
-## Snapping: tiles this close to the crosshair are looked at, a fitting spot is taken within
-## SNAP_REACH of it, and each radian its turn is off the tile's costs as much as this many meters
-const NEAR := 9.0
-const SNAP_REACH := 1.6
-const TURN_WEIGHT := 1.5
-## The wheel's turn, snapping and not
-const TURN_STEP := PI / 8.0
-const FINE_STEP := PI / 180.0
-## Holding left click: a free (unsnapped) tile goes down once the crosshair is this far from the
-## last one; a snapped one whenever it fits somewhere new
-const HOLD_GAP := 3.8
-const NEW_SPOT := 0.5
-## The render layer grass, ferns and scattered rocks are on (see Foliage): the preview isn't drawn on them
-const FOLIAGE_LAYER := 1 << 1
-## The preview's picture: pixels per meter, and how far it reaches past the tile's footprint (m)
-const PREVIEW_DENSITY := 40.0
-const PREVIEW_MARGIN := 0.6
-## The preview's colours: white for the footprint line, red for Remove or can't pay
+## Strip lengths go in these steps (m), and the shortest is one step
+const LENGTH_STEP := 0.5
+## Snapping: an end snaps to a spot within SNAP_REACH of the crosshair, on strips with an end
+## within NEAR of it; spots beside an end are SIDE_STEP apart, out to SIDE_STEPS of them each way
+const SNAP_REACH := 0.8
+const NEAR := 5.0
+const SIDE_STEP := 1.0
+const SIDE_STEPS := 4
+## The outline: its line's width, how far over the ground it's drawn, and how finely it follows
+## the ground (m)
+const LINE_WIDTH := 0.06
+const LIFT := 0.05
+const LINE_STEP := 0.25
+## White for the outline, red for Remove or can't pay
 const LINE_COLOR := Color(BrassStyle.HIGHLIGHT, 0.9)
-const BAD_TINT := BrassStyle.BAD
+const BAD_COLOR := Color(BrassStyle.BAD, 0.9)
 
 var player: CharacterBody3D
 
-# The turn the player has set (kept between uses, like building pieces')
-static var _yaw := 0.0
-# The preview pictures made so far: rank -> Texture2D
-static var _pictures := {}
-
 var _type: PathTileType
 var _snap := true
-var _decal: Decal
+var _outline: MeshInstance3D
+var _mesh: ImmediateMesh
+# What the outline shows now, so it's only drawn again when that changes
+var _drawn := []
 var _aim := Vector3.ZERO
 var _aim_ok := false
-# Where the tile would go now (x, z), its turn, and whether it's fitted to a tile near it
-var _spot := Vector2.ZERO
-var _turn := 0.0
-var _snapped := false
-# Holding left click to keep laying, and where the last tile went
-var _holding := false
-var _last := Vector2.INF
-var _last_turn := 0.0
+# Where the strip starts (pressed, or where it would start), where it ends while dragging, and
+# whether each was snapped to a path
+var _start := Vector2.ZERO
+var _end := Vector2.ZERO
+var _start_snapped := false
+var _end_snapped := false
+var _dragging := false
 
 
 func _ready() -> void:
@@ -65,23 +62,28 @@ func _ready() -> void:
 func begin(type: PathTileType) -> void:
 	cancel()
 	_type = type
-	_decal = Decal.new()
-	_decal.texture_albedo = _picture(type)
-	_decal.cull_mask = 0xFFFFF & ~FOLIAGE_LAYER
-	_decal.upper_fade = 0.3
-	_decal.lower_fade = 0.3
-	_decal.size = Vector3(PathTiles.TILE_SIZE.x + PREVIEW_MARGIN * 2.0, 8.0, PathTiles.TILE_SIZE.y + PREVIEW_MARGIN * 2.0)
-	_decal.visible = false
-	player.get_parent().add_child(_decal)
+	_mesh = ImmediateMesh.new()
+	_outline = MeshInstance3D.new()
+	_outline.mesh = _mesh
+	_outline.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var look := StandardMaterial3D.new()
+	look.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	look.vertex_color_use_as_albedo = true
+	look.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	look.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_outline.material_override = look
+	_outline.visible = false
+	player.get_parent().add_child(_outline)
 	set_process(true)
 
 
 func cancel() -> void:
-	_holding = false
-	_last = Vector2.INF
-	if _decal:
-		_decal.queue_free()
-	_decal = null
+	_dragging = false
+	_drawn = []
+	if _outline:
+		_outline.queue_free()
+	_outline = null
+	_mesh = null
 	_type = null
 	set_process(false)
 
@@ -96,7 +98,7 @@ func current() -> PathTileType:
 
 func handle_input(event: InputEvent) -> bool:
 	if event.is_action_pressed("ui_cancel"):
-		cancel()
+		_cancel_drag_or_tool()
 		return true
 	if event is InputEventKey and event.pressed and not event.echo:
 		# Finish or cancel this before putting the hammer away
@@ -106,48 +108,60 @@ func handle_input(event: InputEvent) -> bool:
 			_snap = not _snap
 			return true
 	if event is InputEventMouseButton:
-		if event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
-			var step := TURN_STEP if _snap else FINE_STEP
-			_yaw = wrapf(_yaw + (step if event.button_index == MOUSE_BUTTON_WHEEL_UP else -step), 0.0, TAU)
-			if _snap:
-				_yaw = snappedf(_yaw, TURN_STEP)
+		var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+		# (the wheel would change what's in hand)
+		if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
 			return true
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			if event.pressed and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-				_holding = true
-				_last = Vector2.INF
+			if event.pressed and captured:
+				_find_spot()
+				_dragging = _aim_ok
+			elif not event.pressed and _dragging:
 				_find_spot()
 				_lay()
-			elif not event.pressed:
-				_holding = false
+				_dragging = false
 			return true
-		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-			cancel()
+		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed and captured:
+			_cancel_drag_or_tool()
 			return true
 	return false
 
 
 ## What the on-screen controls show (see HudControls)
 func hud_state() -> Dictionary:
-	var detail := "Turn %d°" % roundi(rad_to_deg(_turn))
-	if not _aim_ok:
+	var length := _length()
+	var detail := ""
+	if not _aim_ok and not _dragging:
 		detail = "Point at the ground"
-	elif _snapped:
-		detail += "  ·  Fitted to the path"
+	elif _dragging:
+		detail = "Length %s m" % _meters(length)
+		if _end_snapped:
+			detail += "  ·  Snapped to a path"
+	elif _start_snapped:
+		detail = "Starts on a path"
 	elif not _snap:
-		detail += "  ·  Snapping off"
+		detail = "Snapping off"
 	if _type and _type.is_remove():
-		detail += "  ·  Clears every path type under it"
-	var short := _type != null and not _type.can_afford(player.inventory)
+		detail += ("  ·  " if not detail.is_empty() else "") + "Clears every path type under it"
+	var cost := "Free"
+	var short := false
+	if _type and not _type.costs.is_empty():
+		if _dragging and length > 0.0:
+			cost = _type.cost_text_for(length)
+			short = _type.cost_for(length, player.inventory).is_empty()
+		else:
+			cost = _type.cost_text() + " per %s m" % _meters(PathTileType.PER_LENGTH)
+			short = not _type.can_afford(player.inventory)
+	var remove := _type != null and _type.is_remove()
 	return {
-		"controls": CONTROLS,
+		"controls": REMOVE_CONTROLS if remove else CONTROLS,
 		"info": {
 			"icon": _type.icon if _type else null,
 			"title": _type.display_name if _type else "",
-			"cost": (_type.cost_text() + " a tile") if _type and not _type.costs.is_empty() else "Free",
+			"cost": cost,
 			"cost_bad": short,
 			"detail": detail,
-			"detail_bad": not _aim_ok,
+			"detail_bad": not _aim_ok and not _dragging,
 			"detail_warn": false,
 		},
 	}
@@ -156,42 +170,58 @@ func hud_state() -> Dictionary:
 func _process(_delta: float) -> void:
 	var timing := SpikeLog.begin()
 	_find_spot()
-	if _decal:
-		_decal.visible = _aim_ok
-		if _aim_ok:
-			var ground := Plot.ground_at(player, _spot.x, _spot.y)
-			_decal.global_transform = Transform3D(Basis(Vector3.UP, _turn), Vector3(_spot.x, ground, _spot.y))
-			var bad := _type.is_remove() or not _type.can_afford(player.inventory)
-			_decal.modulate = BAD_TINT if bad else Color.WHITE
-	# Holding left click: the next tile, once the crosshair has reached a new spot
-	if _holding and _aim_ok and _type:
-		var moved := _last == Vector2.INF or _spot.distance_to(_last) >= (NEW_SPOT if _snapped else HOLD_GAP) or (_snapped and absf(wrapf(_turn - _last_turn, -PI / 2.0, PI / 2.0)) > 0.01)
-		if moved:
-			_lay()
+	_show_outline()
 	SpikeLog.end("path tiles: placing", timing)
 
 
+func _cancel_drag_or_tool() -> void:
+	if _dragging:
+		_dragging = false
+	else:
+		cancel()
+
+
+# The strip's length as it would be laid now (0 while it's shorter than one step)
+func _length() -> float:
+	if not _dragging:
+		return 0.0
+	var length := _start.distance_to(_end)
+	return length if length >= LENGTH_STEP - 0.001 else 0.0
+
+
 func _lay() -> void:
-	if not _aim_ok or _type == null:
-		return
+	var length := _length()
 	var paths := _paths()
-	if paths == null:
+	if length <= 0.0 or _type == null or paths == null:
 		return
-	if not _type.costs.is_empty():
-		var cost := _type.cost_to_pay(player.inventory)
-		if cost.is_empty():
-			player.flash("Not enough: you need %s" % _type.missing_text(player.inventory))
-			_holding = false
+	var rank := _type.rank
+	var cost := {}
+	if not _type.is_remove():
+		# (paid only if it changes the ground: laying the same strip again is free)
+		if paths.has_strip(rank, _start, _end):
 			return
-		# (paid only if it changes the ground: laying the same tile again is free)
-		if paths.has_tile(_type.rank, _spot, _turn):
+		cost = _type.cost_for(length, player.inventory)
+		if not _type.costs.is_empty() and cost.is_empty():
+			player.flash("Not enough: you need %s" % _type.missing_text_for(length,
+					player.inventory))
 			return
+	# An end carrying on from the end of a strip of this type is made round, and so is that one's
+	var caps := 0
+	if not _type.is_remove():
+		if _joins(paths, _start):
+			caps |= PathTiles.ROUND_A
+		if _joins(paths, _end):
+			caps |= PathTiles.ROUND_B
+	if not cost.is_empty():
 		player.pay(cost)
-	var changed := paths.lay(_type.rank, _spot, _turn)
-	_last = _spot
-	_last_turn = _turn
+	var changed := paths.lay(rank, _start, _end, caps)
 	if not changed.has_area():
 		return
+	for end in [[PathTiles.ROUND_A, _start], [PathTiles.ROUND_B, _end]]:
+		if caps & int(end[0]):
+			var rounded := paths.round_ends_at(end[1], rank)
+			if rounded.has_area():
+				changed = changed.merge(rounded)
 	player.report_progress("Build", _type.display_name)
 	var valley = get_tree().get_first_node_in_group("valley")
 	var foliage = valley.get_node_or_null("Foliage") if valley else null
@@ -202,60 +232,142 @@ func _lay() -> void:
 			foliage.hide_plants_on_paths(changed)
 
 
-# Where the tile would go: under the crosshair at the player's turn, or (snapping) fitted to the
-# path tile spot nearest the crosshair
+# True if a strip of this type already ends at this spot
+func _joins(paths: PathTiles, spot: Vector2) -> bool:
+	for strip in paths.strips_near(spot, PathTiles.SAME_SPOT):
+		if int(strip["rank"]) == _type.rank:
+			return true
+	return false
+
+
+# Where the strip would start (not dragging) or end (dragging): under the crosshair, or
+# (snapping) on the nearest path spot to it. A free end keeps the strip's length on its step.
 func _find_spot() -> void:
 	_aim_ok = _find_aim()
-	_snapped = false
 	if not _aim_ok:
 		return
 	var free := Vector2(_aim.x, _aim.z)
-	_spot = free
-	_turn = _yaw
+	var snapped := _snap_spot(free)
+	if not _dragging:
+		_start_snapped = snapped != Vector2.INF
+		_start = snapped if _start_snapped else free
+		_end = _start
+		return
+	_end_snapped = snapped != Vector2.INF and snapped.distance_to(_start) >= LENGTH_STEP - 0.001
+	if _end_snapped:
+		_end = snapped
+		return
+	var reach := free - _start
+	var length := snappedf(reach.length(), LENGTH_STEP)
+	_end = _start + reach.normalized() * length if reach.length() > 0.001 else _start
+
+
+# The path spot nearest this one within SNAP_REACH (Vector2.INF if none, or snapping's off): a
+# strip's end, or beside it on the SIDE_STEP
+func _snap_spot(spot: Vector2) -> Vector2:
 	var paths := _paths()
 	if not _snap or paths == null:
+		return Vector2.INF
+	var best := Vector2.INF
+	var best_gap := SNAP_REACH
+	for strip in paths.strips_near(spot, NEAR):
+		var a: Vector2 = strip["a"]
+		var b: Vector2 = strip["b"]
+		var side := (b - a).normalized().orthogonal()
+		for end: Vector2 in [a, b]:
+			for step in range(-SIDE_STEPS, SIDE_STEPS + 1):
+				var candidate := end + side * SIDE_STEP * step
+				var gap := candidate.distance_to(spot)
+				if gap < best_gap:
+					best_gap = gap
+					best = candidate
+	return best
+
+
+# The outline on the ground: the strip while dragging, or a circle where it would start
+func _show_outline() -> void:
+	if _outline == null:
 		return
-	var best := INF
-	for tile in paths.tiles_near(free, NEAR):
-		for slot in _slots(tile):
-			var middle: Vector2 = slot[0]
-			var turn: float = slot[1]
-			var gap := middle.distance_to(free)
-			if gap > SNAP_REACH:
-				continue
-			# Not onto a tile of the same type exactly where it already is
-			if not _type.is_remove() and int(tile["rank"]) == _type.rank and middle.distance_to(tile["middle"]) < 0.01:
-				continue
-			if not _type.is_remove() and paths.has_tile(_type.rank, middle, turn):
-				continue
-			var score := gap + absf(wrapf(turn - _yaw, -PI / 2.0, PI / 2.0)) * TURN_WEIGHT
-			if score < best:
-				best = score
-				_spot = middle
-				_turn = turn
-				_snapped = true
+	var show := _aim_ok or _dragging
+	_outline.visible = show
+	if not show:
+		return
+	var bad := _type.is_remove()
+	var length := _length()
+	if not bad and not _type.costs.is_empty():
+		bad = (_type.cost_for(length, player.inventory).is_empty() if length > 0.0
+				else not _type.can_afford(player.inventory))
+	var paths := _paths()
+	var round_a := false
+	var round_b := false
+	if paths and not _type.is_remove():
+		round_a = _joins(paths, _start)
+		round_b = _joins(paths, _end)
+	var wanted := [_start, _end if length > 0.0 else _start, round_a, round_b, bad]
+	if wanted == _drawn:
+		return
+	_drawn = wanted
+	var points: PackedVector2Array
+	if length > 0.0:
+		points = _strip_outline(_start, _end, round_a, round_b)
+	else:
+		points = _arc(_start, Vector2.RIGHT, TAU)
+		points.append(points[0])
+	_draw_line(points, BAD_COLOR if bad else LINE_COLOR)
 
 
-# The spots a tile fits against another one: [middle, turn] for right on top of it, beside either
-# long side, past either end, and turned a quarter across its sides and ends (on the 1 m step)
-func _slots(tile: Dictionary) -> Array:
-	var middle: Vector2 = tile["middle"]
-	var turn: float = tile["turn"]
-	# Its own across (X) and along (Z) on the ground
-	var across := Vector2(cos(turn), -sin(turn))
-	var along := Vector2(sin(turn), cos(turn))
-	var w := PathTiles.TILE_SIZE.x
-	var l := PathTiles.TILE_SIZE.y
-	var slots := [[middle, turn]]
-	for side in [-1.0, 1.0]:
-		slots.append([middle + across * w * side, turn])
-		slots.append([middle + along * l * side, turn])
-		for step in [-1.0, 0.0, 1.0]:
-			# Turned a quarter: its end against this one's long side, or its long side across this
-			# one's end
-			slots.append([middle + across * (w + l) / 2.0 * side + along * step, turn + PI / 2.0])
-			slots.append([middle + along * (l + w) / 2.0 * side + across * step, turn + PI / 2.0])
-	return slots
+# The strip's outline (x, z), closed: along one side, round the b end, back along the other side,
+# round the a end
+static func _strip_outline(a: Vector2, b: Vector2, round_a: bool,
+		round_b: bool) -> PackedVector2Array:
+	var half := PathTiles.WIDTH / 2.0
+	var along := (b - a).normalized()
+	var side := along.orthogonal()
+	var points := PackedVector2Array()
+	points.append(a + side * half)
+	points.append(b + side * half)
+	if round_b:
+		points.append_array(_arc(b, side, -PI))
+	points.append(b - side * half)
+	points.append(a - side * half)
+	if round_a:
+		points.append_array(_arc(a, -side, -PI))
+	points.append(a + side * half)
+	return points
+
+
+# Points round a circle of the strip's width about `middle`, from direction `from`, turning
+# `sweep` radians
+static func _arc(middle: Vector2, from: Vector2, sweep: float) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	var count := 24 if absf(sweep) > PI else 12
+	for i in count + 1:
+		points.append(middle + from.rotated(sweep * i / count) * PathTiles.WIDTH / 2.0)
+	return points
+
+
+# Draws a line through these points (x, z) just over the ground, following its height
+func _draw_line(points: PackedVector2Array, color: Color) -> void:
+	_mesh.clear_surfaces()
+	_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	_mesh.surface_set_color(color)
+	for i in points.size() - 1:
+		var from := points[i]
+		var to := points[i + 1]
+		var pieces := maxi(1, ceili(from.distance_to(to) / LINE_STEP))
+		var across := (to - from).normalized().orthogonal() * LINE_WIDTH / 2.0
+		for k in pieces:
+			var p0 := from.lerp(to, float(k) / pieces)
+			var p1 := from.lerp(to, float(k + 1) / pieces)
+			var y0 := Plot.ground_at(player, p0.x, p0.y) + LIFT
+			var y1 := Plot.ground_at(player, p1.x, p1.y) + LIFT
+			var c0 := Vector3(p0.x + across.x, y0, p0.y + across.y)
+			var c1 := Vector3(p0.x - across.x, y0, p0.y - across.y)
+			var c2 := Vector3(p1.x + across.x, y1, p1.y + across.y)
+			var c3 := Vector3(p1.x - across.x, y1, p1.y - across.y)
+			for corner in [c0, c1, c2, c2, c1, c3]:
+				_mesh.surface_add_vertex(corner)
+	_mesh.surface_end()
 
 
 # Where the crosshair meets the ground within reach, looking past anything that isn't the ground
@@ -283,55 +395,6 @@ func _paths() -> PathTiles:
 	return valley.path_tiles if valley else null
 
 
-# The preview's picture for a type: its texture across the tile, fading out past the footprint the
-# way its edge does on the ground, with a thin white line along the footprint (Remove: a plain
-# fill). Made once per type.
-func _picture(type: PathTileType) -> Texture2D:
-	if _pictures.has(type.rank):
-		return _pictures[type.rank]
-	var size := PathTiles.TILE_SIZE + Vector2.ONE * PREVIEW_MARGIN * 2.0
-	var width := roundi(size.x * PREVIEW_DENSITY)
-	var height := roundi(size.y * PREVIEW_DENSITY)
-	var source: Image = null
-	var meters := 2.5
-	if not type.is_remove():
-		var valley = get_tree().get_first_node_in_group("valley")
-		var id: String = PathTiles.RANK_SETS[type.rank - 1]
-		if valley:
-			for set in valley.texture_sets():
-				if set["id"] == id:
-					var texture := load(set["color"]) as Texture2D
-					source = texture.get_image() if texture else null
-					var looks: Dictionary = (valley.get_script() as Script).get_script_constant_map().get("SET_LOOKS", {})
-					meters = float(looks.get(id, [2.5])[0])
-		if source:
-			source = source.duplicate()
-			if source.is_compressed():
-				source.decompress()
-			source.convert(Image.FORMAT_RGBA8)
-			source.resize(256, 256, Image.INTERPOLATE_BILINEAR)
-	var edge: Vector4 = PathTiles.RANK_EDGES[type.rank - 1] if not type.is_remove() else Vector4(-PathTiles.GROW, 0.08, 0.0, 1.0)
-	var image := Image.create_empty(width, height, false, Image.FORMAT_RGBA8)
-	var half := PathTiles.TILE_SIZE / 2.0
-	var line := 0.035
-	for y in height:
-		for x in width:
-			var local := Vector2((x + 0.5) / PREVIEW_DENSITY - size.x / 2.0, (y + 0.5) / PREVIEW_DENSITY - size.y / 2.0)
-			var q := Vector2(absf(local.x) - half.x, absf(local.y) - half.y)
-			var d := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length() + minf(maxf(q.x, q.y), 0.0)
-			d -= (PathTiles.wobble(local.x * 1.7, local.y * 1.7) - 0.5) * 2.0 * PathTiles.WOBBLE + PathTiles.GROW
-			var cover := 1.0 - smoothstep(edge.x - edge.y, edge.x + edge.y, d)
-			var color := Color(0.85, 0.85, 0.85)
-			if source:
-				var u := posmod(roundi(local.x / meters * 256.0), 256)
-				var v := posmod(roundi(local.y / meters * 256.0), 256)
-				color = source.get_pixel(u, v)
-			color.a = cover * (0.45 if type.is_remove() else 0.85)
-			# The footprint's line
-			var on_line := absf(maxf(q.x, q.y)) < line
-			if on_line:
-				color = LINE_COLOR
-			image.set_pixel(x, y, color)
-	var picture := ImageTexture.create_from_image(image)
-	_pictures[type.rank] = picture
-	return picture
+# "4", "6.5"
+static func _meters(value: float) -> String:
+	return str(snappedf(value, 0.1)).trim_suffix(".0")

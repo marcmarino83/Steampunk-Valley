@@ -16,7 +16,7 @@
 
 - Snapping rules are kept to the absolute minimum. A "rule" is any code that rejects, skips, prefers or limits a snap position or rotation. Fix problems with typed pairings (data) wherever possible, never with piece-specific special cases. Before adding a rule: explain why no pairing can solve it, which existing rules it could interact with, and get my OK first. Prefer removing or simplifying a rule over adding one. Keep a numbered list of every active snapping rule in DESIGN.md.
 
-- Every building piece has fixed dimensions. Never build pieces that stretch, resize or regenerate to fit where they're placed. When a new size is needed, add a new fixed piece. (Raising or lowering a free piece with PgUp/PgDn is fine: that moves it, it doesn't reshape it.)
+- Every building piece has fixed dimensions. Never build pieces that stretch, resize or regenerate to fit where they're placed. When a new size is needed, add a new fixed piece. (Raising or lowering a free piece with PgUp/PgDn is fine: that moves it, it doesn't reshape it.) The one exception is paths (Dirt, Gravel, Stone, Remove): they're laid by dragging out a strip, fixed 2 m width, free angle, length in 0.5 m steps. Nothing else may be sized by dragging.
 - Every piece follows the building grid standard (details in DESIGN.md, Building system):
   - The grid is 2 m, set by the foundation (2 m) and the 45° triangle wall (2 m base, 2 m tall).
   - Horizontal: 2 m cells with a 1 m half step; widths and lengths of 1, 2 or 4 m, on the 1 m grid.

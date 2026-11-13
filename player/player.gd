@@ -67,14 +67,12 @@ var _sleeping: bool:
 	get:
 		return _survival.sleeping
 
-# A short message shown at the top of the screen, and how long it has left
-var _message := ""
-var _message_time := 0.0
+# The heads-up display: the status line and its messages, the vitals panel, compass and watch,
+# controls row and prompts, plot tracker and frames-per-second label (a child node, see PlayerHud)
+var _ui := PlayerHud.new()
 # The panels that open over the game (a child node, see PanelHost: the plot panel, a settler's
 # panel, the Village screen, the note page, the pause menu and the banner)
 var _panels := PanelHost.new()
-# The plot tracker on the right of the screen (the plot you're in, or aiming at in plot view)
-var _plot_tracker: PlotTracker
 # The hammer's controls (the build menu, ghosts, demolishing, plot view) and what the crosshair is
 # on (child nodes, see BuildControls and Interaction)
 var _build := BuildControls.new()
@@ -89,8 +87,6 @@ var _sprinting := false
 var _base_fov := 75.0
 # The dowsing rod's pulse, which only exists while the iron tier is switched on
 var _dowsing: Node
-# Frames per second, in the top-right corner (F3 shows or hides it)
-var _fps_label: Label
 # Handles putting a building down, once one's been chosen from the build menu
 var _placer: BuildPlacer
 # What you've done, the blueprints you've unlocked and the notes you've read (a child node, see
@@ -101,12 +97,6 @@ var _unlocked: Dictionary:
 		return _progress.unlocked
 # The "New blueprint" pop-up
 var _blueprint_popup: BlueprintPopup
-# The compact controls row, piece panel and crosshair prompts
-var _hud: HudControls
-# Bottom left: the hunger and stamina panel and gauge; by the action bar: the compass and watch,
-# and the crosshair
-var _vitals: VitalsPanel
-var _instruments: HudInstruments
 # The black screen sleep fades through
 var _fade: SleepFade
 # What's open beside the inventory (a chest or town storage), and crafting and the stations in
@@ -149,15 +139,22 @@ func _ready() -> void:
 		_bug_snapshot = BugSnapshot.new()
 		_bug_snapshot.player = self
 		add_child(_bug_snapshot)
-	_fps_label = Label.new()
-	_fps_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 16)
-	_fps_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_fps_label.add_theme_font_size_override("font_size", 18)
-	_fps_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	_fps_label.add_theme_constant_override("outline_size", 5)
-	_fps_label.visible = false
-	$HUD.add_child(_fps_label)
+	# The heads-up display (see PlayerHud.build for where each part is drawn)
+	_ui.name = "Hud"
+	_ui.body = self
+	_ui.held = func(): return held_item
+	_ui.inventory = _inventory
+	_ui.action_bar = action_bar
+	_ui.inventory_screen = inventory_screen
+	_ui.build_menu = build_menu
+	_ui.panels = _panels
+	_ui.survival = _survival
+	_ui.interaction = _interaction
+	_ui.crafting = _crafting
+	_ui.progress = _progress
+	_ui.status_label = status_label
+	add_child(_ui)
+	_ui.build($HUD)
 	_blueprint_popup = BlueprintPopup.new()
 	$HUD.add_child(_blueprint_popup)
 	# What you've done and learned (the crafting tab and build menu watch it, and the pop-up shows
@@ -165,21 +162,6 @@ func _ready() -> void:
 	_progress.name = "Progress"
 	_progress.blueprints = _all_blueprints
 	add_child(_progress)
-	# Under the menus, so an open inventory or build menu covers it
-	_vitals = VitalsPanel.new()
-	$HUD.add_child(_vitals)
-	$HUD.move_child(_vitals, inventory_screen.get_index())
-	_instruments = HudInstruments.new()
-	$HUD.add_child(_instruments)
-	# Just above the action bar, so the compass's brass sits on the bar's scrollwork
-	$HUD.move_child(_instruments, action_bar.get_index() + 1)
-	_hud = HudControls.new()
-	$HUD.add_child(_hud)
-	$HUD.move_child(_hud, inventory_screen.get_index())
-	# The plot tracker, on the right: under the menus too
-	_plot_tracker = PlotTracker.new()
-	$HUD.add_child(_plot_tracker)
-	$HUD.move_child(_plot_tracker, inventory_screen.get_index())
 	# Last, so the black of sleep covers everything
 	_fade = SleepFade.new()
 	# Hunger, stamina, warmth and sleep: the vitals panel follows them; falling asleep stops any
@@ -191,31 +173,33 @@ func _ready() -> void:
 	_survival.fade = _fade
 	add_child(_survival)
 	_survival.message.connect(flash)
-	_survival.vitals_changed.connect(_vitals.set_values)
+	_survival.vitals_changed.connect(_ui.vitals.set_values)
 	_survival.fell_asleep.connect(func():
 		_placer.cancel()
 		velocity = Vector3.ZERO)
 	$HUD.add_child(_fade)
 	_placer = BuildPlacer.new()
 	add_child(_placer)
+	_ui.placer = _placer
 	# Every building look drawn once behind a brief cover, so no shader compiles mid-game
 	_warm_up_shaders.call_deferred()
 	_placer.plots.became_working.connect(func(plot):
 		_panels.show_banner("%s is working" % plot.plot_name))
-	_placer.plots.notice.connect(_announce)
+	_placer.plots.notice.connect(_ui.announce)
 	_settlers = SettlerManager.new()
 	_settlers.world = get_parent()
 	_settlers.plots = _placer.plots
 	add_child(_settlers)
-	_settlers.arrived.connect(func(settler): _announce("A refugee named %s has arrived." % settler.settler_name))
-	_settlers.notice.connect(_announce)
+	_settlers.arrived.connect(func(settler):
+		_ui.announce("A refugee named %s has arrived." % settler.settler_name))
+	_settlers.notice.connect(_ui.announce)
 	_settlers.visitor_arrived.connect(func(visitor):
 		_panels.show_banner("A visitor has arrived",
 				"%s is waiting at the Village Center" % visitor.settler_name))
-	_placer.plots.town.notice.connect(_announce)
-	_plot_tracker.settlers = _settlers
-	_plot_tracker.plots = _placer.plots
-	_plot_tracker.carrying = func(): return inventory
+	_placer.plots.town.notice.connect(_ui.announce)
+	_ui.plot_tracker.settlers = _settlers
+	_ui.plot_tracker.plots = _placer.plots
+	_ui.plot_tracker.carrying = func(): return inventory
 	# The panels that open over the game (see PanelHost), in the HUD where they've always been drawn
 	_panels.name = "Panels"
 	_panels.placer = _placer
@@ -230,10 +214,11 @@ func _ready() -> void:
 			_toggle_inventory()
 		_placer.cancel()
 	add_child(_panels)
-	_panels.build($HUD, _fade, _fps_label)
+	_panels.build($HUD, _fade, _ui.fps_label)
 	if IronTier.ENABLED:
 		_dowsing = load("res://iron_tier/dowsing.gd").new()
 		add_child(_dowsing)
+		_ui.dowsing = _dowsing
 	# The hammer's controls around the placer, and what the crosshair is on
 	var hammer_out := func(): return held_item == "Hammer"
 	_build.name = "BuildControls"
@@ -390,7 +375,7 @@ func _process(delta: float) -> void:
 	# torch in your hand
 	var holding_torch := held_item == "Torch"
 	_survival.update(delta, _sprinting and velocity.length() > 0.1, holding_torch)
-	_update_status(delta)
+	_ui.update_status(delta)
 	_survival.burn_torch(delta, holding_torch)
 
 	# The Crafting tab follows you toward and away from crafting stations while it's open
@@ -400,60 +385,10 @@ func _process(delta: float) -> void:
 	# no working Storehouse left
 	_containers.follow()
 
-
 	# With the hammer out: demolishing, ghosts and plot view (see BuildControls.update)
 	_build.update(delta)
-
-	if _fps_label.visible:
-		var triangles := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
-		_fps_label.text = "%d FPS\n%d triangles" % [Engine.get_frames_per_second(), triangles]
-	_update_hud()
-
-
-# The compact on-screen controls (see HudControls): what E and F would do, under the crosshair,
-# and a row of the controls that apply right now above the action bar (with the piece's panel
-# while building). Hidden while a menu, a page or sleep covers the view.
-func _update_hud() -> void:
-	var bar := action_bar.rect_on_screen()
-	_hud.set_bar_top(bar.position.y)
-	# The compass needle points the way you face (north is -Z); the watch shows the sun's clock
-	var facing := -global_basis.z
-	var sun = get_tree().get_first_node_in_group("sun")
-	_instruments.update_instruments(atan2(facing.x, -facing.z), sun.time_of_day if sun else 0.5,
-			action_bar.first_slot_rect(), bar.end.y, _hud.row_rect())
-	var covered: bool = _panels.any_open() or _sleeping or inventory_screen.visible \
-			or build_menu.visible
-	_instruments.show_crosshair(not covered)
-	_plot_tracker.show_plot(null if covered else _interaction.tracked_plot())
-	if covered:
-		_hud.set_prompts([])
-		_hud.set_controls([])
-		_hud.set_info({})
-		return
-	_hud.set_prompts(_interaction.prompts())
-
-	# Eating isn't aimed at anything, so it goes in the controls row, not under the crosshair
-	var eat := [["Eat Berries", "F"]] if inventory.get("Berries", 0) > 0 else []
-	if held_item == "Hammer":
-		var state: Dictionary = _placer.hud_state()
-		_hud.set_controls(state["controls"] + eat)
-		_hud.set_info(state["info"])
-		return
-	var controls := []
-	if _dowsing and held_item == "Dowsing Rod":
-		controls.append(["Dowse for ore", "R"])
-	if not held_item.is_empty():
-		controls.append(["Drop %s" % held_item, "G"])
-	var stations := _crafting.nearby_stations()
-	if inventory_screen.crafting.anything_craftable(inventory, stations, _progress.is_unlocked):
-		controls.append(["Craft something", "I"])
-	else:
-		for item in inventory:
-			if ToolItem.exists_for(item) and not action_bar.has_item(item):
-				controls.append(["Put tools on the bar", "I"])
-				break
-	_hud.set_controls(controls + eat)
-	_hud.set_info({})
+	# The frames-per-second label and the rest of the HUD (see PlayerHud.update)
+	_ui.update()
 
 
 ## Opens the plot panel (E aimed inside a plot in plot view calls this; see PanelHost)
@@ -583,7 +518,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				if _dowsing:
 					_dowsing.pulse()
 			KEY_F3:
-				_fps_label.visible = not _fps_label.visible
+				_ui.toggle_fps()
 			KEY_F8:
 				# Debug builds only: the console's spawn_settler (a refugee arrives in front of you)
 				if _console:
@@ -800,20 +735,10 @@ func _facing_ladder() -> bool:
 	return false
 
 
-## Shows a short message at the top of the screen
+## Shows a short message at the top of the screen (everything in the world calls this on the
+## player: see PlayerHud.flash)
 func flash(text: String, seconds := 2.5) -> void:
-	_message = text
-	_message_time = seconds
-
-
-# Settlement news (an arrival, a chest full at dawn, a settler hungry or leaving): shown for a
-# while, several at once one under another
-func _announce(text: String) -> void:
-	if _message_time > 0.0 and _message_time > 3.0 and not _message.contains(text):
-		_message += "\n" + text
-		_message_time = maxf(_message_time, 6.0)
-	else:
-		flash(text, 6.0)
+	_ui.flash(text, seconds)
 
 
 # (the inventory's own functions, kept here for whatever calls them on the player: see
@@ -867,16 +792,6 @@ func pay(cost: Dictionary) -> Dictionary:
 ## (see PlayerInventory.remove)
 func remove_item(item: String, amount: int) -> bool:
 	return _inventory.remove(item, amount)
-
-
-# The status line at the top of the screen: a recent message wins; otherwise warnings about anything
-# that's run out (see Survival.warnings)
-func _update_status(delta: float) -> void:
-	_message_time -= delta
-	if _message_time > 0.0:
-		status_label.text = _message
-	else:
-		status_label.text = "\n".join(_survival.warnings())
 
 
 # (Survival's own functions, which rocks, trees and the console call on the player: see Survival)

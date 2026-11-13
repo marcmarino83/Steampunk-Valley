@@ -6,7 +6,7 @@
 [resource]
 script = ExtResource("1_tile")
 rank = 3
-menu_hint = "Lay stone paving tiles (4 Stone a tile)  ·  Draws over dirt and gravel  ·  Hold left click to keep laying"
+menu_hint = "Drag to lay a 2 m wide stone paving (4 Stone per 4 m)  ·  Draws over dirt and gravel"
 display_name = "Stone"
 starts_locked = true
 unlocked_by = "Plot"

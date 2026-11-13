@@ -258,7 +258,7 @@ func _lean_to_and_sleep() -> void:
 	sun.time_of_day = 0.5
 	mat.interact(player)
 	await frames(3)
-	say("step 3: sleeping by day says: '%s'" % player._message)
+	say("step 3: sleeping by day says: '%s'" % player._ui.message)
 	sun.time_of_day = 0.8
 	var day_before: int = sun.day
 	var hunger_before: float = player.hunger
@@ -484,11 +484,21 @@ func _panel_keys() -> void:
 	# pause menu and the banner over it
 	var at := func(node: Node) -> int: return node.get_index()
 	var fade: Node = player._fade
-	var order_ok: bool = at.call(player._panels.note_panel) == at.call(player._fps_label) - 1 \
+	var order_ok: bool = at.call(player._panels.note_panel) == at.call(player._ui.fps_label) - 1 \
 		and at.call(player._panels.plot_panel) < at.call(screen) and at.call(screen) < at.call(player._panels.settler_panel) \
 		and at.call(player._panels.settler_panel) == at.call(fade) - 1 and at.call(player._panels.plot_panel) > at.call(player.inventory_screen) \
 		and at.call(player._panels.pause_menu) == at.call(fade) + 1 and at.call(player._panels.banner) == at.call(fade) + 2
 	check(order_ok, "the panels are drawn in the HUD in their usual order")
+	# The HUD's own parts: the vitals panel, the controls row and the plot tracker just under the
+	# menus, the compass and watch just over the action bar; a message shows on the status line
+	var ui: PlayerHud = player._ui
+	var hud_ok: bool = at.call(ui.vitals) < at.call(ui.controls) \
+		and at.call(ui.controls) < at.call(ui.plot_tracker) \
+		and at.call(ui.plot_tracker) == at.call(player.inventory_screen) - 1 \
+		and at.call(ui.instruments) == at.call(player.action_bar) + 1
+	player.flash("Audit message")
+	ui.update_status(0.0)
+	check(hud_ok and player.status_label.text == "Audit message", "the HUD's parts are drawn in their usual order, and a message shows on the status line")
 	player._panels.open_village()
 	await frames(1)
 	var tab_before: int = screen._tab

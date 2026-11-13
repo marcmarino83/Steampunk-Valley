@@ -14,8 +14,6 @@ const FLY_FAST := 4.0
 ## (hunger, stamina, warmth, sleeping and the torch: see Survival)
 ## How far in front of you a dropped tool lands
 const DROP_DISTANCE := 1.2
-## In plot view, how far ahead E finds the plot whose ground you're aiming at
-const PLOT_REACH := 20.0
 ## Climbing a ladder: how fast (m/s), and how close it must be in front of you
 const CLIMB_SPEED := 2.5
 ## Stepping: the highest ledge you walk up onto without jumping (a floor laid on the ground, a low
@@ -93,10 +91,10 @@ var _village_screen: VillageScreen:
 		return _panels.village_screen
 # The plot tracker on the right of the screen (the plot you're in, or aiming at in plot view)
 var _plot_tracker: PlotTracker
-# What was being placed when the build menu opened, to go back to if nothing else is picked
-var _build_resume: Buildable
-# Plot view switched on with P (it only shows with the hammer out)
-var _plot_view := false
+# The hammer's controls (the build menu, ghosts, demolishing, plot view) and what the crosshair is
+# on (child nodes, see BuildControls and Interaction)
+var _build := BuildControls.new()
+var _interaction := Interaction.new()
 # The camera's usual height on the body, and how far it lags behind after a step (eases to 0)
 var _camera_height := 0.0
 var _step_offset := 0.0
@@ -107,8 +105,6 @@ var _sprinting := false
 var _base_fov := 75.0
 # The dowsing rod's pulse, which only exists while the iron tier is switched on
 var _dowsing: Node
-# The grass, ferns and scattered rocks, found the first time a pickaxe needs them
-var _foliage: Node
 # Frames per second, in the top-right corner (F3 shows or hides it)
 var _fps_label: Label
 # Handles putting a building down, once one's been chosen from the build menu
@@ -255,11 +251,26 @@ func _ready() -> void:
 	if IronTier.ENABLED:
 		_dowsing = load("res://iron_tier/dowsing.gd").new()
 		add_child(_dowsing)
-	build_menu.chosen.connect(_on_buildable_chosen)
-	# A template deleted while placing it was put aside: closing the menu doesn't bring it back
-	build_menu.template_deleted.connect(func(template: BuildingTemplate):
-		if _build_resume is TemplateBuildable and (_build_resume as TemplateBuildable).template == template:
-			_build_resume = null)
+	# The hammer's controls around the placer, and what the crosshair is on
+	var hammer_out := func(): return held_item == "Hammer"
+	_build.name = "BuildControls"
+	_build.placer = _placer
+	_build.build_menu = build_menu
+	_build.inventory_screen = inventory_screen
+	_build.panels = _panels
+	_build.survival = _survival
+	_build.hammer_out = hammer_out
+	_build.flash = flash
+	add_child(_build)
+	_build.setup()
+	_interaction.name = "Interaction"
+	_interaction.body = self
+	_interaction.camera = camera
+	_interaction.interact_ray = interact_ray
+	_interaction.placer = _placer
+	_interaction.build = _build
+	_interaction.held = func(): return held_item
+	add_child(_interaction)
 	action_bar.held_changed.connect(_on_held_changed)
 	action_bar.contents_changed.connect(_refresh_inventory_display)
 	inventory_screen.tool_returned.connect(action_bar.remove)
@@ -404,15 +415,8 @@ func _process(delta: float) -> void:
 	_containers.follow()
 
 
-	# With the hammer out: while the middle button (see _unhandled_input) or X is held, the
-	# building piece that would come down glows red
-	_placer.update_demolish(delta, _can_demolish(), Input.is_key_pressed(KEY_X))
-	# With the hammer out and nothing being placed: the ghost under the crosshair lights up, and
-	# holding left-click keeps building ghosts
-	_placer.update_ghosts(delta, _can_demolish())
-	# Plot view, with the hammer out: P toggles it, and it's on anyway while the build menu's Plots
-	# tab is open and while a plot is being drawn, moved or resized
-	_placer.update_plot_view(_plot_view_on())
+	# With the hammer out: demolishing, ghosts and plot view (see BuildControls.update)
+	_build.update(delta)
 
 	if _fps_label.visible:
 		var triangles := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
@@ -429,23 +433,18 @@ func _update_hud() -> void:
 	# The compass needle points the way you face (north is -Z); the watch shows the sun's clock
 	var facing := -global_basis.z
 	var sun = get_tree().get_first_node_in_group("sun")
-	_instruments.update_instruments(atan2(facing.x, -facing.z), sun.time_of_day if sun else 0.5, action_bar.first_slot_rect(), bar.end.y, _hud.row_rect())
-	var covered: bool = _panels.any_open() or _sleeping or inventory_screen.visible or build_menu.visible
+	_instruments.update_instruments(atan2(facing.x, -facing.z), sun.time_of_day if sun else 0.5,
+			action_bar.first_slot_rect(), bar.end.y, _hud.row_rect())
+	var covered: bool = _panels.any_open() or _sleeping or inventory_screen.visible \
+			or build_menu.visible
 	_instruments.show_crosshair(not covered)
-	_plot_tracker.show_plot(null if covered else _tracked_plot())
+	_plot_tracker.show_plot(null if covered else _interaction.tracked_plot())
 	if covered:
 		_hud.set_prompts([])
 		_hud.set_controls([])
 		_hud.set_info({})
 		return
-	var prompts := []
-	var target = _looked_at()
-	if target:
-		var what: String = target.get_prompt()
-		if target is ResourceNode and target.needs_tool(self):
-			what += " (equip the %s)" % target.required_tool
-		prompts.append(["E", what])
-	_hud.set_prompts(prompts)
+	_hud.set_prompts(_interaction.prompts())
 
 	# Eating isn't aimed at anything, so it goes in the controls row, not under the crosshair
 	var eat := [["Eat Berries", "F"]] if inventory.get("Berries", 0) > 0 else []
@@ -520,20 +519,10 @@ func read_note(title: String, text: String) -> void:
 	_panels.read_note(title, text)
 
 
-# While placing with the mouse captured (no cursor showing), the mouse wheel turns, tilts and tips
-# what's being placed: taken here, before any part of the screen can catch it (a panel under where
-# the hidden cursor rests would otherwise swallow the scroll), and never moving along the action bar
+# While placing, the mouse wheel turns what's being placed, taken here before the screen can
+# swallow it, and never moving along the action bar (see BuildControls.wheel_input)
 func _input(event: InputEvent) -> void:
-	if not (event is InputEventMouseButton and event.pressed):
-		return
-	if not event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
-		return
-	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED or _sleeping or _console_open() or not _placer.is_placing():
-		return
-	if build_menu.visible or inventory_screen.visible or _panels.any_open():
-		return
-	if _placer.handle_input(event):
-		get_viewport().set_input_as_handled()
+	_build.wheel_input(event, _sleeping or _console_open())
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -545,19 +534,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _panels.handle_input(event):
 		return
 
-	# While the build menu is open, Q and R change tab, E, Tab or Esc closes it, and nothing else
-	# happens (E only ever closes panels and interacts)
-	if build_menu.visible:
-		# A template's Rename / Delete is showing: it has the keys (Esc steps back out of it)
-		if build_menu.template_actions_open():
-			return
-		var key: bool = event is InputEventKey and event.pressed and not event.echo
-		if key and event.keycode == KEY_Q:
-			build_menu.cycle_tab(-1)
-		elif key and event.keycode == KEY_R:
-			build_menu.cycle_tab(1)
-		elif (key and event.keycode in [KEY_E, KEY_TAB]) or event.is_action_pressed("ui_cancel"):
-			_close_build_menu()
+	# The open build menu has the keys (see BuildControls.menu_input)
+	if _build.menu_input(event):
 		return
 
 	# The inventory: Q and R switch between its Inventory and Crafting tabs, E closes it
@@ -573,30 +551,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_toggle_inventory()
 				return
 
-	# With the hammer out, placing or not: holding the middle button picks the piece under the
-	# crosshair (it glows red), and letting go takes it down
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
-		if event.pressed and _can_demolish():
-			_placer.press_demolish()
-		elif not event.pressed:
-			_placer.release_demolish(_can_demolish())
-		return
-
-	# Letting go of left-click stops building ghosts
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-		_placer.release_ghost()
-
-	# While placing a building, clicks, R and Esc belong to that
-	# With the hammer out, nothing being placed: left-click on a ghost builds it (holding keeps
-	# building); in plot view, on a plot's edge or corner it starts dragging the edge
-	if held_item == "Hammer" and not _placer.is_placing() and event is InputEventMouseButton and event.pressed \
-			and event.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		if _placer.press_ghost():
-			return
-		if _plot_view_on() and _placer.try_grab_plot():
-			return
-
-	if _placer.is_placing() and _placer.handle_input(event):
+	# The hammer's clicks (demolishing, ghosts, dragging a plot's edge) and whatever's being placed
+	if _build.hammer_input(event):
 		return
 
 	# The mouse wheel moves along the action bar
@@ -632,22 +588,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		match event.keycode:
 			KEY_E:
 				# Gather, chop, or feed a fire: whatever you're looking at
-				var target = _looked_at()
+				var target = _interaction.looked_at()
 				if target:
 					target.interact(self)
 			KEY_F:
 				_survival.eat()
 			KEY_TAB:
-				_open_build_menu()
+				_build.open_build_menu()
 			KEY_V:
 				open_village()
 			KEY_P:
-				# Plot view on or off (it shows with the hammer out)
-				if held_item == "Hammer":
-					_plot_view = not _plot_view
-					flash("Plot view on" if _plot_view else "Plot view off")
-				else:
-					flash("Equip a hammer to see your plots")
+				_build.toggle_plot_view()
 			KEY_G:
 				_drop_held_tool()
 			KEY_R:
@@ -901,11 +852,26 @@ func give_or_drop(items: Dictionary, spot: Vector3) -> Dictionary:
 	return _inventory.give_or_drop(items, spot)
 
 
-# The hammer is out and nothing else is in the way (no menu, page or sleep), so demolishing works
+# (BuildControls' and Interaction's own functions, kept here for whatever calls them on the player:
+# the build placer, tests)
 func _can_demolish() -> bool:
-	return held_item == "Hammer" and not _sleeping and not _note_panel.is_open() and not _plot_panel.is_open() and not _village_screen.is_open() \
-			and not _placer.is_plot_mode() and not inventory_screen.visible and not build_menu.visible \
-			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	return _build.can_demolish()
+
+
+func _plot_view_on() -> bool:
+	return _build.plot_view_on()
+
+
+func _open_build_menu() -> void:
+	_build.open_build_menu()
+
+
+func _close_build_menu() -> void:
+	_build.close_build_menu()
+
+
+func _looked_at() -> Object:
+	return _interaction.looked_at()
 
 
 ## Something gathered from the world (picked, chopped, mined): into your pockets, and it counts
@@ -945,71 +911,6 @@ func pay(cost: Dictionary) -> Dictionary:
 func remove_item(item: String, amount: int) -> bool:
 	return _inventory.remove(item, amount)
 
-
-## The thing in front of you (within reach) that E would use, or null
-func _looked_at() -> Object:
-	var target = interact_ray.get_collider() if interact_ray.is_colliding() else null
-	# With the hammer out (not placing), the ground or a building piece inside a plot opens that
-	# plot's panel (move, resize, checklist): in plot view always, otherwise unless what you aim at
-	# does something itself (a door, the Storehouse's storage, a chest)
-	if held_item == "Hammer" and not _placer.is_placing():
-		var plain: bool = target == null or not target.has_method("interact") or not target.can_interact()
-		if (_plot_view_on() and (plain or target is BuildPiece)) or plain:
-			var plot := _plot_looked_at()
-			if plot:
-				return plot
-	# Stumps and emptied piles are still there, but have nothing left
-	if target and target.has_method("interact") and target.can_interact():
-		return target
-	if held_item == MineableRock.TOOL:
-		return _scattered_rock_looked_at()
-	return null
-
-
-# The plot the tracker shows, with the hammer out: the one aimed at in plot view, or else the one
-# you're standing in (of overlapping plots, the one whose middle is nearest); null for none
-func _tracked_plot() -> Plot:
-	if held_item != "Hammer":
-		return null
-	var plot: Plot = _plot_looked_at() if _plot_view_on() else null
-	if plot == null:
-		plot = _placer.plots.find(_placer.plots.owner_for(global_position, global_position))
-	return plot
-
-
-## True while plot view shows: the hammer is out, and P has switched it on, or the build menu's
-## Buildings tab is open, or a plot is being drawn, moved or resized
-func _plot_view_on() -> bool:
-	if held_item != "Hammer":
-		return false
-	return _plot_view or (build_menu.visible and build_menu.current_tab_name() == "Buildings") or _placer.is_plot_mode()
-
-
-# The plot whose ground the crosshair points at (within PLOT_REACH): of overlapping plots, the one
-# whose middle is nearest you
-func _plot_looked_at() -> Plot:
-	var from := camera.global_position
-	var query := PhysicsRayQueryParameters3D.create(from, from - camera.global_basis.z * PLOT_REACH)
-	query.exclude = [get_rid()]
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty():
-		return null
-	return _placer.plots.find(_placer.plots.owner_for(hit["position"], global_position))
-
-
-# The valley's scattered rocks have no collision, so the look ray can't see them. Check for one
-# between you and whatever the ray did hit, so rocks behind a hillside don't count.
-func _scattered_rock_looked_at() -> Object:
-	if _foliage == null:
-		var valley = get_tree().get_first_node_in_group("valley")
-		_foliage = valley.get_node_or_null("Foliage") if valley else null
-		if _foliage == null:
-			return null
-	var from := interact_ray.global_position
-	var to := interact_ray.to_global(interact_ray.target_position)
-	if interact_ray.is_colliding():
-		to = interact_ray.get_collision_point()
-	return _foliage.rock_on_line(from, to)
 
 
 # The status line at the top of the screen: a recent message wins; otherwise warnings about anything
@@ -1095,43 +996,6 @@ func _drop_held_tool() -> void:
 	dropped.global_position = spot
 	dropped.rotation.y = rotation.y
 	remove_item(held_item, 1)
-
-
-# Opens the build menu. While placing something, what you were placing is put aside: picking
-# something else switches to it (keeping the height and turn), closing the menu goes back to it.
-func _open_build_menu() -> void:
-	if inventory_screen.visible:
-		return
-	if held_item != "Hammer":
-		flash("Equip a hammer to build")
-		return
-	if _placer.is_placing():
-		_build_resume = _placer.current_buildable()
-		# Moving or resizing a plot: finish that first
-		if _build_resume == null:
-			return
-		_placer.cancel()
-	var timing := SpikeLog.begin()
-	build_menu.show()
-	SpikeLog.end("build menu opened", timing)
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-
-
-# Closes the build menu without picking anything: back to whatever was being placed
-func _close_build_menu() -> void:
-	build_menu.hide()
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	if _build_resume:
-		var resume := _build_resume
-		_build_resume = null
-		_placer.begin(resume, true)
-
-
-func _on_buildable_chosen(buildable: Buildable) -> void:
-	var switching := _build_resume != null
-	_build_resume = null
-	_close_build_menu()
-	_placer.begin(buildable, switching)
 
 
 ## Opens the backpack (freeing the mouse) or closes it (grabbing the mouse again).

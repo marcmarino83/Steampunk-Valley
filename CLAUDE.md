@@ -68,3 +68,7 @@ If you think a run is worth it for a non-visual change, ask first in one line.
 - Models and textures go in assets/; code and data go in the feature folders.
 - Use lowercase_with_underscores for all file and folder names.
 - When moving files, update every reference and use git mv.
+
+## Code style
+
+- Follow Godot's GDScript style guide. Lines under 100 characters (code and comments), wrapping long comments onto several lines. Comments explain why, not what. Don't reformat whole files on their own; when you change a script, wrap the over-long lines in the parts you touch.

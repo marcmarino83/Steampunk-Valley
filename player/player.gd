@@ -7,65 +7,15 @@ const JUMP_VELOCITY = 4.5
 const SPRINT_MULTIPLIER := 1.7
 const SPRINT_FOV := 7.0
 const SPRINT_FOV_EASE := 8.0
-const SPRINT_HUNGER := 1.5
 const MOUSE_SENSITIVITY = 0.002
 ## Flying with the fly cheat: how fast (m/s), and how much faster with Shift
 const FLY_SPEED := 10.0
 const FLY_FAST := 4.0
-
-## Stamina (0 to 100): what sprinting costs per second, and what a jump and a tool swing (chopping,
-## mining) cost each; how fast it comes back (per second) once you've spent none for REGEN_DELAY
-## seconds; and, once it hits 0, how high it must climb back before you can sprint or swing again
-const SPRINT_STAMINA := 12.0
-const JUMP_STAMINA := 8.0
-const SWING_STAMINA := 6.0
-const STAMINA_REGEN := 20.0
-const STAMINA_REGEN_DELAY := 1.0
-const STAMINA_RECOVER := 15.0
-## Starving: the most stamina you can have, and how fast it comes back (0.5 = half as fast). Well
-## fed is full on both; in between eases from one to the other as hunger runs down.
-const STARVING_MAX_STAMINA := 50.0
-const STARVING_STAMINA_REGEN := 0.5
-## The project setting that switches warmth (and the cold) on. Off for now: warmth returns for cold
-## regions and winter. While off there's no warmth meter, no cold, and no shelter messages; fires
-## still give light and shelter checks still run.
-const WARMTH_SETTING := "game/survival/warmth_enabled"
-
-## Hunger and warmth follow the sun's clock (its Day Minutes and Night Minutes), so they stay fair
-## however long the day is. A full belly lasts this many whole days (a day and its night).
-const FULL_BELLY_DAYS := 1.0
-## How much hunger one berry fills back up
-const BERRY_FOOD = 15.0
-## Out in the open with no fire: how much warmth a whole night costs at the cold of deep night, and
-## how much a whole day gives back at the warmth of midday (dawn and dusk sit in between)
-const NIGHT_CHILL_PER_NIGHT := 90.0
-const DAY_WARMTH_PER_DAY := 18.0
-## If there's no sun to ask, these day and night lengths are used, in seconds
-const FALLBACK_DAY_SECONDS := 1680.0
-const FALLBACK_NIGHT_SECONDS := 720.0
-## Warmth gained per second standing by a lit campfire
-const FIRE_WARMTH = 6.0
-## Inside a shelter, the cold gets to you only this fast (0.35 = a bit over a third as fast)
-const SHELTER_CHILL = 0.35
+## (hunger, stamina, warmth, sleeping and the torch: see Survival)
 ## How far in front of you a dropped tool lands
 const DROP_DISTANCE := 1.2
-## Sleeping: when you wake (0.27 is just after sunrise), how much hunger a night costs, how close a
-## lit campfire must be to wake up warm, and how warm you are without one
-const WAKE_TIME := 0.27
-const SLEEP_HUNGER := 25.0
-const SLEEP_FIRE_RANGE := 5.0
-const COLD_WAKE_WARMTH := 25.0
-## How long the screen takes to fade out and back in, and how long it stays dark, in seconds
-const SLEEP_FADE := 1.0
-const SLEEP_DARK := 0.6
 ## In plot view, how far ahead E finds the plot whose ground you're aiming at
 const PLOT_REACH := 20.0
-## A torch burns for this share of a night while held, and while held the cold gets to you only
-## this fast (0.75 = three quarters as fast)
-const TORCH_NIGHTS := 0.5
-const TORCH_CHILL := 0.75
-## Checking for a roof overhead and a closed room around you: how often, in seconds, how far the
-## rays look, in meters, and how many go round the room
 ## Climbing a ladder: how fast (m/s), and how close it must be in front of you
 const CLIMB_SPEED := 2.5
 ## Stepping: the highest ledge you walk up onto without jumping (a floor laid on the ground, a low
@@ -79,9 +29,6 @@ const STEP_CAMERA_EASE := 14.0
 ## even a 45° slope drops less): only then does the camera ease down after it
 const STEP_SMOOTH_DROP := 0.12
 const LADDER_REACH := 0.9
-const SHELTER_CHECK_SECONDS := 0.4
-const SHELTER_REACH := 14.0
-const ENCLOSURE_RAYS := 32
 
 const NOTE_PANEL_SCENE = preload("res://ui/note_panel.tscn")
 const PAUSE_MENU_SCENE = preload("res://ui/pause_menu.tscn")
@@ -102,19 +49,30 @@ var inventory: Dictionary:
 var _inventory := PlayerInventory.new()
 ## What's in your hand, or an empty string
 var held_item := ""
-## 100 = full, 0 = starving
-var hunger := 100.0
-## 100 = toasty, 0 = freezing (only changes while warmth is switched on, see WARMTH_SETTING)
-var warmth := 100.0
-## 100 = fresh, 0 = spent (the most you can have drops while hungry, see max_stamina)
-var stamina := 100.0
-
-# Whether warmth and the cold are switched on (read once from the project settings)
-var _warmth_on: bool = ProjectSettings.get_setting(WARMTH_SETTING, false)
-# Seconds since stamina was last spent (it starts coming back after STAMINA_REGEN_DELAY)
-var _since_spent := 0.0
-# Ran out of stamina: no sprinting or swinging until it's back above STAMINA_RECOVER
-var _winded := false
+# Hunger, stamina, warmth, shelter, eating, sleeping and the torch (a child node, see Survival),
+# and its values as before, for whatever reads or sets them on the player
+var _survival := Survival.new()
+var hunger: float:
+	get:
+		return _survival.hunger
+	set(value):
+		_survival.hunger = value
+var warmth: float:
+	get:
+		return _survival.warmth
+	set(value):
+		_survival.warmth = value
+var stamina: float:
+	get:
+		return _survival.stamina
+	set(value):
+		_survival.stamina = value
+var _warmth_on: bool:
+	get:
+		return _survival.warmth_on
+var _sleeping: bool:
+	get:
+		return _survival.sleeping
 
 # A short message shown at the top of the screen, and how long it has left
 var _message := ""
@@ -159,17 +117,14 @@ var _hud: HudControls
 # and the crosshair
 var _vitals: VitalsPanel
 var _instruments: HudInstruments
-# Sleeping: the black screen it fades to, and whether you're asleep right now
-var _fade: ColorRect
-var _sleeping := false
+# The black screen sleep fades through
+var _fade: SleepFade
 # Esc's menu: Resume, Save, Load, Quit
 var _pause_menu: Control
 # What's open beside the inventory (a chest or town storage), and crafting and the stations in
 # reach (child nodes, see ContainerSession and PlayerCrafting)
 var _containers := ContainerSession.new()
 var _crafting := PlayerCrafting.new()
-# Seconds left on the torch in your hand (0 = a fresh one is lit when you next hold one)
-var _torch_left := 0.0
 # The developer console (debug builds only; null otherwise)
 var _console: DevConsole
 # The bug snapshot key's (F9, debug builds only)
@@ -181,10 +136,6 @@ var _village_screen: VillageScreen
 var _banner: EventBanner
 # A settler's or plot's panel was opened from the Village screen: closing it goes back there
 var _back_to_village := false
-# Under a roof you've built, and shut in a room (see _check_shelter), and when to check again
-var _under_roof := false
-var _enclosed := false
-var _shelter_check_in := 0.0
 
 
 func _ready() -> void:
@@ -253,11 +204,20 @@ func _ready() -> void:
 	$HUD.add_child(_plot_tracker)
 	$HUD.move_child(_plot_tracker, inventory_screen.get_index())
 	# Last, so the black of sleep covers everything
-	_fade = ColorRect.new()
-	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_fade.color = Color.BLACK
-	_fade.modulate.a = 0.0
-	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fade = SleepFade.new()
+	# Hunger, stamina, warmth and sleep: the vitals panel follows them; falling asleep stops any
+	# placing and stands you still
+	_survival.name = "Survival"
+	_survival.body = self
+	_survival.half_height = _half_height
+	_survival.inventory = _inventory
+	_survival.fade = _fade
+	add_child(_survival)
+	_survival.message.connect(flash)
+	_survival.vitals_changed.connect(_vitals.set_values)
+	_survival.fell_asleep.connect(func():
+		_placer.cancel()
+		velocity = Vector3.ZERO)
 	# Above the HUD and menus, under the black of sleep
 	_plot_panel = PlotPanel.new()
 	$HUD.add_child(_plot_panel)
@@ -401,15 +361,13 @@ func save_data() -> Dictionary:
 		"position": SaveGame.from_vector(global_position),
 		"turn": rotation.y,
 		"look": camera.rotation.x,
-		"hunger": hunger,
-		"warmth": warmth,
-		"stamina": stamina,
 		"inventory": inventory.duplicate(),
 		"dropped_tools": dropped,
 		"item_bundles": bundles,
-		"torch_left": _torch_left,
 	}
-	# (its "unlocked", "notes_read" and "done", as before)
+	# (Survival's "hunger", "warmth", "stamina" and "torch_left", and Progress's "unlocked",
+	# "notes_read" and "done", as before)
+	data.merge(_survival.save_data())
 	data.merge(_progress.save_data())
 	return data
 
@@ -419,18 +377,12 @@ func load_data(data: Dictionary) -> void:
 	velocity = Vector3.ZERO
 	rotation.y = float(data.get("turn", rotation.y))
 	camera.rotation.x = float(data.get("look", 0.0))
-	hunger = float(data.get("hunger", hunger))
-	# Older saves have warmth but no stamina: with warmth switched off, their warmth is ignored
-	warmth = float(data.get("warmth", warmth)) if _warmth_on else 100.0
-	stamina = clampf(float(data.get("stamina", 100.0)), 0.0, max_stamina())
-	_winded = false
-	_since_spent = STAMINA_REGEN_DELAY
+	_survival.load_data(data)
 	inventory.clear()
 	var saved_inventory: Dictionary = data.get("inventory", {})
 	for item in saved_inventory:
 		inventory[item] = int(saved_inventory[item])
 	_progress.load_data(data)
-	_torch_left = float(data.get("torch_left", 0.0))
 	for tool_on_ground in get_tree().get_nodes_in_group("dropped_tools"):
 		tool_on_ground.queue_free()
 	for entry in data.get("dropped_tools", []):
@@ -467,8 +419,12 @@ func _all_blueprints() -> Array[Blueprint]:
 
 
 func _process(delta: float) -> void:
-	_update_survival(delta)
-	_burn_torch(delta)
+	# Hunger, stamina, shelter and warmth (and the vitals panel), then the status line, then the
+	# torch in your hand
+	var holding_torch := held_item == "Torch"
+	_survival.update(delta, _sprinting and velocity.length() > 0.1, holding_torch)
+	_update_status(delta)
+	_survival.burn_torch(delta, holding_torch)
 
 	# The Crafting tab follows you toward and away from crafting stations while it's open
 	if inventory_screen.visible:
@@ -779,7 +735,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				if target:
 					target.interact(self)
 			KEY_F:
-				_eat()
+				_survival.eat()
 			KEY_TAB:
 				_open_build_menu()
 			KEY_V:
@@ -830,7 +786,7 @@ func _physics_process(delta: float) -> void:
 	# Space to jump (not while typing in the developer console)
 	if Input.is_action_just_pressed("ui_accept") and is_on_floor() and not _sleeping and not _console_open():
 		velocity.y = JUMP_VELOCITY
-		_spend_stamina(JUMP_STAMINA)
+		_survival.spend_stamina(Survival.JUMP_STAMINA)
 
 	# WASD to walk (but stand still while reading, asleep, or typing in the developer console)
 	var input_dir := Vector2.ZERO
@@ -845,19 +801,19 @@ func _physics_process(delta: float) -> void:
 	var forward := input_dir.y < 0.0
 	# Out of stamina, you can't sprint until it's come back a little.
 	if is_on_floor():
-		_sprinting = forward and Input.is_key_pressed(KEY_SHIFT) and not _facing_ladder() and not _winded
+		_sprinting = forward and Input.is_key_pressed(KEY_SHIFT) and not _facing_ladder() and not _survival.winded
 	elif not forward:
 		_sprinting = false
-	if _sprinting and _winded:
+	if _sprinting and _survival.winded:
 		_sprinting = false
 	if _sprinting and velocity.length() > 0.1:
-		_spend_stamina(SPRINT_STAMINA * delta)
+		_survival.spend_stamina(Survival.SPRINT_STAMINA * delta)
 
 	# Starving (or freezing, while warmth is on) slows you to a trudge
 	var speed := WALK_SPEED
 	if _sprinting:
 		speed *= SPRINT_MULTIPLIER
-	if hunger <= 0.0 or (_warmth_on and warmth <= 0.0):
+	if _survival.slowed():
 		speed *= 0.5
 	_ease_sprint_fov(delta)
 
@@ -1074,42 +1030,9 @@ func report_progress(action: String, item: String) -> void:
 	_progress.report(action, item)
 
 
-## Sleeps through to morning, if it's night: the screen fades to black, the clock jumps to just
-## after sunrise, then it fades back in. A night's sleep costs hunger; you wake up warm only if a
-## lit campfire was within reach of where you slept.
+## Sleeps through to morning, if it's night (see Survival.sleep; the lean-to's mat calls this)
 func sleep(where: Vector3) -> void:
-	var sun = get_tree().get_first_node_in_group("sun")
-	if sun == null or _sleeping:
-		return
-	# Night is when the sun is below the horizon: before sunrise (0.25) or after sunset (0.75)
-	if sun.time_of_day > 0.25 and sun.time_of_day < 0.75:
-		flash("You can only sleep at night.")
-		return
-	var warm := false
-	for fire in get_tree().get_nodes_in_group("campfires"):
-		if fire.is_lit() and where.distance_to(fire.global_position) <= SLEEP_FIRE_RANGE:
-			warm = true
-	_sleeping = true
-	_placer.cancel()
-	velocity = Vector3.ZERO
-	var night := create_tween()
-	night.tween_property(_fade, "modulate:a", 1.0, SLEEP_FADE)
-	night.tween_callback(func():
-		# Sleeping from before midnight wakes you on the next day
-		if sun.time_of_day > 0.5:
-			sun.day += 1
-		sun.time_of_day = WAKE_TIME
-		if not DevCheats.god:
-			hunger = maxf(hunger - SLEEP_HUNGER, 0.0)
-		stamina = max_stamina()
-		_winded = false
-		if _warmth_on:
-			warmth = 100.0 if warm else COLD_WAKE_WARMTH)
-	night.tween_interval(SLEEP_DARK)
-	night.tween_property(_fade, "modulate:a", 0.0, SLEEP_FADE)
-	night.tween_callback(func():
-		_sleeping = false
-		SaveGame.autosave())
+	_survival.sleep(where)
 
 
 ## (see PlayerInventory.pay)
@@ -1188,222 +1111,31 @@ func _scattered_rock_looked_at() -> Object:
 	return _foliage.rock_on_line(from, to)
 
 
-func _update_survival(delta: float) -> void:
-	var daylight := 1.0
-	var day_seconds := FALLBACK_DAY_SECONDS
-	var night_seconds := FALLBACK_NIGHT_SECONDS
-	var sun = get_tree().get_first_node_in_group("sun")
-	if sun:
-		daylight = sun.daylight
-		day_seconds = sun.day_seconds()
-		night_seconds = sun.night_seconds()
-
-	# Sprinting works up an appetite
-	var appetite := SPRINT_HUNGER if _sprinting and velocity.length() > 0.1 else 1.0
-	# The god cheat: hunger never drops
-	if not DevCheats.god:
-		hunger = maxf(hunger - 100.0 / (FULL_BELLY_DAYS * (day_seconds + night_seconds)) * appetite * delta, 0.0)
-
-	_update_stamina(delta)
-
-	# Shelter is checked whether or not warmth is on (beds and settlers will need it too)
-	_check_shelter(delta)
-	var sheltered := is_sheltered()
-	if _warmth_on:
-		# Chilly at night, slowly warming by day, and quickly warming by a fire
-		var night_chill := NIGHT_CHILL_PER_NIGHT / night_seconds
-		var day_warmth := DAY_WARMTH_PER_DAY / day_seconds
-		var warmth_change := lerpf(-night_chill, day_warmth, daylight)
-		# Out of the wind, the cold creeps in much more slowly; shut in a room, not at all
-		if sheltered and warmth_change < 0.0:
-			warmth_change *= SHELTER_CHILL
-		if _enclosed and warmth_change < 0.0:
-			warmth_change = 0.0
-		# A lit torch in your hand keeps a little of the cold off
-		if held_item == "Torch" and warmth_change < 0.0:
-			warmth_change *= TORCH_CHILL
-		if _near_lit_fire():
-			warmth_change = FIRE_WARMTH
-		if DevCheats.god:
-			warmth_change = maxf(warmth_change, 0.0)
-		warmth = clampf(warmth + warmth_change * delta, 0.0, 100.0)
-
-	_vitals.set_values(hunger, stamina)
-
-	# A recent message wins; otherwise warn about anything that's run out
+# The status line at the top of the screen: a recent message wins; otherwise warnings about anything
+# that's run out (see Survival.warnings)
+func _update_status(delta: float) -> void:
 	_message_time -= delta
 	if _message_time > 0.0:
 		status_label.text = _message
 	else:
-		var warnings: PackedStringArray = []
-		if hunger <= 0.0:
-			warnings.append("You're starving! Eat something [F]")
-		if _warmth_on:
-			if warmth <= 0.0:
-				warnings.append("You're freezing! Get to a fire")
-			if warnings.is_empty() and _enclosed:
-				warnings.append("Indoors: the cold can't get in here")
-			elif warnings.is_empty() and sheltered:
-				warnings.append("Sheltered: the cold creeps in slowly here")
-		status_label.text = "\n".join(warnings)
+		status_label.text = "\n".join(_survival.warnings())
 
 
-## The most stamina you can have right now: 100 when well fed, easing down to
-## STARVING_MAX_STAMINA as hunger runs out
+# (Survival's own functions, kept here for whatever calls them on the player: see Survival)
 func max_stamina() -> float:
-	return lerpf(STARVING_MAX_STAMINA, 100.0, clampf(hunger / 100.0, 0.0, 1.0))
+	return _survival.max_stamina()
 
 
-## Spends a tool swing's stamina (chopping, mining). Returns false, spending nothing, if you're too
-## winded to swing; the thing being hit should then do nothing.
 func swing_tool() -> bool:
-	if _winded:
-		flash("Too tired to swing. Catch your breath")
-		return false
-	_spend_stamina(SWING_STAMINA)
-	return true
+	return _survival.swing_tool()
 
 
-# Takes stamina away (never below 0) and holds off its coming back; at 0 you're winded. Not with
-# the god cheat on.
-func _spend_stamina(amount: float) -> void:
-	if DevCheats.god:
-		return
-	stamina = maxf(stamina - amount, 0.0)
-	_since_spent = 0.0
-	if stamina <= 0.0:
-		_winded = true
-
-
-# Stamina comes back once none has been spent for a moment, more slowly the hungrier you are, up to
-# max_stamina (which also drops while hungry). Winded ends once it's back above STAMINA_RECOVER.
-func _update_stamina(delta: float) -> void:
-	var fed := clampf(hunger / 100.0, 0.0, 1.0)
-	var top := max_stamina()
-	_since_spent += delta
-	if _since_spent >= STAMINA_REGEN_DELAY:
-		stamina += STAMINA_REGEN * lerpf(STARVING_STAMINA_REGEN, 1.0, fed) * delta
-	stamina = clampf(stamina, 0.0, top)
-	if _winded and stamina > STAMINA_RECOVER:
-		_winded = false
-
-
-## True while standing inside a shelter (any Area3D in the "shelters" group), like the
-## intact half of the wreck, or under a roof you've built. Wind and rain will check this too, later.
 func is_sheltered() -> bool:
-	if _under_roof or _enclosed:
-		return true
-	for shelter in get_tree().get_nodes_in_group("shelters"):
-		if shelter.overlaps_body(self):
-			return true
-	return false
+	return _survival.is_sheltered()
 
 
-## True while shut inside a room you've built: floor underneath, walls all round (with any door
-## closed) and a roof overhead. The cold can't get in at all.
 func is_enclosed() -> bool:
-	return _enclosed
-
-
-# Under a roof, and shut in a room, checked a few times a second with rays: one up for a roof,
-# one down for a floor, a ring of them across the room (below window height) that must all meet
-# a wall or a closed door, and some up from around the room that must all meet a roof or a
-# floor above. Works for round rooms as for square ones.
-func _check_shelter(delta: float) -> void:
-	_shelter_check_in -= delta
-	if _shelter_check_in > 0.0:
-		return
-	_shelter_check_in = SHELTER_CHECK_SECONDS
-	# The body's origin is its middle: the feet are half its height below
-	var feet := global_position + Vector3.DOWN * _half_height
-	var overhead := _roof_hit(feet + Vector3.UP * 1.6, feet + Vector3.UP * SHELTER_REACH)
-	_under_roof = overhead != null and (overhead.is_roof() or overhead.is_floor())
-	_enclosed = false
-	if not _under_roof:
-		return
-	var underfoot := _piece_hit(feet + Vector3.UP * 0.3, feet + Vector3.DOWN * 1.0)
-	if underfoot == null or not underfoot.is_floor():
-		return
-	for i in ENCLOSURE_RAYS:
-		var direction := Vector3.FORWARD.rotated(Vector3.UP, TAU * i / ENCLOSURE_RAYS)
-		var reach := INF
-		for height in [0.5, 1.0]:
-			var from: Vector3 = feet + Vector3.UP * height
-			var hit := _wall_hit(from, from + direction * SHELTER_REACH)
-			# A gap, something that isn't part of the building, or a door standing open
-			if hit.is_empty() or not hit["collider"] is BuildPiece or not hit["collider"].is_closed():
-				return
-			reach = minf(reach, from.distance_to(hit["position"]))
-		# The ceiling must cover the room, not just the spot you're standing on
-		if i % 4 == 0:
-			var inside := feet + direction * reach * 0.7 + Vector3.UP * 1.6
-			var ceiling := _roof_hit(inside, inside + Vector3.UP * SHELTER_REACH)
-			if ceiling == null or not (ceiling.is_roof() or ceiling.is_floor()):
-				return
-	_enclosed = true
-
-
-# What a level ray across a room meets, looking past furniture, chimneys and the workbench, chest
-# and campfire (things standing in the room, not part of its walls)
-func _wall_hit(from: Vector3, to: Vector3) -> Dictionary:
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	var skip: Array[RID] = [get_rid()]
-	for i in 8:
-		query.exclude = skip
-		var hit := get_world_3d().direct_space_state.intersect_ray(query)
-		if hit.is_empty():
-			return hit
-		var other: Object = hit["collider"]
-		var in_room: bool = (other is BuildPiece and (other.is_furniture() or other.is_chimney())) \
-				or (other is Node and ((other as Node).is_in_group("buildings") or (other as Node).is_in_group("settlers")))
-		if not in_room:
-			return hit
-		skip.append(hit["rid"])
-	return {}
-
-
-# Like _piece_hit, looking up for a roof: chimneys and furniture (a chimney stack passing through
-# the roof, a tall shelf) are looked past, so they never break the shelter or enclosure check
-func _roof_hit(from: Vector3, to: Vector3) -> BuildPiece:
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	var skip: Array[RID] = [get_rid()]
-	for i in 8:
-		query.exclude = skip
-		var hit := get_world_3d().direct_space_state.intersect_ray(query)
-		if hit.is_empty() or not hit["collider"] is BuildPiece:
-			return null
-		var piece: BuildPiece = hit["collider"]
-		if not (piece.is_chimney() or piece.is_furniture()):
-			return piece
-		skip.append(piece.get_rid())
-	return null
-
-
-# The building piece a line from one point to another meets first, or null if it meets something
-# else first (or nothing)
-func _piece_hit(from: Vector3, to: Vector3) -> BuildPiece:
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.exclude = [get_rid()]
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty() or not hit["collider"] is BuildPiece:
-		return null
-	return hit["collider"]
-
-
-func _near_lit_fire() -> bool:
-	for fire in get_tree().get_nodes_in_group("campfires"):
-		if fire.is_lit() and global_position.distance_to(fire.global_position) < fire.heat_radius():
-			return true
-	return false
-
-
-func _eat() -> void:
-	if hunger >= 100.0:
-		flash("You're not hungry")
-	elif remove_item("Berries", 1):
-		hunger = minf(hunger + BERRY_FOOD, 100.0)
-	else:
-		flash("You have nothing to eat")
+	return _survival.enclosed
 
 
 ## (see PlayerCrafting.nearby_stations)
@@ -1427,23 +1159,6 @@ func open_chest(chest: Node3D) -> void:
 ## Storehouse): the whole shared pool, whichever shelf it's opened at (see ContainerSession)
 func open_town_storage(shelf: Node3D) -> void:
 	_containers.open(_placer.plots.town, shelf)
-
-
-# A torch in your hand burns down; when it's out, it's gone and the next one is ready to light
-func _burn_torch(delta: float) -> void:
-	if held_item != "Torch":
-		return
-	var burn_time := TORCH_NIGHTS * FALLBACK_NIGHT_SECONDS
-	var sun = get_tree().get_first_node_in_group("sun")
-	if sun:
-		burn_time = TORCH_NIGHTS * sun.night_seconds()
-	if _torch_left <= 0.0:
-		_torch_left = burn_time
-	_torch_left -= delta
-	if _torch_left <= 0.0:
-		_torch_left = 0.0
-		remove_item("Torch", 1)
-		flash("Your torch burned out")
 
 
 ## (see PlayerCrafting.craft)

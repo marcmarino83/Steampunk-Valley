@@ -24,7 +24,7 @@ houses_per = ""
 workers = 1
 work_at = "Chopping Block"
 daily_output = {
-"Wood": 72,
+"Wood": 24,
 "Sticks": 8
 }
 display_name = "Woodcutter's Hut"

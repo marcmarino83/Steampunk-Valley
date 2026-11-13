@@ -74,6 +74,13 @@ func show_tab(show_crafting: bool) -> void:
 	_chest_panel.visible = _chest_open and not show_crafting
 
 
+## Keeps the backpack showing what you own that isn't on the action bar, whenever either changes
+func watch(inventory: PlayerInventory, bar: ActionBar) -> void:
+	var update := func(): show_items(inventory.backpack_contents())
+	inventory.changed.connect(update)
+	bar.contents_changed.connect(update)
+
+
 ## Fills the slots from the player's inventory, in the order things were picked up
 func show_items(inventory: Dictionary) -> void:
 	var items := inventory.keys()

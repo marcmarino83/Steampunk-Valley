@@ -56,6 +56,16 @@ func _ready() -> void:
 	craft_button.add_theme_color_override("font_disabled_color", BrassStyle.TEXT_DIM.darkened(0.3))
 
 
+## Keeps the list up to date whenever what you own, the stations in reach or what you've unlocked
+## changes
+func watch(inventory: PlayerInventory, crafting: PlayerCrafting, progress: Progress) -> void:
+	var update := func():
+		refresh(inventory.items, crafting.stations_for_tab(), progress.is_unlocked)
+	inventory.changed.connect(update)
+	crafting.stations_changed.connect(update)
+	progress.learned.connect(func(_names): update.call())
+
+
 ## Brings the list and details up to date. Every recipe shows: ones that need a station you're
 ## not near are greyed out, saying which station they need, and locked ones show their name with
 ## their picture as a dark silhouette and how to unlock them.

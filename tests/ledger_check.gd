@@ -130,7 +130,7 @@ func _stock() -> Dictionary:
 
 
 func _sliders(hut: Plot) -> void:
-	var screen: VillageScreen = player._village_screen
+	var screen: VillageScreen = player._panels.village_screen
 	screen.open()
 	screen.show_tab(2)
 	screen._show_detail("Berries")
@@ -139,9 +139,9 @@ func _sliders(hut: Plot) -> void:
 		_fail("the Berries detail panel has no sliders for the Forager's Hut")
 		return
 	var from_ledger: ShareSliders = screen._detail_sliders[0]
-	player._plot_panel.open(hut, false)
+	player._panels.plot_panel.open(hut, false)
 	await _frames(2)
-	var from_plot: ShareSliders = player._plot_panel._share_sliders
+	var from_plot: ShareSliders = player._panels.plot_panel._share_sliders
 	if from_plot == null:
 		_fail("the plot panel has no sliders for the Forager's Hut")
 		return
@@ -149,7 +149,7 @@ func _sliders(hut: Plot) -> void:
 		_fail("the two panels' sliders aren't for the same plot")
 	# Moved in the ledger
 	(from_ledger.sliders["Berries"] as HSlider).value = 50
-	player._plot_panel._refresh()
+	player._panels.plot_panel._refresh()
 	var shared := int(hut.shares()["Berries"])
 	var shown := int((from_plot.sliders["Berries"] as HSlider).value)
 	if shared != 50 or shown != 50:
@@ -171,7 +171,7 @@ func _sliders(hut: Plot) -> void:
 	if total != 100:
 		_fail("the shares add up to %d%%, not 100%%" % total)
 	print("LEDGER | sliders: set from the ledger and from the plot panel, one value (Berries %d%%, Mushrooms %d%%); the planned numbers followed" % [hut.shares()["Berries"], hut.shares()["Mushrooms"]])
-	player._plot_panel.close()
+	player._panels.plot_panel.close()
 	screen.close()
 
 

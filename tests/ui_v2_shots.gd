@@ -63,7 +63,7 @@ func _run() -> void:
 		GameSettings.ui_scale = s
 		GameSettings.apply_ui_scale()
 		await _save("plot_forager_%d.png" % int(s))
-	player._plot_panel.close()
+	player._panels.plot_panel.close()
 	GameSettings.ui_scale = kept
 	GameSettings.apply_ui_scale()
 	print("UISHOTS | forager missing: %s, worker: %s" % [forager.missing, settler != null])

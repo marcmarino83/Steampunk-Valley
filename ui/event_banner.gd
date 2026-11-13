@@ -5,7 +5,8 @@ extends Control
 ## a few seconds, and fading out. Events that come while one is showing wait their turn.
 ##
 ## Used for: a visitor arriving, a building starting to work; ready for later events (an era
-## unlocked, a quest done): player.show_banner("The Forge era", "New blueprints in the build menu").
+## unlocked, a quest done), through the player's PanelHost:
+## show_banner("The Forge era", "New blueprints in the build menu").
 
 ## How far below the top of the screen it sits, how long it stays, and its fades (seconds)
 const TOP := 118.0

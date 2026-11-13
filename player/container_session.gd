@@ -59,6 +59,12 @@ func show_contents() -> void:
 		inventory_screen.show_chest(_open.contents)
 
 
+## Brings the open panel up to date, if something's open (after the backpack changed)
+func refresh() -> void:
+	if is_open():
+		show_contents()
+
+
 func _on_changed() -> void:
 	if is_open() and inventory_screen.visible:
 		show_contents()

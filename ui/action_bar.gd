@@ -188,6 +188,11 @@ func key_for(item: String) -> int:
 	return items.find(item) + 1
 
 
+## Keeps the bar to what you own, whenever that changes (see forget_missing)
+func watch(inventory: PlayerInventory) -> void:
+	inventory.changed.connect(func(): forget_missing(inventory.items))
+
+
 ## Clears out anything you no longer own
 func forget_missing(inventory: Dictionary) -> void:
 	var changed := false

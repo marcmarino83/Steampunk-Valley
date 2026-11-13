@@ -79,18 +79,18 @@ func _run() -> void:
 
 	player.open_plot_panel(woodcutter)
 	await _save("plot_woodcutter.png")
-	player._plot_panel.close()
+	player._panels.plot_panel.close()
 	player.open_plot_panel(forager)
 	await _save("plot_forager.png")
-	player._plot_panel.close()
+	player._panels.plot_panel.close()
 	if settler:
 		player.open_settler_panel(settler)
 		await _save("settler_panel.png")
-		player._settler_panel.close()
+		player._panels.settler_panel.close()
 	if visitor:
 		player.open_settler_panel(visitor)
 		await _save("visitor_panel.png")
-		player._settler_panel.close()
+		player._panels.settler_panel.close()
 	print("UISHOTS | woodcutter working: %s, forager missing: %s, settler: %s, visitor: %s" % [woodcutter.working, forager.missing, settler != null, visitor != null])
 	get_tree().quit()
 

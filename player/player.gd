@@ -46,7 +46,7 @@ var _inventory := PlayerInventory.new()
 ## What's in your hand, or an empty string
 var held_item := ""
 # Hunger, stamina, warmth, shelter, eating, sleeping and the torch (a child node, see Survival),
-# and its values as before, for whatever reads or sets them on the player
+# and the values the console sets and the spike logger reads on the player
 var _survival := Survival.new()
 var hunger: float:
 	get:
@@ -63,9 +63,6 @@ var stamina: float:
 		return _survival.stamina
 	set(value):
 		_survival.stamina = value
-var _warmth_on: bool:
-	get:
-		return _survival.warmth_on
 var _sleeping: bool:
 	get:
 		return _survival.sleeping
@@ -74,21 +71,8 @@ var _sleeping: bool:
 var _message := ""
 var _message_time := 0.0
 # The panels that open over the game (a child node, see PanelHost: the plot panel, a settler's
-# panel, the Village screen, the note page, the pause menu and the banner), and its panels as before,
-# for whatever reads them on the player
+# panel, the Village screen, the note page, the pause menu and the banner)
 var _panels := PanelHost.new()
-var _note_panel: Control:
-	get:
-		return _panels.note_panel
-var _plot_panel: PlotPanel:
-	get:
-		return _panels.plot_panel
-var _settler_panel: SettlerPanel:
-	get:
-		return _panels.settler_panel
-var _village_screen: VillageScreen:
-	get:
-		return _panels.village_screen
 # The plot tracker on the right of the screen (the plot you're in, or aiming at in plot view)
 var _plot_tracker: PlotTracker
 # The hammer's controls (the build menu, ghosts, demolishing, plot view) and what the crosshair is
@@ -152,14 +136,12 @@ func _ready() -> void:
 	interact_ray.add_exception(self)
 	# So things like campfires can check what you're carrying
 	add_to_group("player")
-	# What you own: whenever it changes, the action bar, backpack, crafting tab and build menu are
-	# brought up to date
+	# What you own (the views showing it watch it, below)
 	_inventory.name = "Inventory"
 	_inventory.action_bar = action_bar
 	_inventory.inventory_screen = inventory_screen
 	_inventory.world = get_parent()
 	add_child(_inventory)
-	_inventory.changed.connect(_refresh_inventory_display)
 	# Debug builds: the lag spike logger (it writes nothing until it's turned on in Settings)
 	if OS.is_debug_build():
 		get_parent().add_child.call_deferred(SpikeLog.new())
@@ -178,13 +160,11 @@ func _ready() -> void:
 	$HUD.add_child(_fps_label)
 	_blueprint_popup = BlueprintPopup.new()
 	$HUD.add_child(_blueprint_popup)
-	# What you've done and learned: newly unlocked blueprints bring the inventory, crafting tab and
-	# build menu up to date, then show in the pop-up (in that order)
+	# What you've done and learned (the crafting tab and build menu watch it, and the pop-up shows
+	# what's newly unlocked: below)
 	_progress.name = "Progress"
 	_progress.blueprints = _all_blueprints
 	add_child(_progress)
-	_progress.learned.connect(func(_names): _refresh_inventory_display())
-	_progress.learned.connect(_blueprint_popup.show_learned)
 	# Under the menus, so an open inventory or build menu covers it
 	_vitals = VitalsPanel.new()
 	$HUD.add_child(_vitals)
@@ -220,7 +200,8 @@ func _ready() -> void:
 	add_child(_placer)
 	# Every building look drawn once behind a brief cover, so no shader compiles mid-game
 	_warm_up_shaders.call_deferred()
-	_placer.plots.became_working.connect(func(plot): show_banner("%s is working" % plot.plot_name))
+	_placer.plots.became_working.connect(func(plot):
+		_panels.show_banner("%s is working" % plot.plot_name))
 	_placer.plots.notice.connect(_announce)
 	_settlers = SettlerManager.new()
 	_settlers.world = get_parent()
@@ -228,7 +209,9 @@ func _ready() -> void:
 	add_child(_settlers)
 	_settlers.arrived.connect(func(settler): _announce("A refugee named %s has arrived." % settler.settler_name))
 	_settlers.notice.connect(_announce)
-	_settlers.visitor_arrived.connect(func(visitor): show_banner("A visitor has arrived", "%s is waiting at the Village Center" % visitor.settler_name))
+	_settlers.visitor_arrived.connect(func(visitor):
+		_panels.show_banner("A visitor has arrived",
+				"%s is waiting at the Village Center" % visitor.settler_name))
 	_placer.plots.town.notice.connect(_announce)
 	_plot_tracker.settlers = _settlers
 	_plot_tracker.plots = _placer.plots
@@ -237,7 +220,7 @@ func _ready() -> void:
 	_panels.name = "Panels"
 	_panels.placer = _placer
 	_panels.settlers = _settlers
-	_panels.is_unlocked = is_unlocked
+	_panels.is_unlocked = _progress.is_unlocked
 	_panels.save_template = save_template
 	_panels.flash = flash
 	_panels.mark_read = _progress.mark_read
@@ -272,7 +255,6 @@ func _ready() -> void:
 	_interaction.held = func(): return held_item
 	add_child(_interaction)
 	action_bar.held_changed.connect(_on_held_changed)
-	action_bar.contents_changed.connect(_refresh_inventory_display)
 	inventory_screen.tool_returned.connect(action_bar.remove)
 	# What's open beside the inventory (a chest or town storage): it asks for the inventory to open,
 	# and to close when you walk away
@@ -298,9 +280,17 @@ func _ready() -> void:
 	_crafting.progress = _progress
 	_crafting.inventory_screen = inventory_screen
 	add_child(_crafting)
-	_crafting.stations_changed.connect(_refresh_inventory_display)
 	inventory_screen.crafting.craft_requested.connect(_crafting.craft)
-	_refresh_inventory_display()
+	# Everything that shows what you own brings itself up to date when it changes, in this order:
+	# the action bar, the backpack, the crafting tab, the build menu, an open chest's panel; newly
+	# unlocked blueprints show in the pop-up once the menus are up to date
+	action_bar.watch(_inventory)
+	inventory_screen.watch(_inventory, action_bar)
+	inventory_screen.crafting.watch(_inventory, _crafting, _progress)
+	build_menu.watch(_inventory, _progress)
+	_inventory.changed.connect(_containers.refresh)
+	_progress.learned.connect(_blueprint_popup.show_learned)
+	_inventory.notify()
 	# The developer console: debug builds only (never in a release build). Its cheats start off.
 	DevCheats.reset()
 	if OS.is_debug_build():
@@ -384,12 +374,8 @@ func load_data(data: Dictionary) -> void:
 			var bundle := ItemBundle.create(contents)
 			get_parent().add_child(bundle)
 			bundle.global_position = SaveGame.to_vector(entry.get("position"))
-	_refresh_inventory_display()
-
-
-## (see Progress.has_read)
-func has_read(title: String) -> bool:
-	return _progress.has_read(title)
+	# (everything that shows what you own and what you've unlocked brings itself up to date)
+	_inventory.notify()
 
 
 func _all_blueprints() -> Array[Blueprint]:
@@ -458,7 +444,8 @@ func _update_hud() -> void:
 		controls.append(["Dowse for ore", "R"])
 	if not held_item.is_empty():
 		controls.append(["Drop %s" % held_item, "G"])
-	if inventory_screen.crafting.anything_craftable(inventory, nearby_stations(), is_unlocked):
+	var stations := _crafting.nearby_stations()
+	if inventory_screen.crafting.anything_craftable(inventory, stations, _progress.is_unlocked):
 		controls.append(["Craft something", "I"])
 	else:
 		for item in inventory:
@@ -497,18 +484,9 @@ func save_template(plot: Plot, template_name: String, built_in: bool) -> void:
 	flash("Saved the template \"%s\" (%d pieces)%s" % [template_name, template.items.size(), ", built in" if template.built_in else ""], 4.0)
 
 
-# (PanelHost's own functions, kept here for whatever calls them on the player: settlers, notes,
-# plots, the plot placer, tests)
+# (PanelHost's own functions, which settlers, notes, plots and the plot placer call on the player)
 func open_settler_panel(settler: Settler) -> void:
 	_panels.open_settler_panel(settler)
-
-
-func show_banner(title: String, line := "") -> void:
-	_panels.show_banner(title, line)
-
-
-func open_village() -> void:
-	_panels.open_village()
 
 
 func ask_confirm(question: String, on_yes: Callable, on_no: Callable) -> void:
@@ -596,7 +574,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_TAB:
 				_build.open_build_menu()
 			KEY_V:
-				open_village()
+				_panels.open_village()
 			KEY_P:
 				_build.toggle_plot_view()
 			KEY_G:
@@ -852,24 +830,7 @@ func give_or_drop(items: Dictionary, spot: Vector3) -> Dictionary:
 	return _inventory.give_or_drop(items, spot)
 
 
-# (BuildControls' and Interaction's own functions, kept here for whatever calls them on the player:
-# the build placer, tests)
-func _can_demolish() -> bool:
-	return _build.can_demolish()
-
-
-func _plot_view_on() -> bool:
-	return _build.plot_view_on()
-
-
-func _open_build_menu() -> void:
-	_build.open_build_menu()
-
-
-func _close_build_menu() -> void:
-	_build.close_build_menu()
-
-
+# (what the crosshair is on: the build placer asks the player, see Interaction.looked_at)
 func _looked_at() -> Object:
 	return _interaction.looked_at()
 
@@ -882,11 +843,7 @@ func gathered(item: String, amount: int) -> void:
 	report_progress("Gather", item)
 
 
-# (Progress's own functions, kept here for whatever calls them on the player: see Progress)
-func is_unlocked(blueprint: Blueprint) -> bool:
-	return _progress.is_unlocked(blueprint)
-
-
+# (Progress's own functions, which the plots and the placers call on the player: see Progress)
 func has_done(action: String, item: String) -> bool:
 	return _progress.has_done(action, item)
 
@@ -912,7 +869,6 @@ func remove_item(item: String, amount: int) -> bool:
 	return _inventory.remove(item, amount)
 
 
-
 # The status line at the top of the screen: a recent message wins; otherwise warnings about anything
 # that's run out (see Survival.warnings)
 func _update_status(delta: float) -> void:
@@ -923,26 +879,13 @@ func _update_status(delta: float) -> void:
 		status_label.text = "\n".join(_survival.warnings())
 
 
-# (Survival's own functions, kept here for whatever calls them on the player: see Survival)
+# (Survival's own functions, which rocks, trees and the console call on the player: see Survival)
 func max_stamina() -> float:
 	return _survival.max_stamina()
 
 
 func swing_tool() -> bool:
 	return _survival.swing_tool()
-
-
-func is_sheltered() -> bool:
-	return _survival.is_sheltered()
-
-
-func is_enclosed() -> bool:
-	return _survival.enclosed
-
-
-## (see PlayerCrafting.nearby_stations)
-func nearby_stations() -> PackedStringArray:
-	return _crafting.nearby_stations()
 
 
 ## Opens the inventory on its Crafting tab (the workbench does this)
@@ -961,11 +904,6 @@ func open_chest(chest: Node3D) -> void:
 ## Storehouse): the whole shared pool, whichever shelf it's opened at (see ContainerSession)
 func open_town_storage(shelf: Node3D) -> void:
 	_containers.open(_placer.plots.town, shelf)
-
-
-## (see PlayerCrafting.craft)
-func craft(recipe: Recipe) -> void:
-	_crafting.craft(recipe)
 
 
 # What's in your hand changed: swap the model in front of the view to match
@@ -1014,23 +952,7 @@ func _toggle_inventory() -> void:
 		_containers.close()
 
 
-## Call this whenever the inventory changes, so the action bar, the backpack and the build menu
-## all stay current. The backpack shows only what isn't on the bar.
+## Brings everything that shows what you own and what you've unlocked up to date, after the
+## console changed them directly (see PlayerInventory.notify)
 func _refresh_inventory_display() -> void:
-	var timing := SpikeLog.begin()
-	_refresh_inventory_now()
-	SpikeLog.end("inventory, crafting and build menu refreshed", timing)
-
-
-func _refresh_inventory_now() -> void:
-	action_bar.forget_missing(inventory)
-	inventory_screen.show_items(_backpack_contents())
-	inventory_screen.crafting.refresh(inventory, _crafting.stations_for_tab(), is_unlocked)
-	build_menu.refresh(inventory, is_unlocked)
-	if _containers.is_open():
-		_containers.show_contents()
-
-
-# Everything you own, minus whatever's on the action bar (see PlayerInventory)
-func _backpack_contents() -> Dictionary:
-	return _inventory.backpack_contents()
+	_inventory.notify()

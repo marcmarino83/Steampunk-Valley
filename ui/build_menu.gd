@@ -130,6 +130,13 @@ func cycle_tab(step: int) -> void:
 	show_tab(_tab + step)
 
 
+## Keeps every slot up to date whenever what you own or what you've unlocked changes
+func watch(inventory: PlayerInventory, progress: Progress) -> void:
+	var update := func(): refresh(inventory.items, progress.is_unlocked)
+	inventory.changed.connect(update)
+	progress.learned.connect(func(_names): update.call())
+
+
 ## Brings every slot up to date with what's in your pockets and what you've unlocked
 func refresh(inventory: Dictionary, is_unlocked: Callable) -> void:
 	_inventory = inventory

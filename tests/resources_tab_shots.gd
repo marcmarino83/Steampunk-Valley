@@ -70,8 +70,8 @@ func _run() -> void:
 		crew.append(s)
 	manager.assign_job(crew[0], hut)
 	await _frames(20)
-	var screen: VillageScreen = player._village_screen
-	player.open_village()
+	var screen: VillageScreen = player._panels.village_screen
+	player._panels.open_village()
 	screen.show_tab(2)
 	await _frames(5)
 	screen._show_detail("Berries")

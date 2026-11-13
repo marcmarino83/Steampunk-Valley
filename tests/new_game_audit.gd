@@ -126,11 +126,11 @@ func _start_state() -> void:
 	say("start: at %s, day %d, time %.3f (sunrise 0.25, sunset 0.75); day %.0f min + night %.0f min = %.0f min a full day" % [start.snapped(Vector3.ONE * 0.1), sun.day, sun.time_of_day, sun.day_minutes, sun.night_minutes, sun.day_minutes + sun.night_minutes])
 	say("start: inventory %s; held '%s'" % [player.inventory, player.held_item])
 	check(player.inventory.is_empty() and player.held_item == "", "a new game starts with empty pockets and nothing in hand")
-	say("start: hunger %.0f, stamina %.0f; warmth on: %s; cheats: freebuild %s god %s fly %s" % [player.hunger, player.stamina, player._warmth_on, DevCheats.freebuild, DevCheats.god, DevCheats.fly])
+	say("start: hunger %.0f, stamina %.0f; warmth on: %s; cheats: freebuild %s god %s fly %s" % [player.hunger, player.stamina, player._survival.warmth_on, DevCheats.freebuild, DevCheats.god, DevCheats.fly])
 	var unlocked := []
 	var locked := []
 	for b in player._all_blueprints():
-		if player.is_unlocked(b):
+		if player._progress.is_unlocked(b):
 			unlocked.append(b.display_name)
 		else:
 			locked.append(b.display_name)
@@ -197,21 +197,56 @@ func _gather_and_craft() -> void:
 			say("step 2: no recipe for %s" % tool)
 			continue
 		var before := _unlocked_names()
-		var was: bool = player.is_unlocked(r)
-		player.craft(r)
+		var was: bool = player._progress.is_unlocked(r)
+		player._crafting.craft(r)
 		await frames(1)
 		say("step 2: craft %s (%s, %s; usable before: %s): now have %d" % [tool, r.station, r.costs, was, int(player.inventory.get(tool, 0))])
 		check(was and int(player.inventory.get(tool, 0)) == 1, "the %s can be crafted by hand from the start" % tool)
 		_new_unlocks("step 2: crafting the %s" % tool, before)
 	for name in ["Lean-to", "House", "Forager's Hut", "Storehouse", "Workbench"]:
-		check(player.is_unlocked(_buildable(name)), "%s is unlocked once the stone tools are made" % name)
+		check(player._progress.is_unlocked(_buildable(name)), "%s is unlocked once the stone tools are made" % name)
+	await _views_follow()
+
+
+# The views that show what you own bring themselves up to date: the backpack shows what isn't on
+# the action bar, a tool put on the bar leaves the backpack, the bar lets go of a tool you no longer
+# own, and the build menu knows what's locked
+func _views_follow() -> void:
+	check(_backpack_shown() == _backpack_wanted(), "the backpack shows what you carry that isn't on the action bar")
+	var bar: ActionBar = player.action_bar
+	bar.assign("Knife", 0)
+	await frames(1)
+	check(bar.has_item("Knife") and not _backpack_shown().has("Knife") and _backpack_shown() == _backpack_wanted(), "a tool put on the action bar leaves the backpack")
+	player.remove_item("Knife", 1)
+	await frames(1)
+	check(not bar.has_item("Knife"), "the action bar lets go of a tool you no longer own")
+	var menu = player.build_menu
+	check(menu._unlocked(_buildable("Lean-to")) and not menu._unlocked(_buildable("Village Center")), "the build menu knows what's unlocked and what's still locked")
+
+
+# What the backpack's slots show: item -> count
+func _backpack_shown() -> Dictionary:
+	var shown := {}
+	for slot in player.inventory_screen.grid.get_children():
+		if not slot._empty:
+			shown[slot._item] = int(slot.count_label.text.trim_prefix("x"))
+	return shown
+
+
+# What it should show: everything you own that isn't on the action bar
+func _backpack_wanted() -> Dictionary:
+	var wanted := {}
+	for item in player.inventory:
+		if not player.action_bar.has_item(item):
+			wanted[item] = int(player.inventory[item])
+	return wanted
 
 
 # ---- 2. Lean-to; sleep in it ----
 
 func _lean_to_and_sleep() -> void:
 	var lean := _buildable("Lean-to")
-	say("step 3: Lean-to usable: %s, cost %s" % [player.is_unlocked(lean), lean.costs])
+	say("step 3: Lean-to usable: %s, cost %s" % [player._progress.is_unlocked(lean), lean.costs])
 	player.gathered("Wood", 30)
 	var built := _place_building(lean, start + Vector3(4, 0, 0))
 	await frames(5)
@@ -243,27 +278,28 @@ func _lean_to_and_sleep() -> void:
 
 func _workbench_and_chest() -> void:
 	var bench := _buildable("Workbench")
-	say("step 4: Workbench usable: %s (%s %s + %s), cost %s" % [player.is_unlocked(bench), bench.unlocked_by, bench.unlock_item, bench.get("unlock_also"), bench.costs])
+	say("step 4: Workbench usable: %s (%s %s + %s), cost %s" % [player._progress.is_unlocked(bench), bench.unlocked_by, bench.unlock_item, bench.get("unlock_also"), bench.costs])
 	var before := _unlocked_names()
 	_place_building(bench, player.global_position + Vector3(1.5, 0, 0))
 	await frames(3)
 	_new_unlocks("step 4: building the Workbench", before)
-	say("step 4: stations in reach: %s" % player.nearby_stations())
-	check(player.is_unlocked(_buildable("Storage Chest")), "building the Workbench unlocks the Storage Chest")
-	check(player.nearby_stations().has("workbench"), "the Workbench counts as a station in reach")
+	say("step 4: stations in reach: %s" % player._crafting.nearby_stations())
+	check(player._progress.is_unlocked(_buildable("Storage Chest")), "building the Workbench unlocks the Storage Chest")
+	check(player._crafting.nearby_stations().has("workbench"), "the Workbench counts as a station in reach")
 	for item in ["Rope", "Planks", "Torch", "Spear"]:
 		var r := _recipe(item)
 		var have := int(player.inventory.get(item, 0))
 		var b2 := _unlocked_names()
-		player.craft(r)
+		player._crafting.craft(r)
 		await frames(1)
-		say("step 4: craft %s (usable %s): %d → %d" % [item, player.is_unlocked(r), have, int(player.inventory.get(item, 0))])
+		say("step 4: craft %s (usable %s): %d → %d" % [item, player._progress.is_unlocked(r), have, int(player.inventory.get(item, 0))])
 		_new_unlocks("step 4: crafting %s" % item, b2)
-	check(player.is_unlocked(_buildable("Floor")) and player.is_unlocked(_buildable("Wall 2 m")), "the first Planks unlock the building pieces")
+	check(player._progress.is_unlocked(_buildable("Floor")) and player._progress.is_unlocked(_buildable("Wall 2 m")), "the first Planks unlock the building pieces")
+	check(player.inventory_screen.crafting._stations.has("workbench"), "the crafting tab knows the workbench is in reach")
 	for i in 3:
-		player.craft(_recipe("Planks"))
+		player._crafting.craft(_recipe("Planks"))
 	var chest := _buildable("Storage Chest")
-	say("step 4: Storage Chest usable: %s, cost %s, have planks %d, rope %d" % [player.is_unlocked(chest), chest.costs, int(player.inventory.get("Planks", 0)), int(player.inventory.get("Rope", 0))])
+	say("step 4: Storage Chest usable: %s, cost %s, have planks %d, rope %d" % [player._progress.is_unlocked(chest), chest.costs, int(player.inventory.get("Planks", 0)), int(player.inventory.get("Rope", 0))])
 	var c := _place_building(chest, player.global_position + Vector3(-1.5, 0, 1.0))
 	say("step 4: chest placed: %s, its prompt: '%s'" % [c != null, c.get_prompt() if c else ""])
 	# Opening it (the inventory opens beside it), a stack in and back out
@@ -396,7 +432,7 @@ func _storehouse() -> void:
 		check(not player.inventory_screen.visible, "walking away from town storage closes it")
 	else:
 		check(false, "the Storehouse template has a Storehouse Storage")
-	check(player.is_unlocked(_buildable("Village Center")), "a working Storehouse unlocks the Village Center")
+	check(player._progress.is_unlocked(_buildable("Village Center")), "a working Storehouse unlocks the Village Center")
 
 
 # ---- 8. Village Center, visitors ----
@@ -406,7 +442,7 @@ func _village_center() -> void:
 	if vc_type == null:
 		say("step 9: no Village Center in the build menu's list")
 		return
-	say("step 9: Village Center usable: %s (%s %s)" % [player.is_unlocked(vc_type), vc_type.unlocked_by, vc_type.unlock_item])
+	say("step 9: Village Center usable: %s (%s %s)" % [player._progress.is_unlocked(vc_type), vc_type.unlocked_by, vc_type.unlock_item])
 	var at := start + Vector3(45, 0, 20)
 	at.y = Plot.ground_at(player, at.x, at.z)
 	var plot := plots.create(vc_type, Transform3D(Basis.IDENTITY, at), Vector2(maxf(vc_type.min_size.x, 6), maxf(vc_type.min_size.y, 6)))
@@ -442,18 +478,18 @@ func _village_center() -> void:
 # opened from the Village screen goes back to it) ----
 
 func _panel_keys() -> void:
-	var screen: VillageScreen = player._village_screen
+	var screen: VillageScreen = player._panels.village_screen
 	# Drawn in the HUD as always: the note page under the frames-per-second label; the plot panel,
 	# the Village screen and a settler's panel above the HUD and menus, under the black of sleep; the
 	# pause menu and the banner over it
 	var at := func(node: Node) -> int: return node.get_index()
 	var fade: Node = player._fade
-	var order_ok: bool = at.call(player._note_panel) == at.call(player._fps_label) - 1 \
-		and at.call(player._plot_panel) < at.call(screen) and at.call(screen) < at.call(player._settler_panel) \
-		and at.call(player._settler_panel) == at.call(fade) - 1 and at.call(player._plot_panel) > at.call(player.inventory_screen) \
+	var order_ok: bool = at.call(player._panels.note_panel) == at.call(player._fps_label) - 1 \
+		and at.call(player._panels.plot_panel) < at.call(screen) and at.call(screen) < at.call(player._panels.settler_panel) \
+		and at.call(player._panels.settler_panel) == at.call(fade) - 1 and at.call(player._panels.plot_panel) > at.call(player.inventory_screen) \
 		and at.call(player._panels.pause_menu) == at.call(fade) + 1 and at.call(player._panels.banner) == at.call(fade) + 2
 	check(order_ok, "the panels are drawn in the HUD in their usual order")
-	player.open_village()
+	player._panels.open_village()
 	await frames(1)
 	var tab_before: int = screen._tab
 	_press(KEY_R)
@@ -465,7 +501,7 @@ func _panel_keys() -> void:
 	_press(KEY_V)
 	await frames(1)
 	check(not screen.is_open(), "V closes the Village screen")
-	player.open_village()
+	player._panels.open_village()
 	await frames(1)
 	_press(KEY_E)
 	await frames(1)
@@ -473,14 +509,14 @@ func _panel_keys() -> void:
 	# A settler's panel opened from the Village screen: E closes it and goes back to the screen
 	var someone: Array = manager.all_settlers()
 	if not someone.is_empty():
-		player.open_village()
+		player._panels.open_village()
 		await frames(1)
 		screen.settler_requested.emit(someone[0])
 		await frames(1)
-		var opened: bool = player._settler_panel.is_open() and not screen.is_open()
+		var opened: bool = player._panels.settler_panel.is_open() and not screen.is_open()
 		_press(KEY_E)
 		await frames(2)
-		check(opened and not player._settler_panel.is_open() and screen.is_open(), "a settler's panel opened from the Village screen goes back to it when E closes it")
+		check(opened and not player._panels.settler_panel.is_open() and screen.is_open(), "a settler's panel opened from the Village screen goes back to it when E closes it")
 		_press(KEY_E)
 		await frames(1)
 	# The plot panel and the note page: E closes them
@@ -488,16 +524,16 @@ func _panel_keys() -> void:
 	if a_plot:
 		player.open_plot_panel(a_plot)
 		await frames(1)
-		var plot_open: bool = player._plot_panel.is_open()
+		var plot_open: bool = player._panels.plot_panel.is_open()
 		_press(KEY_E)
 		await frames(1)
-		check(plot_open and not player._plot_panel.is_open(), "E closes the plot panel")
+		check(plot_open and not player._panels.plot_panel.is_open(), "E closes the plot panel")
 	player.read_note("Audit", "A test page.")
 	await frames(1)
-	var note_open: bool = player._note_panel.is_open()
+	var note_open: bool = player._panels.note_panel.is_open()
 	_press(KEY_E)
 	await frames(1)
-	check(note_open and not player._note_panel.is_open() and player.has_read("Audit"), "E closes the note page, and the note counts as read")
+	check(note_open and not player._panels.note_panel.is_open() and player._progress.has_read("Audit"), "E closes the note page, and the note counts as read")
 
 
 # A key press (and its release) through the player's own input handling
@@ -517,7 +553,7 @@ func _template_plot(name: String, type_name: String, near: Vector3, step: String
 	if type == null:
 		say("%s: no %s plot type in the build menu's list" % [step, type_name])
 		return null
-	say("%s: %s plot usable: %s" % [step, type_name, player.is_unlocked(type)])
+	say("%s: %s plot usable: %s" % [step, type_name, player._progress.is_unlocked(type)])
 	var template := BuildingTemplate.read("res://buildables/templates/%s.json" % name)
 	if template == null:
 		say("%s: no %s template" % [step, name])
@@ -543,7 +579,7 @@ func _template_plot(name: String, type_name: String, near: Vector3, step: String
 
 
 func _place_building(b: Buildable, where: Vector3) -> Node3D:
-	if not player.is_unlocked(b):
+	if not player._progress.is_unlocked(b):
 		say("   (placing %s while it's still locked)" % b.display_name)
 	if not b.can_afford(player.inventory):
 		say("   (can't afford %s: %s)" % [b.display_name, b.missing_text(player.inventory)])
@@ -575,7 +611,7 @@ func _scripted(ending: String) -> Array:
 func _unlocked_names() -> Array:
 	var out := []
 	for b in player._all_blueprints():
-		if player.is_unlocked(b):
+		if player._progress.is_unlocked(b):
 			out.append(b.display_name)
 	return out
 
@@ -587,7 +623,7 @@ func _new_unlocks(what: String, before: Array) -> void:
 
 func _still_locked() -> void:
 	for b in player._all_blueprints():
-		if not player.is_unlocked(b):
+		if not player._progress.is_unlocked(b):
 			say("end: still locked: %s (%s %s, also %s)" % [b.display_name, b.unlocked_by, b.unlock_item, b.get("unlock_also")])
 	# Every cost: can it be gathered, crafted or made by a workplace?
 	var gotten := {"Wood": true}

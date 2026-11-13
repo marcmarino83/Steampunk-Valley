@@ -23,7 +23,8 @@ extends Node
 ## exactly, so this map holds a clean strip. The ground shader turns each channel's distance into
 ## that type's own narrow, ragged worn edge (RANK_EDGES), and draws the ranks in order, so a higher
 ## rank always lies over a lower one, whatever order they were laid in. Like PaintedPaths, the map
-## goes to the shader in one texture array, and only the map tiles that changed are uploaded.
+## goes to the shader in one texture array, and only the map tiles that changed are uploaded (see
+## PathTileUpload).
 ##
 ## Grass and ferns don't grow on path (see Foliage, PaintedPaths.sample_snapshot), and come back
 ## where it's removed.
@@ -86,15 +87,8 @@ var _tiles := Vector2i.ZERO
 var _ops := PackedFloat32Array()
 # The map's tiles: tile (x, z) -> its pixels (TILE * TILE * CHANNELS bytes)
 var _data := {}
-var _layer_of := {}
-var _layer_images: Array[Image] = []
-var _free_layers: Array[int] = []
-var _array: Texture2DArray
-var _index_image: Image
-var _index_texture: ImageTexture
-var _dirty := {}
-var _index_dirty := false
-var _array_dirty := false
+# Hands the map to the ground shader, the map tiles that changed only (see PathTileUpload)
+var _upload := PathTileUpload.new()
 
 
 func _ready() -> void:
@@ -106,24 +100,21 @@ func _ready() -> void:
 func setup(map: Rect2, ground: Material) -> void:
 	material = ground as ShaderMaterial
 	var tiles := Vector2i(ceili(map.size.x / (TEXEL * TILE)), ceili(map.size.y / (TEXEL * TILE)))
-	if _index_image == null or tiles != _tiles or map.position != _origin:
+	_upload.material = material
+	if _upload.needs_reset(tiles, map.position):
 		_origin = map.position
 		_tiles = tiles
-		_index_image = Image.create_empty(_tiles.x, _tiles.y, false, Image.FORMAT_RF)
-		_index_texture = ImageTexture.create_from_image(_index_image)
-		_layer_of.clear()
-		_layer_images.clear()
-		_free_layers.clear()
+		_upload.reset(tiles, map.position)
 		_rebuild_all()
-	_upload_all()
-	if not _dirty.is_empty():
-		_upload()
+	_upload.upload_all()
+	if not _upload.dirty.is_empty():
+		_upload.upload(_data)
 
 
 func _process(_delta: float) -> void:
-	if not _dirty.is_empty() or _index_dirty or _array_dirty:
+	if _upload.pending():
 		var timing := SpikeLog.begin()
-		_upload()
+		_upload.upload(_data)
 		SpikeLog.end("path tiles: map uploaded", timing)
 
 
@@ -274,7 +265,7 @@ func _rebuild_all() -> void:
 	for tile: Vector2i in _data:
 		for dz in range(-1, 2):
 			for dx in range(-1, 2):
-				_dirty[tile + Vector2i(dx, dz)] = true
+				_upload.dirty[tile + Vector2i(dx, dz)] = true
 
 
 # Lays strip `index` onto the map within these pixels: a path strip raises its rank's channel to
@@ -336,7 +327,7 @@ func _apply(index: int, pixels: Rect2i) -> void:
 							changed = true
 					if changed:
 						touched = true
-						_mark_dirty(px, pz)
+						_upload.mark_pixel(px, pz)
 			if existed or touched:
 				_data[tile] = bytes
 
@@ -367,7 +358,7 @@ func _fill(pixels: Rect2i, value: int) -> void:
 					var i := (row + px - tx * TILE) * CHANNELS
 					for k in CHANNELS:
 						bytes[i + k] = value
-					_mark_dirty(px, pz)
+					_upload.mark_pixel(px, pz)
 			_data[tile] = bytes
 
 
@@ -383,7 +374,7 @@ func _tidy(pixels: Rect2i) -> void:
 				_data.erase(tile)
 				for dz in range(-1, 2):
 					for dx in range(-1, 2):
-						_dirty[tile + Vector2i(dx, dz)] = true
+						_upload.dirty[tile + Vector2i(dx, dz)] = true
 
 
 ## The ragged edges' wander at a spot in the world (0 to 1): smooth value noise WOBBLE_SIZE meters
@@ -465,107 +456,6 @@ static func _pixel_in(tiles: Dictionary, px: int, pz: int, channel: int) -> floa
 	return (bytes as PackedByteArray)[((pz - tile.y * TILE) * TILE + (px - tile.x * TILE)) * CHANNELS + channel]
 
 
-# A pixel changed: its map tile needs uploading again, and so does any neighbour whose border shows it
-func _mark_dirty(px: int, pz: int) -> void:
-	var tile := Vector2i(px / TILE, pz / TILE)
-	_dirty[tile] = true
-	var lx := px - tile.x * TILE
-	var lz := pz - tile.y * TILE
-	var sx := -1 if lx == 0 else (1 if lx == TILE - 1 else 0)
-	var sz := -1 if lz == 0 else (1 if lz == TILE - 1 else 0)
-	if sx != 0:
-		_dirty[tile + Vector2i(sx, 0)] = true
-	if sz != 0:
-		_dirty[tile + Vector2i(0, sz)] = true
-	if sx != 0 and sz != 0:
-		_dirty[tile + Vector2i(sx, sz)] = true
-
-
-# ---- Uploading to the ground shader ----
-
-func _upload() -> void:
-	for tile: Vector2i in _dirty:
-		if tile.x < 0 or tile.y < 0 or tile.x >= _tiles.x or tile.y >= _tiles.y:
-			continue
-		var image := _padded(tile)
-		if image == null:
-			if _layer_of.has(tile):
-				_index_image.set_pixel(tile.x, tile.y, Color(0, 0, 0))
-				_index_dirty = true
-				_layer_images[_layer_of[tile]] = Image.create_empty(PADDED, PADDED, false, Image.FORMAT_RGBA8)
-				_free_layers.append(_layer_of[tile])
-				_layer_of.erase(tile)
-			continue
-		if not _layer_of.has(tile):
-			var claimed := _claim_layer()
-			_layer_of[tile] = claimed
-			_index_image.set_pixel(tile.x, tile.y, Color(claimed + 1, 0, 0))
-			_index_dirty = true
-		var layer: int = _layer_of[tile]
-		_layer_images[layer] = image
-		if _array and not _array_dirty:
-			_array.update_layer(image, layer)
-	_dirty.clear()
-	if _array_dirty:
-		_upload_all()
-	elif _index_dirty:
-		_index_texture.update(_index_image)
-		_index_dirty = false
-	_show()
-
-
-func _claim_layer() -> int:
-	if not _free_layers.is_empty():
-		return _free_layers.pop_back()
-	if _layer_images.size() >= (_array.get_layers() if _array else 0):
-		_array_dirty = true
-	_layer_images.append(Image.create_empty(PADDED, PADDED, false, Image.FORMAT_RGBA8))
-	return _layer_images.size() - 1
-
-
-func _upload_all() -> void:
-	var layers := FIRST_LAYERS
-	while layers < _layer_images.size():
-		layers *= 2
-	var images: Array[Image] = []
-	for i in layers:
-		images.append(_layer_images[i] if i < _layer_images.size() else Image.create_empty(PADDED, PADDED, false, Image.FORMAT_RGBA8))
-	_array = Texture2DArray.new()
-	_array.create_from_images(images)
-	if _index_texture:
-		_index_texture.update(_index_image)
-	_array_dirty = false
-	_index_dirty = false
-	if material:
-		material.set_shader_parameter("tile_path_tiles", _array)
-		material.set_shader_parameter("tile_path_index", _index_texture)
-	_show()
-
-
-func _show() -> void:
-	if material:
-		material.set_shader_parameter("tile_path_info", Vector4(_origin.x, _origin.y, TEXEL, 1.0 if not _layer_of.is_empty() else 0.0))
-
-
-# A map tile's picture with its one-pixel border from its neighbours, or null if there's no path in
-# it or its border
-func _padded(tile: Vector2i) -> Image:
-	var any := false
-	var image := Image.create_empty(PADDED, PADDED, false, Image.FORMAT_RGBA8)
-	for dz in range(-1, 2):
-		for dx in range(-1, 2):
-			var bytes = _data.get(tile + Vector2i(dx, dz))
-			if bytes == null:
-				continue
-			any = true
-			var part := Image.create_from_data(TILE, TILE, false, Image.FORMAT_RGBA8, bytes)
-			var from := Vector2i(0 if dx == 0 else (TILE - 1 if dx < 0 else 0), 0 if dz == 0 else (TILE - 1 if dz < 0 else 0))
-			var size := Vector2i(TILE if dx == 0 else 1, TILE if dz == 0 else 1)
-			var to := Vector2i(1 if dx == 0 else (0 if dx < 0 else PADDED - 1), 1 if dz == 0 else (0 if dz < 0 else PADDED - 1))
-			image.blit_rect(part, Rect2i(from, size), to)
-	return image if any else null
-
-
 # ---- Saving ----
 
 func save_key() -> String:
@@ -595,9 +485,9 @@ func load_data(data: Dictionary) -> void:
 			_ops = _from_old_tiles(bytes.to_float32_array())
 	var had := not _data.is_empty()
 	for tile in _data:
-		_dirty[tile] = true
+		_upload.dirty[tile] = true
 	_rebuild_all()
-	_upload()
+	_upload.upload(_data)
 	# The grass and ferns keep off the paths (and grow back where old ones were)
 	if valley and (had or not _data.is_empty()):
 		var foliage = valley.get_node_or_null("Foliage")
@@ -621,6 +511,6 @@ static func _from_old_tiles(old: PackedFloat32Array) -> PackedFloat32Array:
 ## Every path strip gone
 func clear() -> void:
 	for tile in _data:
-		_dirty[tile] = true
+		_upload.dirty[tile] = true
 	_ops = PackedFloat32Array()
 	_data.clear()

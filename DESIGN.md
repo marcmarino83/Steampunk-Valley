@@ -772,7 +772,7 @@ Long scripts are a maintenance risk: one file doing several jobs means every cha
 | `building/icons/icon_studio.gd` | 589 | the icon renderer (editor tool): measuring, framing, neighbouring pieces |
 | `dev/dev_console.gd` | 566 | the debug console: its window and history, every command, item lookup, tab completion |
 | `building/pieces/piece_registry.gd` | 550 | piece ids, spawning, queries and saving; plus materials and every look cache (detail, middle, lean, roof parts) |
-| `world/path_tiles.gd` | 626 | laying path strips, reading them back, uploading them to the ground shader, saving |
+| `world/path_tiles.gd` | 516 (uploading moved to `path_tile_upload.gd`, 157) | laying path strips, reading them back, uploading them to the ground shader, saving |
 | `save/save_game.gd` | 538 | the session (new, continue, load, world ready, quitting, the Saving sign) and the save files (writing, listing, deleting, reading, upgrading) |
 | `ui/brass_style.gd` | 504 | the palette, type sizes and spacing, fonts, and the standard widgets |
 | `building/templates/template_placer.gd` | 497 | placing a template: following, snapping, checking, laying out |

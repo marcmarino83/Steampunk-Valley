@@ -58,12 +58,8 @@ const COLD_WAKE_WARMTH := 25.0
 ## How long the screen takes to fade out and back in, and how long it stays dark, in seconds
 const SLEEP_FADE := 1.0
 const SLEEP_DARK := 0.6
-## How long a "New blueprint" pop-up stays up before fading, in seconds
-const BLUEPRINT_POPUP_TIME := 3.0
 ## In plot view, how far ahead E finds the plot whose ground you're aiming at
 const PLOT_REACH := 20.0
-## More new blueprints than this at once are summed up in the pop-up instead of listed
-const BLUEPRINT_POPUP_LINES := 3
 ## How close a crafting station (like the workbench) must be for its recipes, in meters
 const STATION_RANGE := 3.0
 ## An open chest closes once you're this far from it, in meters
@@ -153,27 +149,25 @@ var _foliage: Node
 var _fps_label: Label
 # Handles putting a building down, once one's been chosen from the build menu
 var _placer: BuildPlacer
-# The blueprints (buildables and recipes) that started locked and have since been unlocked
-var _unlocked := {}
+# What you've done, the blueprints you've unlocked and the notes you've read (a child node, see
+# Progress); the unlocked blueprints also as `_unlocked`, for the console's unlock_all
+var _progress := Progress.new()
+var _unlocked: Dictionary:
+	get:
+		return _progress.unlocked
 # The "New blueprint" pop-up
-var _blueprint_label: Label
+var _blueprint_popup: BlueprintPopup
 # The compact controls row, piece panel and crosshair prompts
 var _hud: HudControls
 # Bottom left: the hunger and stamina panel and gauge; by the action bar: the compass and watch,
 # and the crosshair
 var _vitals: VitalsPanel
 var _instruments: HudInstruments
-var _blueprint_tween: Tween
 # Sleeping: the black screen it fades to, and whether you're asleep right now
 var _fade: ColorRect
 var _sleeping := false
-# The titles of notes and logs you've read
-var _notes_read := {}
 # Esc's menu: Resume, Save, Load, Quit
 var _pause_menu: Control
-# Everything you've ever crafted, gathered or built, as "Craft:Axe", "Build:Workbench" and so on,
-# for blueprints that unlock once several things have been done
-var _done := {}
 # What's open beside the inventory, if anything: a chest, or town storage (see TownStorage), and
 # the thing in the world you opened it at (the chest itself, or the Storehouse Storage), which closes it
 # when you walk away
@@ -241,16 +235,15 @@ func _ready() -> void:
 	_fps_label.add_theme_constant_override("outline_size", 5)
 	_fps_label.visible = false
 	$HUD.add_child(_fps_label)
-	_blueprint_label = Label.new()
-	_blueprint_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE, 96)
-	_blueprint_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_blueprint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_blueprint_label.add_theme_font_size_override("font_size", 26)
-	_blueprint_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
-	_blueprint_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	_blueprint_label.add_theme_constant_override("outline_size", 7)
-	_blueprint_label.modulate.a = 0.0
-	$HUD.add_child(_blueprint_label)
+	_blueprint_popup = BlueprintPopup.new()
+	$HUD.add_child(_blueprint_popup)
+	# What you've done and learned: newly unlocked blueprints bring the inventory, crafting tab and
+	# build menu up to date, then show in the pop-up (in that order)
+	_progress.name = "Progress"
+	_progress.blueprints = _all_blueprints
+	add_child(_progress)
+	_progress.learned.connect(func(_names): _refresh_inventory_display())
+	_progress.learned.connect(_blueprint_popup.show_learned)
 	# Under the menus, so an open inventory or build menu covers it
 	_vitals = VitalsPanel.new()
 	$HUD.add_child(_vitals)
@@ -388,7 +381,7 @@ func save_data() -> Dictionary:
 	var bundles: Array = []
 	for bundle in get_tree().get_nodes_in_group("item_bundles"):
 		bundles.append({"position": SaveGame.from_vector(bundle.global_position), "contents": bundle.contents.duplicate()})
-	return {
+	var data := {
 		"position": SaveGame.from_vector(global_position),
 		"turn": rotation.y,
 		"look": camera.rotation.x,
@@ -396,13 +389,13 @@ func save_data() -> Dictionary:
 		"warmth": warmth,
 		"stamina": stamina,
 		"inventory": inventory.duplicate(),
-		"unlocked": _unlocked.keys().map(func(blueprint): return blueprint.resource_path),
-		"notes_read": _notes_read.keys(),
 		"dropped_tools": dropped,
 		"item_bundles": bundles,
-		"done": _done.keys(),
 		"torch_left": _torch_left,
 	}
+	# (its "unlocked", "notes_read" and "done", as before)
+	data.merge(_progress.save_data())
+	return data
 
 
 func load_data(data: Dictionary) -> void:
@@ -420,22 +413,7 @@ func load_data(data: Dictionary) -> void:
 	var saved_inventory: Dictionary = data.get("inventory", {})
 	for item in saved_inventory:
 		inventory[item] = int(saved_inventory[item])
-	var unlocked_paths: Array = data.get("unlocked", [])
-	_unlocked.clear()
-	for blueprint in _all_blueprints():
-		if blueprint.resource_path in unlocked_paths:
-			_unlocked[blueprint] = true
-	_notes_read.clear()
-	for title in data.get("notes_read", []):
-		_notes_read[str(title)] = true
-	_done.clear()
-	for entry in data.get("done", []):
-		_done[str(entry)] = true
-	# Blueprints added since this save was made (like plots, or new furniture) unlock quietly if
-	# what they need was already done
-	for blueprint in _all_blueprints():
-		if blueprint.starts_locked and blueprint.is_met(_done):
-			_unlocked[blueprint] = true
+	_progress.load_data(data)
 	_torch_left = float(data.get("torch_left", 0.0))
 	for tool_on_ground in get_tree().get_nodes_in_group("dropped_tools"):
 		tool_on_ground.queue_free()
@@ -460,9 +438,9 @@ func load_data(data: Dictionary) -> void:
 	_refresh_inventory_display()
 
 
-## True if you've read the note or log with this title
+## (see Progress.has_read)
 func has_read(title: String) -> bool:
-	return _notes_read.has(title)
+	return _progress.has_read(title)
 
 
 func _all_blueprints() -> Array[Blueprint]:
@@ -637,7 +615,7 @@ func read_note(title: String, text: String) -> void:
 	if inventory_screen.visible:
 		_toggle_inventory()
 	_placer.cancel()
-	_notes_read[title] = true
+	_progress.mark_read(title)
 	_note_panel.open(title, text)
 
 
@@ -1073,41 +1051,19 @@ func gathered(item: String, amount: int) -> void:
 	report_progress("Gather", item)
 
 
-## True if this buildable or recipe can be used: it never was locked, or it's been unlocked
+# (Progress's own functions, kept here for whatever calls them on the player: see Progress)
 func is_unlocked(blueprint: Blueprint) -> bool:
-	return not blueprint.starts_locked or _unlocked.has(blueprint)
+	return _progress.is_unlocked(blueprint)
 
 
-## True if this has been done ("Craft", "Gather", "Build" or "Plot", and its name)
 func has_done(action: String, item: String) -> bool:
-	return _done.has("%s:%s" % [action, item])
+	return _progress.has_done(action, item)
 
 
-## Something was crafted, gathered or built ("Craft", "Gather" or "Build", and its name), or a plot
-## of a type is working ("Plot", and the type's name). It's
-## remembered, and any blueprint whose conditions are now all met unlocks, with a pop-up for each.
+## Something was crafted, gathered or built, or a plot of a type is working (see Progress.report):
+## newly unlocked blueprints refresh the menus and show in the pop-up
 func report_progress(action: String, item: String) -> void:
-	_done["%s:%s" % [action, item]] = true
-	var learned: PackedStringArray = []
-	for blueprint in _all_blueprints():
-		if blueprint.starts_locked and not _unlocked.has(blueprint) and blueprint.is_met(_done):
-			_unlocked[blueprint] = true
-			learned.append(blueprint.display_name)
-	if learned.is_empty():
-		return
-	_refresh_inventory_display()
-	# A few are named one per line; many at once (the first planks unlock every building piece)
-	# are summed up, so they don't fill the screen
-	if learned.size() <= BLUEPRINT_POPUP_LINES:
-		_blueprint_label.text = "\n".join(Array(learned).map(func(n): return "New blueprint: %s" % n))
-	else:
-		_blueprint_label.text = "%d new blueprints: %s and more\nSee the build menu [Tab]" % [learned.size(), ", ".join(learned.slice(0, 2))]
-	if _blueprint_tween:
-		_blueprint_tween.kill()
-	_blueprint_label.modulate.a = 1.0
-	_blueprint_tween = create_tween()
-	_blueprint_tween.tween_interval(BLUEPRINT_POPUP_TIME)
-	_blueprint_tween.tween_property(_blueprint_label, "modulate:a", 0.0, 0.6)
+	_progress.report(action, item)
 
 
 ## Sleeps through to morning, if it's night: the screen fades to black, the clock jumps to just

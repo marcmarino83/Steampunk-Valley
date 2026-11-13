@@ -334,6 +334,14 @@ var _rebuild_ticket := 0
 var _dirty_area := Rect2()
 
 
+## The trees: planting, the tree line and growing back (see Forest)
+var forest := Forest.new()
+
+
+func _init() -> void:
+	forest.valley = self
+
+
 func _enter_tree() -> void:
 	# So terrain modifiers can find the valley and ask it to rebuild
 	add_to_group("valley")
@@ -369,8 +377,6 @@ func _ready() -> void:
 
 # Labels each scattered thing with an id that's the same every time the valley is built
 const ID_META := &"save_id"
-# How far through the regrowing time a felled tree's stump grows a sapling
-const TREE_SAPLING_AT := 0.4
 
 # Scattered things by id
 var _by_id := {}
@@ -436,13 +442,9 @@ func bush_emptied(bush: Node3D) -> void:
 		_respawner().schedule(berries_regrow_days, bush.global_position, "berries", id)
 
 
-## A tree has been felled; its stump grows a sapling, then a full tree
+## A tree has been felled; its stump grows a sapling, then a full tree (see Forest.felled)
 func tree_felled(tree: Node3D) -> void:
-	var id := id_of(tree)
-	_changes[id] = "stump"
-	if tree_regrow_days > 0.0 and _respawner():
-		_respawner().schedule(tree_regrow_days * TREE_SAPLING_AT, tree.global_position, "sapling", id)
-		_respawner().schedule(tree_regrow_days, tree.global_position, "tree", id)
+	forest.felled(tree, _changes, _respawner())
 
 
 ## A boulder placed by hand has been mined out; it comes back
@@ -477,12 +479,8 @@ func _on_respawn_due(kind: String, id: String) -> void:
 		"berries":
 			node.regrow()
 			_changes.erase(id)
-		"sapling":
-			node.set_stage("sapling")
-			_changes[id] = "sapling"
-		"tree":
-			node.set_stage("full")
-			_changes.erase(id)
+		"sapling", "tree":
+			forest.grow(kind, node, id, _changes)
 		"rock":
 			if node.come_back():
 				_changes.erase(id)
@@ -575,7 +573,7 @@ func load_data(data: Dictionary) -> void:
 			"empty":
 				node.set_empty()
 			"stump", "sapling":
-				node.set_stage(state)
+				Forest.restore(node, state)
 			"mined":
 				node.set_mined()
 
@@ -793,8 +791,8 @@ func generate() -> void:
 	_gather_painted_objects()
 	var final_heights := _heights
 	_heights = _unridged
-	_scatter_trees()
-	_scatter_feature_trees()
+	forest.scatter_trees()
+	forest.scatter_feature_trees()
 	_scatter_resources()
 	_scatter_starter_kit()
 	_bury_deposits()
@@ -1176,146 +1174,9 @@ func _lift_onto_ridges() -> void:
 
 ## True above the tree line, where no trees are scattered. It wanders 10 m up and down. Based on
 ## the ground without ridges, like everything scattered.
+## (see Forest.is_above_tree_line)
 func is_above_tree_line(x: float, z: float) -> bool:
-	return _height_in(_unridged, x, z) > tree_line + _forest.get_noise_2d(x * 0.7, z * 0.7) * 10.0
-
-
-# Scatter trees anywhere that's dry and not too steep
-func _scatter_trees() -> void:
-	var using_pack := not forest_trees.is_empty() or not young_trees.is_empty()
-	if not using_pack and not tree_scene:
-		return
-	var rng := RandomNumberGenerator.new()
-	rng.seed = map_seed
-	var dry_above := water_height() + 0.5
-	var placed := 0
-	var tries := 0
-	while placed < tree_count and tries < tree_count * 20:
-		tries += 1
-		var x := rng.randf_range(-_width * 0.5 + 5.0, _width * 0.5 - 5.0)
-		var z := rng.randf_range(-_depth * 0.5 + 5.0, _depth * 0.5 - 5.0)
-		# Trees grow in woods and stands, with open clearings between
-		if rng.randf() > smoothstep(-0.15, 0.35, _forest.get_noise_2d(x, z)) + 0.03:
-			continue
-		var h := get_height(x, z)
-		if h < dry_above or get_slope(x, z) > max_tree_slope or is_near_crash_site(x, z) or is_on_trail(x, z, 2.0) or is_cleared(x, z, "trees") or is_erased(x, z) or is_near_placed(x, z, 3.0):
-			continue
-		var tree: Node3D
-		if using_pack:
-			# Mostly full-grown trees, with some young ones among them
-			var young := not young_trees.is_empty() and (forest_trees.is_empty() or rng.randf() < young_tree_share)
-			var pool: Array[PackedScene] = young_trees if young else forest_trees
-			tree = pool[rng.randi() % pool.size()].instantiate()
-			var size := rng.randf_range(1.0 - tree_size_variation, 1.0 + tree_size_variation)
-			tree.scale = Vector3.ONE * size
-			tree.position = Vector3(x, _tree_ground(x, z, tree, size), z)
-		else:
-			tree = tree_scene.instantiate()
-			tree.scale = Vector3.ONE * rng.randf_range(0.8, 1.4)
-			tree.position = Vector3(x, h - 0.2, z)
-		tree.rotation.y = rng.randf() * TAU
-		# Above the tree line this tree just isn't planted. It still counts and keeps its spot,
-		# so everything scattered below stays exactly where it was.
-		if is_above_tree_line(x, z):
-			tree.free()
-		else:
-			add_child(tree)
-		_remember_spot(Vector2(x, z), _taken_spots)
-		_remember_spot(Vector2(x, z), _tree_spots)
-		placed += 1
-
-
-# The few special trees, placed after the forest so its layout stays the same: tall Douglas
-# firs on the hilltops, where they stand out, and willows right at the water's edge
-func _scatter_feature_trees() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = map_seed + 101
-	var water := water_height()
-	var fir := _optional_scene(landmark_fir_scene)
-	if fir and landmark_fir_count > 0:
-		# Try spots all over, scored by how far they rise above the ground 40 m around them,
-		# and a little by how high they are; then take the best, well apart from each other
-		var spots := []
-		for i in 3000:
-			var x := rng.randf_range(-_width * 0.5 + 20.0, _width * 0.5 - 20.0)
-			var z := rng.randf_range(-_depth * 0.5 + 20.0, _depth * 0.5 - 20.0)
-			var h := get_height(x, z)
-			if h < water + 3.0 or not _feature_spot_ok(x, z, 25.0):
-				continue
-			var around := 0.0
-			for k in 8:
-				var p := Vector2(x, z) + Vector2.from_angle(TAU * k / 8.0) * 40.0
-				around += get_height(p.x, p.y)
-			spots.append([h - around / 8.0 + (h - water) * 0.1, Vector2(x, z)])
-		spots.sort_custom(func(a, b): return a[0] > b[0])
-		var placed: Array[Vector2] = []
-		for s in spots:
-			if placed.size() >= landmark_fir_count:
-				break
-			var spot: Vector2 = s[1]
-			if placed.any(func(other): return other.distance_to(spot) < 150.0) or _distance_to_nearest(spot, _tree_spots, 3.0) < 3.0:
-				continue
-			_plant_tree(fir, spot, rng)
-			placed.append(spot)
-	var willow := _optional_scene(willow_scene)
-	if willow and willow_count > 0:
-		var placed: Array[Vector2] = []
-		var tries := 0
-		while placed.size() < willow_count and tries < 20000:
-			tries += 1
-			var spot := Vector2(rng.randf_range(-_width * 0.5 + 10.0, _width * 0.5 - 10.0), rng.randf_range(-_depth * 0.5 + 10.0, _depth * 0.5 - 10.0))
-			# Dry ground only just above the water, with the water a few meters off
-			var h := get_height(spot.x, spot.y)
-			if h < water + 0.3 or h > water + 1.8 or not _feature_spot_ok(spot.x, spot.y, 20.0) or not _water_nearby(spot.x, spot.y, 5.0):
-				continue
-			if placed.any(func(other): return other.distance_to(spot) < 30.0) or _distance_to_nearest(spot, _tree_spots, 2.5) < 2.5:
-				continue
-			_plant_tree(willow, spot, rng)
-			placed.append(spot)
-
-
-# The scene at this path, or null if there isn't one (like a paid model left out of the repository)
-func _optional_scene(path: String) -> PackedScene:
-	if path.is_empty() or not ResourceLoader.exists(path):
-		return null
-	return load(path) as PackedScene
-
-
-# True if a special tree may grow here: gentle enough ground, clear of the wreck, the trails
-# and any Clear Zone
-func _feature_spot_ok(x: float, z: float, max_slope: float) -> bool:
-	return get_slope(x, z) <= max_slope and not is_above_tree_line(x, z) and not is_near_crash_site(x, z) and not is_on_trail(x, z, 3.0) and not is_cleared(x, z, "trees") and not is_erased(x, z) and not is_near_placed(x, z, 4.0)
-
-
-# Stands one tree at this spot, sized and turned at random like the rest of the forest
-func _plant_tree(scene: PackedScene, spot: Vector2, rng: RandomNumberGenerator) -> void:
-	var tree: Node3D = scene.instantiate()
-	var size := rng.randf_range(1.0 - tree_size_variation, 1.0 + tree_size_variation)
-	tree.scale = Vector3.ONE * size
-	tree.position = Vector3(spot.x, _tree_ground(spot.x, spot.y, tree, size), spot.y)
-	tree.rotation.y = rng.randf() * TAU
-	add_child(tree)
-	_remember_spot(spot, _taken_spots)
-	_remember_spot(spot, _tree_spots)
-
-
-# How high to stand a tree from the pine pack: on the lowest ground around its trunk (so no
-# roots hang in the air on the downhill side of a slope), then sunk a little further so the
-# root flare goes into the earth. Big trees sink about 0.3-0.5 m; small trees and saplings
-# only a few centimeters, so they don't disappear.
-func _tree_ground(x: float, z: float, tree: Node, size: float) -> float:
-	var tall: float = tree.get("tree_height") if tree.get("tree_height") != null else 8.0
-	var trunk: float = tree.get("trunk_radius") if tree.get("trunk_radius") != null else 0.3
-	tall *= size
-	trunk *= size
-	# The root flare spreads out to a few times the trunk's radius
-	var reach := maxf(trunk * 3.0, 0.15)
-	var lowest := get_height(x, z)
-	for k in 8:
-		var p := Vector2(x, z) + Vector2.from_angle(TAU * k / 8.0) * reach
-		lowest = minf(lowest, get_height(p.x, p.y))
-	var sink := clampf(tall * 0.025, 0.03, 0.5)
-	return lowest - sink
+	return forest.is_above_tree_line(x, z)
 
 
 # Every kind of resource, with where it likes to grow:
@@ -3049,7 +2910,7 @@ func ground_under_ray(from: Vector3, direction: Vector3):
 ## How high to stand a tree (scaled by `size`) so its roots go into the ground, the same way
 ## the scattered trees are set down: on the lowest ground around its trunk, sunk a little
 func tree_ground_height(x: float, z: float, tree: Node, size: float) -> float:
-	return _tree_ground(x, z, tree, size)
+	return forest.tree_ground(x, z, tree, size)
 
 
 ## Rubs out the scattered trees, rocks and resources within `radius` of a spot (the eraser

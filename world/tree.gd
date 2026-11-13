@@ -8,7 +8,7 @@ extends ResourceNode
 @export var trunk_radius := 0.3
 
 ## How big the sapling is, compared to the full tree, while it grows back from the stump
-## (when the sapling appears is the valley's TREE_SAPLING_AT)
+## (when the sapling appears is Forest.SAPLING_AT)
 const SAPLING_SIZE := 0.3
 
 @onready var top: Node3D = $Top
